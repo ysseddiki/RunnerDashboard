@@ -7,7 +7,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     LOG_DIR=/var/log/running-dashboards/host-logs \
     LOG_LEVEL=INFO
 
-RUN apt-get update \
+# Miroir FR plus rapide que deb.debian.org (souvent lent / timeouts)
+RUN sed -i 's/deb.debian.org/ftp.fr.debian.org/g' /etc/apt/sources.list.d/*.sources \
+    && sed -i 's/deb.debian.org/ftp.fr.debian.org/g' /etc/apt/sources.list 2>/dev/null || true \
+    && apt-get update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /var/log/running-dashboards/host-logs

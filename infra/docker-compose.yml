@@ -17,6 +17,8 @@ services:
   api:
     build:
       context: ../apps/api
+      provenance: false
+      sbom: false
     environment:
       ENVIRONMENT: ${ENVIRONMENT:-development}
       LOG_DIR: ${LOG_DIR:-/var/log/running-dashboards/host-logs}
@@ -39,6 +41,8 @@ services:
   web:
     build:
       context: ../apps/web
+      provenance: false
+      sbom: false
     depends_on:
       api:
         condition: service_healthy
