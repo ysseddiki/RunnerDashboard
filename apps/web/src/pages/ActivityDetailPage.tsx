@@ -6,7 +6,6 @@ import { buildStreamPoints } from '../streams'
 import { ActivityMap } from '../components/ActivityMap'
 import { StreamCharts } from '../components/StreamCharts'
 import { SessionTypePicker } from '../components/SessionTypePicker'
-import { CadenceEditor } from '../components/CadenceEditor'
 
 export function ActivityDetailPage() {
   const { id } = useParams()
@@ -42,7 +41,7 @@ export function ActivityDetailPage() {
   const activityId = detail?.id
 
   return (
-    <section className="panel detail-view" style={{ borderTop: 0, paddingTop: 0, marginTop: 0 }}>
+    <section className="detail-view">
       <Link to="/activities" className="linkish back">
         ← Retour aux activités
       </Link>
@@ -51,14 +50,39 @@ export function ActivityDetailPage() {
       {!loading && detail && activityId != null && (
         <>
           <header className="detail-hero">
-            <p className="eyebrow-sm">
-              {detail.session_type_label_fr
-                ? detail.session_type_label_fr
-                : (detail.sport_type ?? detail.activity_type ?? 'Course')}
-            </p>
+            <div className="detail-meta">
+              <span className="chip">
+                {detail.session_type_label_fr
+                  ? detail.session_type_label_fr
+                  : (detail.sport_type ?? detail.activity_type ?? 'Course')}
+              </span>
+              <span>{formatDate(detail.start_date)}</span>
+            </div>
             <h1>{detail.name}</h1>
-            <p className="muted">{formatDate(detail.start_date)}</p>
           </header>
+
+          <div className="stat-grid">
+            <div className="stat">
+              <span>Distance</span>
+              <strong>{formatKm(detail.distance_m)}</strong>
+            </div>
+            <div className="stat">
+              <span>Durée</span>
+              <strong>{formatDuration(detail.moving_time_s)}</strong>
+            </div>
+            <div className="stat">
+              <span>Allure moy.</span>
+              <strong>{formatPace(detail.average_speed_mps)}</strong>
+            </div>
+            <div className="stat">
+              <span>D+</span>
+              <strong>
+                {detail.total_elevation_gain_m != null
+                  ? `${Math.round(detail.total_elevation_gain_m)} m`
+                  : '—'}
+              </strong>
+            </div>
+          </div>
 
           <SessionTypePicker
             activityId={activityId}
@@ -76,180 +100,169 @@ export function ActivityDetailPage() {
             }}
           />
 
-          <CadenceEditor
-            activityId={activityId}
-            value={detail.cadence_ppm}
-            onSaved={(cadencePpm) => {
-              setDetail((prev) => (prev ? { ...prev, cadence_ppm: cadencePpm } : prev))
-            }}
-          />
-
-          <div className="stat-grid">
-            <div className="stat">
-              <span>Distance</span>
-              <strong>{formatKm(detail.distance_m)}</strong>
-            </div>
-            <div className="stat">
-              <span>Durée (moving)</span>
-              <strong>{formatDuration(detail.moving_time_s)}</strong>
-            </div>
-            <div className="stat">
-              <span>Allure moy.</span>
-              <strong>{formatPace(detail.average_speed_mps)}</strong>
-            </div>
-            <div className="stat">
-              <span>D+</span>
-              <strong>
-                {detail.total_elevation_gain_m != null
-                  ? `${Math.round(detail.total_elevation_gain_m)} m`
-                  : '—'}
-              </strong>
-            </div>
+          <div className="detail-block">
+            <h3>Trace GPS</h3>
+            <ActivityMap activity={detail} />
           </div>
 
-          <h3>Trace GPS</h3>
-          <ActivityMap activity={detail} />
+          <div className="detail-block">
+            <h3>Graphs</h3>
+            {points.length > 0 ? (
+              <StreamCharts points={points} />
+            ) : (
+              <p className="muted">Aucun stream stocké pour cette sortie.</p>
+            )}
+          </div>
 
-          <h3>Graphs</h3>
-          {points.length > 0 ? (
-            <StreamCharts points={points} />
-          ) : (
-            <p className="muted">Aucun stream stocké pour cette sortie.</p>
-          )}
+          <div className="detail-secondary">
+            <div className="kv-panel">
+              <h3>Performance</h3>
+              <dl className="kv">
+                <div>
+                  <dt>Durée totale</dt>
+                  <dd>{formatDuration(detail.elapsed_time_s)}</dd>
+                </div>
+                <div>
+                  <dt>Allure max</dt>
+                  <dd>{formatPace(detail.max_speed_mps)}</dd>
+                </div>
+                <div>
+                  <dt>FC moyenne</dt>
+                  <dd>
+                    {detail.average_heartrate != null
+                      ? `${Math.round(detail.average_heartrate)} bpm`
+                      : '—'}
+                  </dd>
+                </div>
+                <div>
+                  <dt>FC max</dt>
+                  <dd>
+                    {detail.max_heartrate != null
+                      ? `${Math.round(detail.max_heartrate)} bpm`
+                      : '—'}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Cadence</dt>
+                  <dd>{detail.cadence_ppm != null ? `${detail.cadence_ppm} PPM` : '—'}</dd>
+                </div>
+                <div>
+                  <dt>Puissance</dt>
+                  <dd>
+                    {detail.average_watts != null
+                      ? `${Math.round(detail.average_watts)} W`
+                      : '—'}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Calories</dt>
+                  <dd>
+                    {detail.calories != null ? `${Math.round(detail.calories)} kcal` : '—'}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Travail</dt>
+                  <dd>
+                    {detail.kilojoules != null
+                      ? `${Math.round(detail.kilojoules)} kJ`
+                      : '—'}
+                  </dd>
+                </div>
+              </dl>
+            </div>
 
-          <h3>Performance</h3>
-          <dl className="kv">
-            <div>
-              <dt>Durée totale</dt>
-              <dd>{formatDuration(detail.elapsed_time_s)}</dd>
+            <div className="kv-panel">
+              <h3>Météo</h3>
+              {detail.weather_json ? (
+                <dl className="kv">
+                  <div>
+                    <dt>Conditions</dt>
+                    <dd>{detail.weather_json.weather_label_fr ?? '—'}</dd>
+                  </div>
+                  <div>
+                    <dt>Température</dt>
+                    <dd>
+                      {detail.weather_json.temperature_c != null
+                        ? `${detail.weather_json.temperature_c} °C`
+                        : '—'}
+                      {detail.weather_json.apparent_temperature_c != null
+                        ? ` (ressenti ${detail.weather_json.apparent_temperature_c} °C)`
+                        : ''}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Humidité</dt>
+                    <dd>
+                      {detail.weather_json.humidity_pct != null
+                        ? `${detail.weather_json.humidity_pct} %`
+                        : '—'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Précip.</dt>
+                    <dd>
+                      {detail.weather_json.precipitation_mm != null
+                        ? `${detail.weather_json.precipitation_mm} mm`
+                        : '—'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Vent</dt>
+                    <dd>
+                      {detail.weather_json.wind_speed_kmh != null
+                        ? `${detail.weather_json.wind_speed_kmh} km/h`
+                        : '—'}
+                      {detail.weather_json.wind_direction_deg != null
+                        ? ` · ${Math.round(detail.weather_json.wind_direction_deg)}°`
+                        : ''}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Relevé</dt>
+                    <dd>{detail.weather_json.observed_at ?? '—'}</dd>
+                  </div>
+                </dl>
+              ) : (
+                <p className="muted" style={{ margin: 0 }}>
+                  Pas de météo (GPS manquant, indoor, ou pas encore synchronisée).
+                </p>
+              )}
             </div>
-            <div>
-              <dt>Vitesse max</dt>
-              <dd>{formatPace(detail.max_speed_mps)}</dd>
-            </div>
-            <div>
-              <dt>FC moyenne</dt>
-              <dd>
-                {detail.average_heartrate != null
-                  ? `${Math.round(detail.average_heartrate)} bpm`
-                  : '—'}
-              </dd>
-            </div>
-            <div>
-              <dt>FC max</dt>
-              <dd>
-                {detail.max_heartrate != null ? `${Math.round(detail.max_heartrate)} bpm` : '—'}
-              </dd>
-            </div>
-            <div>
-              <dt>Cadence</dt>
-              <dd>{detail.cadence_ppm != null ? `${detail.cadence_ppm} PPM` : '—'}</dd>
-            </div>
-            <div>
-              <dt>Puissance moy.</dt>
-              <dd>
-                {detail.average_watts != null ? `${Math.round(detail.average_watts)} W` : '—'}
-              </dd>
-            </div>
-            <div>
-              <dt>Calories</dt>
-              <dd>{detail.calories != null ? `${Math.round(detail.calories)} kcal` : '—'}</dd>
-            </div>
-            <div>
-              <dt>Travail</dt>
-              <dd>
-                {detail.kilojoules != null ? `${Math.round(detail.kilojoules)} kJ` : '—'}
-              </dd>
-            </div>
-          </dl>
 
-          <h3>Contexte</h3>
-          <dl className="kv">
-            <div>
-              <dt>Appareil</dt>
-              <dd>{detail.device_name ?? '—'}</dd>
+            <div className="kv-panel">
+              <h3>Contexte</h3>
+              <dl className="kv">
+                <div>
+                  <dt>Appareil</dt>
+                  <dd>{detail.device_name ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt>Indoor</dt>
+                  <dd>{detail.trainer ? 'Oui' : 'Non'}</dd>
+                </div>
+                <div>
+                  <dt>Fuseau</dt>
+                  <dd>{detail.timezone ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt>GPS départ</dt>
+                  <dd>
+                    {detail.start_lat != null && detail.start_lng != null
+                      ? `${detail.start_lat.toFixed(5)}, ${detail.start_lng.toFixed(5)}`
+                      : '—'}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Strava ID</dt>
+                  <dd>{detail.strava_id}</dd>
+                </div>
+                <div>
+                  <dt>Sync</dt>
+                  <dd>{formatDate(detail.synced_at)}</dd>
+                </div>
+              </dl>
             </div>
-            <div>
-              <dt>Indoor</dt>
-              <dd>{detail.trainer ? 'Oui' : 'Non'}</dd>
-            </div>
-            <div>
-              <dt>Fuseau</dt>
-              <dd>{detail.timezone ?? '—'}</dd>
-            </div>
-            <div>
-              <dt>GPS départ</dt>
-              <dd>
-                {detail.start_lat != null && detail.start_lng != null
-                  ? `${detail.start_lat.toFixed(5)}, ${detail.start_lng.toFixed(5)}`
-                  : '—'}
-              </dd>
-            </div>
-            <div>
-              <dt>Strava ID</dt>
-              <dd>{detail.strava_id}</dd>
-            </div>
-            <div>
-              <dt>Sync</dt>
-              <dd>{formatDate(detail.synced_at)}</dd>
-            </div>
-          </dl>
-
-          <h3>Météo</h3>
-          {detail.weather_json ? (
-            <dl className="kv">
-              <div>
-                <dt>Conditions</dt>
-                <dd>{detail.weather_json.weather_label_fr ?? '—'}</dd>
-              </div>
-              <div>
-                <dt>Température</dt>
-                <dd>
-                  {detail.weather_json.temperature_c != null
-                    ? `${detail.weather_json.temperature_c} °C`
-                    : '—'}
-                  {detail.weather_json.apparent_temperature_c != null
-                    ? ` (ressenti ${detail.weather_json.apparent_temperature_c} °C)`
-                    : ''}
-                </dd>
-              </div>
-              <div>
-                <dt>Humidité</dt>
-                <dd>
-                  {detail.weather_json.humidity_pct != null
-                    ? `${detail.weather_json.humidity_pct} %`
-                    : '—'}
-                </dd>
-              </div>
-              <div>
-                <dt>Précipitations</dt>
-                <dd>
-                  {detail.weather_json.precipitation_mm != null
-                    ? `${detail.weather_json.precipitation_mm} mm`
-                    : '—'}
-                </dd>
-              </div>
-              <div>
-                <dt>Vent</dt>
-                <dd>
-                  {detail.weather_json.wind_speed_kmh != null
-                    ? `${detail.weather_json.wind_speed_kmh} km/h`
-                    : '—'}
-                  {detail.weather_json.wind_direction_deg != null
-                    ? ` · ${Math.round(detail.weather_json.wind_direction_deg)}°`
-                    : ''}
-                </dd>
-              </div>
-              <div>
-                <dt>Relevé</dt>
-                <dd>{detail.weather_json.observed_at ?? '—'}</dd>
-              </div>
-            </dl>
-          ) : (
-            <p className="muted">
-              Pas de météo (GPS manquant, indoor, ou pas encore synchronisée).
-            </p>
-          )}
+          </div>
         </>
       )}
     </section>

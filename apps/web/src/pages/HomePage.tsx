@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { ActivitySummary, AnalyticsOverview, HealthResponse, StravaStatus } from '../types'
-import { formatDate, formatKm, formatPace, formatPaceSec, formatTrend } from '../format'
+import { formatPaceSec, formatTrend } from '../format'
+import { ActivityRow } from '../components/ActivityRow'
+import { WeeklyVolumeChart } from '../components/WeeklyVolumeChart'
+
+function trendClass(value: number | null | undefined): string {
+  if (value == null || value === 0) return ''
+  return value > 0 ? 'trend-up' : 'trend-down'
+}
 
 export function HomePage() {
   const [health, setHealth] = useState<HealthResponse | null>(null)
@@ -47,28 +54,44 @@ export function HomePage() {
     <>
       {error && <p className="banner error">{error}</p>}
 
-      <section className="hero">
+      <header className="page-hero">
         <h1>Votre suivi running</h1>
         <p>
           {strava?.connected
-            ? `Strava connecté${strava.athlete_name ? ` — ${strava.athlete_name}` : ''}.`
-            : 'Connectez Strava depuis Admin pour importer vos sorties.'}{' '}
-          {health ? `API ${health.status} (${health.palier}).` : ''}{' '}
+            ? `Bienvenue${strava.athlete_name ? `, ${strava.athlete_name}` : ''}. Vos sorties Strava sont synchronisées.`
+            : 'Connectez Strava pour importer vos sorties et suivre votre évolution.'}
+        </p>
+        <div className="home-status">
+          <span className="status-pill">
+            <span className={`status-dot ${strava?.connected ? 'on' : ''}`} />
+            {strava?.connected ? 'Strava connecté' : 'Strava déconnecté'}
+          </span>
+          {health && (
+            <span className="status-pill">
+              API {health.status} · {health.palier}
+            </span>
+          )}
           <Link to="/admin" className="inline-link">
             Ouvrir Admin
           </Link>
-        </p>
-      </section>
+        </div>
+      </header>
 
       {analytics && (
-        <section className="panel evolution">
-          <h2>Évolution</h2>
-          <p className={`category cat-${analytics.category}`}>{analytics.category_label_fr}</p>
-          <ul className="reasons">
-            {analytics.reasons.map((reason) => (
-              <li key={reason}>{reason}</li>
-            ))}
-          </ul>
+        <section className="evolution" aria-labelledby="evolution-title">
+          <div className="section-head">
+            <h2 id="evolution-title">Évolution</h2>
+          </div>
+
+          <div className={`evolution-banner cat-${analytics.category}`}>
+            <p className="evolution-label">{analytics.category_label_fr}</p>
+            <ul className="reasons">
+              {analytics.reasons.map((reason) => (
+                <li key={reason}>{reason}</li>
+              ))}
+            </ul>
+          </div>
+
           <div className="metrics">
             <div className="metric-card">
               <h3>Total</h3>
@@ -81,71 +104,98 @@ export function HomePage() {
               <h3>28 jours</h3>
               <p className="metric-value">{analytics.window_28d.distance_km} km</p>
               <p className="metric-sub">
-                Allure {formatPaceSec(analytics.window_28d.avg_pace_sec_per_km)}
+                {analytics.window_28d.activities} sorties · allure{' '}
+                {formatPaceSec(analytics.window_28d.avg_pace_sec_per_km)}
               </p>
             </div>
             <div className="metric-card">
-              <h3>Tendances</h3>
-              <p className="metric-value">{formatTrend(analytics.trends.volume_pct)}</p>
+              <h3>Volume</h3>
+              <p className={`metric-value ${trendClass(analytics.trends.volume_pct)}`}>
+                {formatTrend(analytics.trends.volume_pct)}
+              </p>
               <p className="metric-sub">
-                Volume · vitesse {formatTrend(analytics.trends.speed_pct)}
+                vs 28 j. préc. · vitesse{' '}
+                <span className={trendClass(analytics.trends.speed_pct)}>
+                  {formatTrend(analytics.trends.speed_pct)}
+                </span>
+              </p>
+            </div>
+            <div className="metric-card">
+              <h3>Charge 28 j.</h3>
+              <p className="metric-value">
+                {analytics.window_28d.avg_heartrate != null
+                  ? `${Math.round(analytics.window_28d.avg_heartrate)}`
+                  : '—'}
+                {analytics.window_28d.avg_heartrate != null && (
+                  <span className="metric-unit"> bpm</span>
+                )}
+              </p>
+              <p className="metric-sub">
+                Cadence{' '}
+                {analytics.window_28d.avg_cadence_ppm != null
+                  ? `${Math.round(analytics.window_28d.avg_cadence_ppm)} PPM`
+                  : '—'}
               </p>
             </div>
           </div>
-          {analytics.weekly_volume.length > 0 && (
-            <>
-              <h3>Volume hebdomadaire</h3>
-              <ul className="weeks">
-                {analytics.weekly_volume.slice(-8).map((w) => (
-                  <li key={w.week}>
-                    <span>{w.week}</span>
-                    <strong>
-                      {w.distance_km} km · {w.runs} sortie{w.runs > 1 ? 's' : ''}
-                    </strong>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-          <h3>Météo</h3>
-          <p className="muted">
-            {analytics.weather.activities_with_weather} sorties enrichies
-            {analytics.weather.avg_temperature_c != null
-              ? ` · ${analytics.weather.avg_temperature_c} °C en moyenne`
-              : ''}
-            {analytics.weather.rainy_share_pct != null
-              ? ` · ${analytics.weather.rainy_share_pct} % sous pluie`
-              : ''}
-          </p>
+
+          <div className="home-grid">
+            {analytics.weekly_volume.length > 0 && (
+              <div className="panel-block">
+                <h3>Volume hebdomadaire</h3>
+                <WeeklyVolumeChart weeks={analytics.weekly_volume} />
+              </div>
+            )}
+            <div className="panel-block">
+              <h3>Météo des sorties</h3>
+              <dl className="weather-strip">
+                <div className="weather-stat">
+                  <dt>Sorties enrichies</dt>
+                  <dd>{analytics.weather.activities_with_weather}</dd>
+                </div>
+                <div className="weather-stat">
+                  <dt>Température moy.</dt>
+                  <dd>
+                    {analytics.weather.avg_temperature_c != null
+                      ? `${analytics.weather.avg_temperature_c} °C`
+                      : '—'}
+                  </dd>
+                </div>
+                <div className="weather-stat">
+                  <dt>Sous la pluie</dt>
+                  <dd>
+                    {analytics.weather.rainy_share_pct != null
+                      ? `${analytics.weather.rainy_share_pct} %`
+                      : '—'}
+                    {analytics.weather.rainy_runs > 0
+                      ? ` (${analytics.weather.rainy_runs})`
+                      : ''}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          </div>
         </section>
       )}
 
-      <section className="panel">
-        <div className="panel-head">
+      <section className="section">
+        <div className="section-head">
           <h2>Dernières sorties</h2>
           <Link to="/activities" className="linkish">
             Tout voir
           </Link>
         </div>
         {activities.length === 0 ? (
-          <p className="muted">Aucune sortie. Allez dans Admin pour connecter Strava puis synchroniser.</p>
+          <div className="empty-state">
+            <p className="muted" style={{ margin: 0 }}>
+              Aucune sortie. Allez dans Admin pour connecter Strava puis synchroniser.
+            </p>
+          </div>
         ) : (
           <ul className="activity-list">
             {activities.slice(0, 5).map((activity) => (
               <li key={activity.id}>
-                <Link to={`/activities/${activity.id}`} className="activity">
-                  <strong>{activity.name}</strong>
-                  <span>
-                    {activity.session_type_label_fr
-                      ? `${activity.session_type_label_fr} · `
-                      : ''}
-                    {formatDate(activity.start_date)} · {formatKm(activity.distance_m)} ·{' '}
-                    {formatPace(activity.average_speed_mps)}
-                    {activity.weather_json?.temperature_c != null
-                      ? ` · ${Math.round(activity.weather_json.temperature_c)}°C`
-                      : ''}
-                  </span>
-                </Link>
+                <ActivityRow activity={activity} />
               </li>
             ))}
           </ul>

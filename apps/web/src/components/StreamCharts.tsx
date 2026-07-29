@@ -11,11 +11,11 @@ const SERIES_META: Record<
   SeriesKey,
   { label: string; unit: string; color: string; invertY?: boolean }
 > = {
-  pace: { label: 'Allure', unit: '/km', color: '#1f4d36', invertY: true },
-  heartrate: { label: 'FC', unit: 'bpm', color: '#8a1f1f' },
-  cadence: { label: 'Cadence', unit: 'PPM', color: '#2a5f8a' },
-  altitude: { label: 'Altitude', unit: 'm', color: '#5a6b5e' },
-  watts: { label: 'Puissance', unit: 'W', color: '#8a5a1f' },
+  pace: { label: 'Allure', unit: '/km', color: '#1a5c3a', invertY: true },
+  heartrate: { label: 'FC', unit: 'bpm', color: '#a32d2d' },
+  cadence: { label: 'Cadence', unit: 'PPM', color: '#2d6a8f' },
+  altitude: { label: 'Altitude', unit: 'm', color: '#5c6f62' },
+  watts: { label: 'Puissance', unit: 'W', color: '#8a5a12' },
 }
 
 function valueAt(point: StreamPoint, key: SeriesKey): number | null {
@@ -96,7 +96,7 @@ export function StreamCharts({ points }: Props) {
         formatter: (v: number) =>
           key === 'pace' ? formatPaceSec(v).replace(' /km', '') : String(Math.round(v)),
       },
-      splitLine: { lineStyle: { color: 'rgba(183,196,186,0.45)' } },
+      splitLine: { lineStyle: { color: 'rgba(20,32,24,0.08)' } },
     }))
 
     const series = available.map((key, i) => ({
@@ -149,9 +149,9 @@ export function StreamCharts({ points }: Props) {
           xAxisIndex: available.map((_, i) => i),
           height: 22,
           bottom: 8,
-          borderColor: '#b7c4ba',
-          fillerColor: 'rgba(31,77,54,0.15)',
-          handleStyle: { color: '#1f4d36' },
+          borderColor: 'rgba(20,32,24,0.14)',
+          fillerColor: 'rgba(26,92,58,0.15)',
+          handleStyle: { color: '#1a5c3a' },
         },
       ],
       grid: grids,

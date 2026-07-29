@@ -5,6 +5,7 @@ export function Layout() {
     <div className="shell">
       <header className="topbar">
         <NavLink to="/" className="brand-btn" end>
+          <span className="brand-mark" aria-hidden="true" />
           RunningDashboard
         </NavLink>
         <nav className="nav" aria-label="Navigation principale">

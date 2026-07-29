@@ -140,159 +140,139 @@ export function AdminPage() {
     }
   }
 
-  async function refreshCadenceStrava() {
-    setCadenceBusy(true)
-    setSyncMessage(null)
-    setError(null)
-    try {
-      const res = await fetch('/api/activities/refresh-cadence-strava?max_activities=25', {
-        method: 'POST',
-      })
-      const body = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        throw new Error(
-          typeof body.detail === 'string' ? body.detail : `Refresh cadence HTTP ${res.status}`,
-        )
-      }
-      setSyncMessage(typeof body.message === 'string' ? body.message : 'Refresh cadence terminé.')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Refresh cadence impossible')
-    } finally {
-      setCadenceBusy(false)
-    }
-  }
-
   return (
     <>
-      <section className="hero">
+      <header className="page-hero">
         <h1>Admin</h1>
-        <p>Connexion Strava, synchronisation et paramètres (dont modèle IA).</p>
-      </section>
+        <p>Connexion Strava, synchronisation et paramètres du coach IA.</p>
+      </header>
 
       {error && <p className="banner error">{error}</p>}
       {queryMessage && <p className="banner ok">{queryMessage}</p>}
       {syncMessage && <p className="banner ok">{syncMessage}</p>}
       {settingsMessage && <p className="banner ok">{settingsMessage}</p>}
 
-      <section className="panel">
-        <h2>Strava</h2>
-        <dl className="kv">
-          <div>
-            <dt>Statut</dt>
-            <dd>{strava?.connected ? 'Connecté' : 'Non connecté'}</dd>
-          </div>
-          <div>
-            <dt>Athlète</dt>
-            <dd>{strava?.athlete_name ?? '—'}</dd>
-          </div>
-          <div>
-            <dt>Athlete ID</dt>
-            <dd>{strava?.athlete_id ?? '—'}</dd>
-          </div>
-        </dl>
-        <div className="admin-actions">
-          {strava?.connected ? (
-            <button type="button" className="btn" onClick={() => void runSync()} disabled={busy}>
-              {busy ? 'Sync…' : 'Synchroniser'}
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="btn"
-              onClick={() => void connectStrava()}
-              disabled={busy}
-            >
-              Connecter Strava
-            </button>
-          )}
-        </div>
-        <p className="muted">
-          La sync importe les activités, streams GPS et enrichit la météo (quota limité par passage).
-        </p>
-      </section>
-
-      <section className="panel">
-        <h2>Cadence</h2>
-        <p className="muted">
-          Si le recalcul local trouve 0 source cadence, Strava n’a probablement jamais reçu la
-          donnée (fréquent Apple Forme → Strava). Vous pouvez quand même recharger depuis Strava
-          (25 sorties / clic) ou saisir la cadence manuellement sur chaque fiche.
-        </p>
-        <div className="admin-actions">
-          <button
-            type="button"
-            className="btn"
-            onClick={() => void recomputeCadence()}
-            disabled={cadenceBusy}
-          >
-            {cadenceBusy ? '…' : 'Recalcul local'}
-          </button>
-          <button
-            type="button"
-            className="btn"
-            onClick={() => void refreshCadenceStrava()}
-            disabled={cadenceBusy || !strava?.connected}
-          >
-            {cadenceBusy ? '…' : 'Recharger depuis Strava (25)'}
-          </button>
-        </div>
-      </section>
-
-      <section className="panel">
-        <h2>Modèle IA (coach)</h2>
-        <p className="muted">
-          Stub prêt pour P4 — le choix est déjà persisté en base. Le coach l’utilisera ensuite.
-        </p>
-        {settings && (
-          <>
-            <fieldset className="model-fieldset">
-              <legend>Profil Ollama</legend>
-              {settings.allowed_ollama_models.map((model) => (
-                <label key={model} className="model-option">
-                  <input
-                    type="radio"
-                    name="ollama_model"
-                    value={model}
-                    checked={selectedModel === model}
-                    onChange={() => setSelectedModel(model)}
-                  />
-                  <span>{MODEL_LABELS[model] ?? model}</span>
-                </label>
-              ))}
-            </fieldset>
-            {selectedModel === 'qwen2.5:14b' && (
-              <p className="banner warn">
-                Le profil 14B demande idéalement ~32 Go de RAM sur la VM.
-              </p>
+      <div className="admin-grid">
+        <section className="admin-card">
+          <h2>Strava</h2>
+          <p className="muted">
+            Importe les activités, streams GPS et enrichit la météo (quota limité par passage).
+          </p>
+          <dl className="kv">
+            <div>
+              <dt>Statut</dt>
+              <dd>
+                <span className="status-pill" style={{ padding: '0.2rem 0.6rem' }}>
+                  <span className={`status-dot ${strava?.connected ? 'on' : ''}`} />
+                  {strava?.connected ? 'Connecté' : 'Non connecté'}
+                </span>
+              </dd>
+            </div>
+            <div>
+              <dt>Athlète</dt>
+              <dd>{strava?.athlete_name ?? '—'}</dd>
+            </div>
+            <div>
+              <dt>Athlete ID</dt>
+              <dd>{strava?.athlete_id ?? '—'}</dd>
+            </div>
+          </dl>
+          <div className="admin-actions">
+            {strava?.connected ? (
+              <button type="button" className="btn" onClick={() => void runSync()} disabled={busy}>
+                {busy ? 'Sync…' : 'Synchroniser'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="btn"
+                onClick={() => void connectStrava()}
+                disabled={busy}
+              >
+                Connecter Strava
+              </button>
             )}
-            <p className="muted">
-              Source actuelle : {settings.ollama_model_source === 'db' ? 'UI (base)' : 'environnement (.env)'}
-            </p>
+          </div>
+        </section>
+
+        <section className="admin-card">
+          <h2>Système</h2>
+          <p className="muted">État de l’API et palier produit courant.</p>
+          <dl className="kv">
+            <div>
+              <dt>API</dt>
+              <dd>{health ? `${health.status} · ${health.version}` : '—'}</dd>
+            </div>
+            <div>
+              <dt>Palier</dt>
+              <dd>{health?.palier ?? '—'}</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section className="admin-card">
+          <h2>Cadence</h2>
+          <p className="muted">
+            Strava envoie la cadence en RPM (un pied). Conversion en PPM (×2) ; si la moyenne
+            manque, le stream est utilisé. Recalcul local — pas besoin de resync.
+          </p>
+          <div className="admin-actions">
             <button
               type="button"
-              className="btn"
-              onClick={() => void saveSettings()}
-              disabled={savingSettings || selectedModel === settings.ollama_model}
+              className="btn btn-ghost"
+              onClick={() => void recomputeCadence()}
+              disabled={cadenceBusy}
             >
-              {savingSettings ? 'Enregistrement…' : 'Enregistrer le modèle'}
+              {cadenceBusy ? 'Recalcul…' : 'Recalculer les cadences'}
             </button>
-          </>
-        )}
-      </section>
+          </div>
+        </section>
 
-      <section className="panel">
-        <h2>Système</h2>
-        <dl className="kv">
-          <div>
-            <dt>API</dt>
-            <dd>{health ? `${health.status} · ${health.version}` : '—'}</dd>
-          </div>
-          <div>
-            <dt>Palier</dt>
-            <dd>{health?.palier ?? '—'}</dd>
-          </div>
-        </dl>
-      </section>
+        <section className="admin-card admin-span">
+          <h2>Modèle IA (coach)</h2>
+          <p className="muted">
+            Stub prêt pour P4 — le choix est déjà persisté en base. Le coach l’utilisera ensuite.
+          </p>
+          {settings && (
+            <>
+              <fieldset className="model-fieldset">
+                <legend>Profil Ollama</legend>
+                {settings.allowed_ollama_models.map((model) => (
+                  <label key={model} className="model-option">
+                    <input
+                      type="radio"
+                      name="ollama_model"
+                      value={model}
+                      checked={selectedModel === model}
+                      onChange={() => setSelectedModel(model)}
+                    />
+                    <span>{MODEL_LABELS[model] ?? model}</span>
+                  </label>
+                ))}
+              </fieldset>
+              {selectedModel === 'qwen2.5:14b' && (
+                <p className="banner warn">
+                  Le profil 14B demande idéalement ~32 Go de RAM sur la VM.
+                </p>
+              )}
+              <p className="muted">
+                Source actuelle :{' '}
+                {settings.ollama_model_source === 'db' ? 'UI (base)' : 'environnement (.env)'}
+              </p>
+              <div className="admin-actions">
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => void saveSettings()}
+                  disabled={savingSettings || selectedModel === settings.ollama_model}
+                >
+                  {savingSettings ? 'Enregistrement…' : 'Enregistrer le modèle'}
+                </button>
+              </div>
+            </>
+          )}
+        </section>
+      </div>
     </>
   )
 }
