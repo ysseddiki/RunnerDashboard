@@ -17,6 +17,7 @@ services:
   api:
     build:
       context: ../apps/api
+      network: host
       provenance: false
       sbom: false
     environment:
@@ -41,6 +42,7 @@ services:
   web:
     build:
       context: ../apps/web
+      network: host
       provenance: false
       sbom: false
     depends_on:

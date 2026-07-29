@@ -7,6 +7,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     LOG_DIR=/var/log/running-dashboards/host-logs \
     LOG_LEVEL=INFO
 
+# Préférer IPv4 si dual-stack (évite timeouts IPv6 sur bridge Docker)
+RUN printf 'precedence :ffff:0:0/96  100\n' > /etc/gai.conf
+
 # Miroir FR plus rapide que deb.debian.org (souvent lent / timeouts)
 RUN sed -i 's/deb.debian.org/ftp.fr.debian.org/g' /etc/apt/sources.list.d/*.sources \
     && sed -i 's/deb.debian.org/ftp.fr.debian.org/g' /etc/apt/sources.list 2>/dev/null || true \
@@ -16,7 +19,7 @@ RUN sed -i 's/deb.debian.org/ftp.fr.debian.org/g' /etc/apt/sources.list.d/*.sour
     && mkdir -p /var/log/running-dashboards/host-logs
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --default-timeout=100 -r requirements.txt
 
 COPY app ./app
 
