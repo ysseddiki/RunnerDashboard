@@ -40,7 +40,7 @@ Les logs API : `/var/log/running-dashboards/host-logs/`.
 
 1. Démarrer la stack.
 2. Ouvrir l’UI → **Connecter Strava** → autoriser.
-3. **Synchroniser** → consulter la liste / le détail (cadence PPM si dispo).
+3. **Synchroniser** → consulter la liste / le détail (cadence PPM + météo si GPS).
 
 Arrêt :
 
@@ -54,7 +54,7 @@ docker compose -f infra/docker-compose.yml --env-file .env down
 |--------|--------|---------|
 | **P0** | Fait | Socle front/back, Postgres, logs, Ollama prêt |
 | **P1** | Fait | Sync Strava + activités (cadence PPM si dispo) |
-| **P2** | Prévu | Météo liée aux sorties |
+| **P2** | Fait | Météo liée aux sorties (Open-Meteo au Sync) |
 | **P3** | Prévu | Analytics / évolution |
 | **P4** | Prévu | Coach IA local (Ollama) + choix modèle en Paramètres |
 

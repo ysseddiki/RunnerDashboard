@@ -24,7 +24,21 @@ class SyncResult(BaseModel):
     updated: int
     skipped: int
     total_fetched: int
+    weather_enriched: int = 0
     message: str
+
+
+class WeatherInfo(BaseModel):
+    observed_at: str | None = None
+    temperature_c: float | None = None
+    apparent_temperature_c: float | None = None
+    humidity_pct: float | None = None
+    precipitation_mm: float | None = None
+    wind_speed_kmh: float | None = None
+    wind_direction_deg: float | None = None
+    weather_code: int | None = None
+    weather_label_fr: str | None = None
+    source: str | None = None
 
 
 class ActivitySummary(BaseModel):
@@ -41,6 +55,7 @@ class ActivitySummary(BaseModel):
     average_heartrate: float | None
     cadence_ppm: float | None
     total_elevation_gain_m: float | None
+    weather_json: dict[str, Any] | None = None
 
 
 class ActivityDetail(ActivitySummary):

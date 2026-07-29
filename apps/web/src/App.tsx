@@ -15,6 +15,19 @@ type StravaStatus = {
   expires_at: number | null
 }
 
+type WeatherInfo = {
+  observed_at?: string | null
+  temperature_c?: number | null
+  apparent_temperature_c?: number | null
+  humidity_pct?: number | null
+  precipitation_mm?: number | null
+  wind_speed_kmh?: number | null
+  wind_direction_deg?: number | null
+  weather_code?: number | null
+  weather_label_fr?: string | null
+  source?: string | null
+}
+
 type ActivitySummary = {
   id: number
   strava_id: number
@@ -27,6 +40,7 @@ type ActivitySummary = {
   average_heartrate: number | null
   cadence_ppm: number | null
   total_elevation_gain_m: number | null
+  weather_json?: WeatherInfo | null
 }
 
 type ActivityDetail = ActivitySummary & {
@@ -173,10 +187,10 @@ function App() {
     <main className="page">
       <header className="brand">
         <p className="eyebrow">RunningDashboard</p>
-        <h1>Palier P1 — Strava</h1>
+                <h1>Palier P2 — Strava + météo</h1>
         <p className="lede">
-          Connectez Strava, synchronisez vos sorties running, consultez distance,
-          allure, FC et cadence PPM.
+          Connectez Strava, synchronisez vos sorties running et la météo associée,
+          consultez distance, allure, FC, cadence PPM et conditions.
         </p>
       </header>
 
@@ -226,6 +240,9 @@ function App() {
                   <span>
                     {formatDate(activity.start_date)} · {formatKm(activity.distance_m)} ·{' '}
                     {formatPace(activity.average_speed_mps)}
+                    {activity.weather_json?.temperature_c != null
+                      ? ` · ${Math.round(activity.weather_json.temperature_c)}°C`
+                      : ''}
                   </span>
                 </button>
               </li>
@@ -247,6 +264,41 @@ function App() {
             <li>D+ : {detail.total_elevation_gain_m != null ? `${Math.round(detail.total_elevation_gain_m)} m` : '—'}</li>
             <li>Appareil : {detail.device_name ?? '—'}</li>
           </ul>
+          <h3>Météo</h3>
+          {detail.weather_json ? (
+            <ul>
+              <li>Conditions : {detail.weather_json.weather_label_fr ?? '—'}</li>
+              <li>
+                Température :{' '}
+                {detail.weather_json.temperature_c != null
+                  ? `${detail.weather_json.temperature_c} °C`
+                  : '—'}
+                {detail.weather_json.apparent_temperature_c != null
+                  ? ` (ressenti ${detail.weather_json.apparent_temperature_c} °C)`
+                  : ''}
+              </li>
+              <li>
+                Humidité :{' '}
+                {detail.weather_json.humidity_pct != null
+                  ? `${detail.weather_json.humidity_pct} %`
+                  : '—'}
+              </li>
+              <li>
+                Précipitations :{' '}
+                {detail.weather_json.precipitation_mm != null
+                  ? `${detail.weather_json.precipitation_mm} mm`
+                  : '—'}
+              </li>
+              <li>
+                Vent :{' '}
+                {detail.weather_json.wind_speed_kmh != null
+                  ? `${detail.weather_json.wind_speed_kmh} km/h`
+                  : '—'}
+              </li>
+            </ul>
+          ) : (
+            <p>Pas de météo (GPS manquant, indoor, ou pas encore synchronisée).</p>
+          )}
         </section>
       )}
     </main>

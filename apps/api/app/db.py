@@ -2,7 +2,7 @@
 
 from collections.abc import Generator
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config import get_settings
@@ -29,3 +29,8 @@ def init_db() -> None:
     from app import models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+    # Migrations légères sans Alembic (P2)
+    with engine.begin() as conn:
+        conn.execute(
+            text("ALTER TABLE activities ADD COLUMN IF NOT EXISTS weather_json JSONB")
+        )

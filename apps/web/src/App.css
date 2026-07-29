@@ -127,3 +127,9 @@ button:disabled {
   color: #3d4a40;
   font-size: 0.92rem;
 }
+
+.detail h3 {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}

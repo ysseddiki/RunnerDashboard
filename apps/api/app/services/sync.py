@@ -1,4 +1,4 @@
-"""Synchronisation Strava → Postgres."""
+"""Synchronisation Strava → Postgres (+ météo P2)."""
 
 from __future__ import annotations
 
@@ -13,8 +13,10 @@ from sqlalchemy.orm import Session
 from app.config import Settings
 from app.models import Activity, StravaToken
 from app.services.strava_client import StravaClient, StravaError
+from app.services.weather import WeatherError, fetch_weather_for_activity
 
 logger = logging.getLogger("sync.strava")
+weather_logger = logging.getLogger("weather")
 
 RUN_TYPES = {"Run", "TrailRun", "VirtualRun"}
 
@@ -24,7 +26,6 @@ def get_token(db: Session) -> StravaToken | None:
 
 
 def ensure_fresh_token(db: Session, settings: Settings, token: StravaToken) -> StravaToken:
-    # Refresh 5 minutes before expiry
     if token.expires_at > int(time.time()) + 300:
         return token
 
@@ -45,7 +46,11 @@ def ensure_fresh_token(db: Session, settings: Settings, token: StravaToken) -> S
     db.add(token)
     db.commit()
     db.refresh(token)
-    logger.info("Token Strava rafraîchi | athlete_id=%s | expires_at=%s", token.athlete_id, token.expires_at)
+    logger.info(
+        "Token Strava rafraîchi | athlete_id=%s | expires_at=%s",
+        token.athlete_id,
+        token.expires_at,
+    )
     return token
 
 
@@ -98,7 +103,9 @@ def activity_from_strava(
         )
     return {
         "strava_id": int(raw["id"]),
-        "athlete_id": int(raw["athlete"]["id"]) if isinstance(raw.get("athlete"), dict) else int(raw.get("athlete", 0) or 0),
+        "athlete_id": int(raw["athlete"]["id"])
+        if isinstance(raw.get("athlete"), dict)
+        else int(raw.get("athlete", 0) or 0),
         "name": raw.get("name") or f"Activité {raw.get('id')}",
         "sport_type": raw.get("sport_type") or raw.get("type"),
         "activity_type": raw.get("type"),
@@ -127,6 +134,52 @@ def activity_from_strava(
     }
 
 
+def enrich_activity_weather(activity: Activity, *, sync_id: str) -> bool:
+    """Retourne True si météo écrite."""
+    if activity.weather_json:
+        return False
+    if activity.start_lat is None or activity.start_lng is None or activity.start_date is None:
+        weather_logger.info(
+            "Météo ignorée | sync_id=%s | activity_id=%s | reason=pas_de_gps_ou_date",
+            sync_id,
+            activity.id,
+        )
+        return False
+    if activity.trainer:
+        weather_logger.info(
+            "Météo ignorée | sync_id=%s | activity_id=%s | reason=séance_indoor",
+            sync_id,
+            activity.id,
+        )
+        return False
+
+    try:
+        weather = fetch_weather_for_activity(
+            lat=float(activity.start_lat),
+            lon=float(activity.start_lng),
+            start_date=activity.start_date,
+        )
+    except WeatherError as exc:
+        weather_logger.warning(
+            "Échec météo | sync_id=%s | activity_id=%s | detail=%s",
+            sync_id,
+            activity.id,
+            str(exc),
+        )
+        return False
+
+    activity.weather_json = weather
+    weather_logger.info(
+        "Enrichissement OK | sync_id=%s | activity_id=%s | temp_c=%s | precip_mm=%s | label=%s",
+        sync_id,
+        activity.id,
+        weather.get("temperature_c"),
+        weather.get("precipitation_mm"),
+        weather.get("weather_label_fr"),
+    )
+    return True
+
+
 def sync_activities(db: Session, settings: Settings, *, max_pages: int = 5) -> dict[str, int | str]:
     token = get_token(db)
     if token is None:
@@ -144,7 +197,7 @@ def sync_activities(db: Session, settings: Settings, *, max_pages: int = 5) -> d
     latest = db.scalar(select(Activity).order_by(Activity.start_date.desc()).limit(1))
     after_ts = int(latest.start_date.timestamp()) if latest and latest.start_date else None
 
-    created = updated = skipped = fetched = 0
+    created = updated = skipped = fetched = weather_enriched = 0
     page = 1
     while page <= max_pages:
         batch = client.list_activities(
@@ -163,7 +216,6 @@ def sync_activities(db: Session, settings: Settings, *, max_pages: int = 5) -> d
 
             strava_id = int(item["id"])
             detailed = client.get_activity(token.access_token, strava_id)
-            # athlete id may be missing shape on list endpoint
             if not isinstance(detailed.get("athlete"), dict):
                 detailed["athlete"] = {"id": token.athlete_id}
 
@@ -186,6 +238,7 @@ def sync_activities(db: Session, settings: Settings, *, max_pages: int = 5) -> d
             if existing is None:
                 row = Activity(**payload)
                 db.add(row)
+                db.flush()
                 created += 1
                 logger.info(
                     "Activité importée | sync_id=%s | strava_id=%s | distance_m=%s | cadence_ppm=%s",
@@ -195,8 +248,11 @@ def sync_activities(db: Session, settings: Settings, *, max_pages: int = 5) -> d
                     payload["cadence_ppm"],
                 )
             else:
+                # Ne pas écraser une météo déjà présente lors d'un update Strava
+                previous_weather = existing.weather_json
                 for key, value in payload.items():
                     setattr(existing, key, value)
+                existing.weather_json = previous_weather
                 updated += 1
                 logger.info(
                     "Activité mise à jour | sync_id=%s | strava_id=%s | cadence_ppm=%s",
@@ -209,22 +265,30 @@ def sync_activities(db: Session, settings: Settings, *, max_pages: int = 5) -> d
             break
         page += 1
 
+    # Enrichissement météo : toutes les activités encore sans météo
+    for activity in db.scalars(select(Activity).where(Activity.weather_json.is_(None))).all():
+        if enrich_activity_weather(activity, sync_id=sync_id):
+            weather_enriched += 1
+    db.commit()
+
     message = (
         f"Sync terminée : {created} créée(s), {updated} mise(s) à jour, "
-        f"{skipped} ignorée(s) (non-running)."
+        f"{skipped} ignorée(s), météo enrichie {weather_enriched}."
     )
     logger.info(
-        "Sync terminé | sync_id=%s | created=%s | updated=%s | skipped=%s | fetched=%s",
+        "Sync terminé | sync_id=%s | created=%s | updated=%s | skipped=%s | fetched=%s | weather=%s",
         sync_id,
         created,
         updated,
         skipped,
         fetched,
+        weather_enriched,
     )
     return {
         "created": created,
         "updated": updated,
         "skipped": skipped,
         "total_fetched": fetched,
+        "weather_enriched": weather_enriched,
         "message": message,
     }
