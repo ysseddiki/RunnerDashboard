@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     strava_client_secret: str = ""
     strava_redirect_uri: str = "http://localhost/api/strava/callback"
     strava_scopes: str = "read,activity:read_all,profile:read_all"
+    ollama_model: str = "qwen2.5:14b"
 
 
 @lru_cache

@@ -54,9 +54,9 @@ def oauth_callback(
     frontend = settings.public_app_url.rstrip("/")
     if error:
         logger.error("OAuth Strava refusé | error=%s | action=réessayer_connexion", error)
-        return RedirectResponse(f"{frontend}/?strava=error&reason={error}")
+        return RedirectResponse(f"{frontend}/admin?strava=error&reason={error}")
     if not code:
-        return RedirectResponse(f"{frontend}/?strava=error&reason=missing_code")
+        return RedirectResponse(f"{frontend}/admin?strava=error&reason=missing_code")
 
     client = StravaClient(settings)
     try:
@@ -64,9 +64,9 @@ def oauth_callback(
         sync_service.upsert_token_from_oauth(db, payload, scope)
     except StravaError as exc:
         logger.error("OAuth callback échoué | detail=%s", str(exc))
-        return RedirectResponse(f"{frontend}/?strava=error&reason=token_exchange")
+        return RedirectResponse(f"{frontend}/admin?strava=error&reason=token_exchange")
 
-    return RedirectResponse(f"{frontend}/?strava=connected")
+    return RedirectResponse(f"{frontend}/admin?strava=connected")
 
 
 @router.post("/sync", response_model=SyncResult)

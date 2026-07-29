@@ -1,0 +1,178 @@
+import { useMemo } from 'react'
+import ReactECharts from 'echarts-for-react'
+import type { EChartsOption } from 'echarts'
+import type { StreamPoint } from '../types'
+import { downsamplePoints } from '../streams'
+import { formatClock, formatPaceSec } from '../format'
+
+type SeriesKey = 'pace' | 'heartrate' | 'cadence' | 'altitude' | 'watts'
+
+const SERIES_META: Record<
+  SeriesKey,
+  { label: string; unit: string; color: string; invertY?: boolean }
+> = {
+  pace: { label: 'Allure', unit: '/km', color: '#1f4d36', invertY: true },
+  heartrate: { label: 'FC', unit: 'bpm', color: '#8a1f1f' },
+  cadence: { label: 'Cadence', unit: 'PPM', color: '#2a5f8a' },
+  altitude: { label: 'Altitude', unit: 'm', color: '#5a6b5e' },
+  watts: { label: 'Puissance', unit: 'W', color: '#8a5a1f' },
+}
+
+function valueAt(point: StreamPoint, key: SeriesKey): number | null {
+  switch (key) {
+    case 'pace':
+      return point.pace_sec_per_km
+    case 'heartrate':
+      return point.heartrate
+    case 'cadence':
+      return point.cadence_ppm
+    case 'altitude':
+      return point.altitude_m
+    case 'watts':
+      return point.watts
+  }
+}
+
+function formatValue(key: SeriesKey, value: number | null): string {
+  if (value == null || !Number.isFinite(value)) return '—'
+  if (key === 'pace') return formatPaceSec(value)
+  if (key === 'altitude') return `${value.toFixed(0)} m`
+  if (key === 'heartrate' || key === 'cadence' || key === 'watts') {
+    return `${Math.round(value)} ${SERIES_META[key].unit}`
+  }
+  return String(value)
+}
+
+type Props = {
+  points: StreamPoint[]
+}
+
+export function StreamCharts({ points }: Props) {
+  const sampled = useMemo(() => downsamplePoints(points), [points])
+
+  const available = useMemo(() => {
+    const keys: SeriesKey[] = []
+    for (const key of Object.keys(SERIES_META) as SeriesKey[]) {
+      if (sampled.some((p) => valueAt(p, key) != null)) keys.push(key)
+    }
+    return keys
+  }, [sampled])
+
+  const option = useMemo((): EChartsOption | null => {
+    if (sampled.length < 2 || available.length === 0) return null
+
+    const xData = sampled.map((p) => Number(p.distance_km.toFixed(3)))
+    const gridHeight = 88
+    const gap = 28
+    const topPad = 48
+    const grids = available.map((_, i) => ({
+      left: 56,
+      right: 24,
+      top: topPad + i * (gridHeight + gap),
+      height: gridHeight,
+    }))
+
+    const xAxes = available.map((_, i) => ({
+      type: 'category' as const,
+      gridIndex: i,
+      data: xData,
+      boundaryGap: false,
+      axisLabel: {
+        show: i === available.length - 1,
+        formatter: (v: string) => `${v} km`,
+      },
+      axisTick: { show: i === available.length - 1 },
+      splitLine: { show: false },
+    }))
+
+    const yAxes = available.map((key, i) => ({
+      type: 'value' as const,
+      gridIndex: i,
+      name: SERIES_META[key].label,
+      nameTextStyle: { color: SERIES_META[key].color, fontSize: 11 },
+      inverse: Boolean(SERIES_META[key].invertY),
+      scale: true,
+      axisLabel: {
+        formatter: (v: number) =>
+          key === 'pace' ? formatPaceSec(v).replace(' /km', '') : String(Math.round(v)),
+      },
+      splitLine: { lineStyle: { color: 'rgba(183,196,186,0.45)' } },
+    }))
+
+    const series = available.map((key, i) => ({
+      name: SERIES_META[key].label,
+      type: 'line' as const,
+      showSymbol: false,
+      sampling: 'lttb' as const,
+      xAxisIndex: i,
+      yAxisIndex: i,
+      data: sampled.map((p) => {
+        const v = valueAt(p, key)
+        return v != null && Number.isFinite(v) ? Number(v.toFixed(2)) : null
+      }),
+      lineStyle: { width: 2, color: SERIES_META[key].color },
+      itemStyle: { color: SERIES_META[key].color },
+      connectNulls: true,
+    }))
+
+    return {
+      animation: false,
+      color: available.map((k) => SERIES_META[k].color),
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type: 'cross', link: [{ xAxisIndex: 'all' }] },
+        formatter: (params) => {
+          const list = Array.isArray(params) ? params : [params]
+          const idx = list[0]?.dataIndex
+          if (typeof idx !== 'number') return ''
+          const point = sampled[idx]
+          if (!point) return ''
+          const rows = [
+            `<div><strong>${point.distance_km.toFixed(2)} km</strong> · ${formatClock(point.time_s)}</div>`,
+            ...available.map(
+              (key) =>
+                `<div style="color:${SERIES_META[key].color}">${SERIES_META[key].label}: <strong>${formatValue(key, valueAt(point, key))}</strong></div>`,
+            ),
+          ]
+          return rows.join('')
+        },
+      },
+      axisPointer: { link: [{ xAxisIndex: 'all' }] },
+      dataZoom: [
+        {
+          type: 'inside',
+          xAxisIndex: available.map((_, i) => i),
+          filterMode: 'none',
+        },
+        {
+          type: 'slider',
+          xAxisIndex: available.map((_, i) => i),
+          height: 22,
+          bottom: 8,
+          borderColor: '#b7c4ba',
+          fillerColor: 'rgba(31,77,54,0.15)',
+          handleStyle: { color: '#1f4d36' },
+        },
+      ],
+      grid: grids,
+      xAxis: xAxes,
+      yAxis: yAxes,
+      series,
+    }
+  }, [sampled, available])
+
+  if (!option) {
+    return <p className="muted">Aucune série numérique exploitable pour les graphs.</p>
+  }
+
+  const height = 48 + available.length * 116 + 40
+
+  return (
+    <div className="charts-wrap">
+      <p className="muted charts-hint">
+        Survolez un point pour le détail · molette ou curseur bas pour zoomer / pan.
+      </p>
+      <ReactECharts option={option} style={{ height, width: '100%' }} notMerge lazyUpdate />
+    </div>
+  )
+}

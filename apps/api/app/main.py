@@ -12,6 +12,7 @@ from app.config import get_settings
 from app.db import init_db
 from app.logging_config import setup_logging
 from app.routers import activities, analytics, strava
+from app.routers import settings as settings_router
 
 logger = logging.getLogger("api")
 
@@ -61,6 +62,7 @@ def create_app() -> FastAPI:
     application.include_router(strava.router)
     application.include_router(activities.router)
     application.include_router(analytics.router)
+    application.include_router(settings_router.router)
     return application
 
 
