@@ -59,15 +59,18 @@ class ActivitySummary(BaseModel):
 
 
 class ActivityDetail(ActivitySummary):
-    elapsed_time_s: int | None
-    max_speed_mps: float | None
-    max_heartrate: float | None
-    average_watts: float | None
-    calories: float | None
-    start_lat: float | None
-    start_lng: float | None
-    summary_polyline: str | None
-    device_name: str | None
-    trainer: bool | None
-    streams_json: dict[str, Any] | None
-    synced_at: datetime | None
+    elapsed_time_s: int | None = None
+    max_speed_mps: float | None = None
+    max_heartrate: float | None = None
+    average_watts: float | None = None
+    kilojoules: float | None = None
+    calories: float | None = None
+    start_lat: float | None = None
+    start_lng: float | None = None
+    summary_polyline: str | None = None
+    device_name: str | None = None
+    trainer: bool | None = None
+    timezone: str | None = None
+    activity_type: str | None = None
+    streams_json: dict[str, Any] | None = None
+    synced_at: datetime | None = None
