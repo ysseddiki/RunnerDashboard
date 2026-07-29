@@ -26,7 +26,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FILE_NAME: ${LOG_FILE_NAME:-api.log}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-running}:${POSTGRES_PASSWORD:-running}@postgres:5432/${POSTGRES_DB:-runningdashboard}
-      CORS_ORIGINS: ${CORS_ORIGINS:-https://localhost,https://localhost:443,http://localhost:5173}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://localhost,https://localhost:443,http://localhost,http://localhost:80,http://localhost:5173}
     volumes:
       - ${HOST_LOG_DIR:-/var/log/running-dashboards/host-logs}:${LOG_DIR:-/var/log/running-dashboards/host-logs}
     depends_on:
@@ -57,10 +57,17 @@ services:
     restart: unless-stopped
 
   caddy:
-    image: caddy:2-alpine
+    build:
+      context: .
+      dockerfile: Dockerfile.caddy
+      network: host
+      provenance: false
+      sbom: false
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST:-localhost}
     ports:
-      - "${APP_PORT:-443}:443"
       - "80:80"
+      - "${APP_PORT:-443}:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

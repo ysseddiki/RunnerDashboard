@@ -19,13 +19,14 @@ Prérequis : Docker et Docker Compose.
 
 ```bash
 cp .env.example .env
+# Éditer .env : PUBLIC_HOST=<IP_DE_LA_VM> et CORS_ORIGINS avec http(s)://<IP>
 sudo mkdir -p /var/log/running-dashboards/host-logs
 docker compose -f infra/docker-compose.yml --env-file .env up --build -d
 ```
 
-Ouvrir [https://localhost](https://localhost) (HTTPS sur le port `APP_PORT=443`).
-
-Caddy utilise un certificat local (`tls internal`). Le navigateur affichera un avertissement à accepter (normal sans nom de domaine). En accès par IP, ajoute `https://VOTRE_IP` dans `CORS_ORIGINS`.
+Accès :
+- **HTTP (recommandé si pas de domaine)** : `http://VOTRE_IP`
+- **HTTPS** : `https://VOTRE_IP` (certificat auto-signé → accepter l’avertissement navigateur)
 
 Les logs API : `/var/log/running-dashboards/host-logs/` (`HOST_LOG_DIR` et `LOG_DIR` pointent au même endroit).
 

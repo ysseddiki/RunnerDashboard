@@ -1,11 +1,4 @@
-{
-	# Certificat local (idéal sans nom de domaine / accès par IP).
-	# Le navigateur affichera un avertissement à accepter une fois.
-	auto_https disable_redirects
-}
-
-:443 {
-	tls internal
+(app) {
 	encode gzip
 
 	handle /api/* {
@@ -21,6 +14,13 @@
 	}
 }
 
+# HTTP — toujours accessible (http://IP ou http://localhost)
 :80 {
-	redir https://{host}{uri} permanent
+	import app
+}
+
+# HTTPS — certificat auto-signé avec SAN (IP/DNS via PUBLIC_HOST)
+:443 {
+	tls /data/certs/cert.pem /data/certs/key.pem
+	import app
 }
