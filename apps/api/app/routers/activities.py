@@ -12,8 +12,10 @@ from app.schemas import (
     ActivityDetail,
     ActivitySessionTypeUpdate,
     ActivitySummary,
+    CadenceRecomputeResult,
     SessionTypeInfo,
 )
+from app.services import sync as sync_service
 from app.services.session_types import SESSION_TYPES
 
 router = APIRouter(prefix="/api/activities", tags=["activities"])
@@ -22,6 +24,18 @@ router = APIRouter(prefix="/api/activities", tags=["activities"])
 @router.get("/session-types", response_model=list[SessionTypeInfo])
 def list_session_types() -> list[SessionTypeInfo]:
     return [SessionTypeInfo(**item) for item in SESSION_TYPES]
+
+
+@router.post("/recompute-cadence", response_model=CadenceRecomputeResult)
+def recompute_cadence(db: Session = Depends(get_db)) -> CadenceRecomputeResult:
+    stats = sync_service.recompute_cadence_from_local(db)
+    message = (
+        f"Cadence recalculée : {stats['updated']} mise(s) à jour, "
+        f"{stats['unchanged']} inchangée(s), "
+        f"{stats['still_missing']} toujours sans cadence "
+        f"(souvent absente si Apple Forme → Strava)."
+    )
+    return CadenceRecomputeResult(**stats, message=message)
 
 
 @router.get("", response_model=list[ActivitySummary])

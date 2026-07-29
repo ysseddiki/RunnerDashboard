@@ -104,3 +104,10 @@ class ActivitySessionTypeUpdate(BaseModel):
                 f"Choix: {', '.join(sorted(SESSION_TYPE_IDS))}"
             )
         return value
+
+
+class CadenceRecomputeResult(BaseModel):
+    updated: int
+    unchanged: int
+    still_missing: int
+    message: str

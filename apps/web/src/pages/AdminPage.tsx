@@ -18,6 +18,7 @@ export function AdminPage() {
   const [settingsMessage, setSettingsMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [savingSettings, setSavingSettings] = useState(false)
+  const [cadenceBusy, setCadenceBusy] = useState(false)
 
   const queryMessage = useMemo(() => {
     if (searchParams.get('strava') === 'connected') return 'Compte Strava connecté.'
@@ -119,6 +120,26 @@ export function AdminPage() {
     }
   }
 
+  async function recomputeCadence() {
+    setCadenceBusy(true)
+    setSyncMessage(null)
+    setError(null)
+    try {
+      const res = await fetch('/api/activities/recompute-cadence', { method: 'POST' })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(
+          typeof body.detail === 'string' ? body.detail : `Cadence HTTP ${res.status}`,
+        )
+      }
+      setSyncMessage(typeof body.message === 'string' ? body.message : 'Cadence recalculée.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Recalcul cadence impossible')
+    } finally {
+      setCadenceBusy(false)
+    }
+  }
+
   return (
     <>
       <section className="hero">
@@ -166,6 +187,25 @@ export function AdminPage() {
         <p className="muted">
           La sync importe les activités, streams GPS et enrichit la météo (quota limité par passage).
         </p>
+      </section>
+
+      <section className="panel">
+        <h2>Cadence</h2>
+        <p className="muted">
+          Strava envoie la cadence en RPM (un pied). On la convertit en PPM (×2), et si la moyenne
+          Strava manque on utilise le stream. Pas besoin de resync : recalcul local sur les données
+          déjà en base. Si Apple Forme n’envoie pas la cadence à Strava, elle restera absente.
+        </p>
+        <div className="admin-actions">
+          <button
+            type="button"
+            className="btn"
+            onClick={() => void recomputeCadence()}
+            disabled={cadenceBusy}
+          >
+            {cadenceBusy ? 'Recalcul…' : 'Recalculer les cadences'}
+          </button>
+        </div>
       </section>
 
       <section className="panel">

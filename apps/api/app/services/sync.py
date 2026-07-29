@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.models import Activity, StravaToken
+from app.services.cadence import resolve_cadence_ppm
 from app.services.strava_client import StravaClient, StravaError
 from app.services.weather import WeatherError, fetch_weather_for_activity
 
@@ -95,12 +96,7 @@ def activity_from_strava(
     streams: dict[str, Any] | None,
 ) -> dict[str, Any]:
     start = raw.get("start_latlng") or [None, None]
-    cadence = raw.get("average_cadence")
-    if cadence is None:
-        logger.info(
-            "Cadence PPM absente | strava_id=%s | reason=absent_chez_strava",
-            raw.get("id"),
-        )
+    cadence_ppm = resolve_cadence_ppm(raw, streams, strava_id=raw.get("id"))
     return {
         "strava_id": int(raw["id"]),
         "athlete_id": int(raw["athlete"]["id"])
@@ -119,7 +115,7 @@ def activity_from_strava(
         "max_speed_mps": raw.get("max_speed"),
         "average_heartrate": raw.get("average_heartrate"),
         "max_heartrate": raw.get("max_heartrate"),
-        "cadence_ppm": float(cadence) if cadence is not None else None,
+        "cadence_ppm": cadence_ppm,
         "average_watts": raw.get("average_watts"),
         "kilojoules": raw.get("kilojoules"),
         "calories": raw.get("calories"),
@@ -131,6 +127,39 @@ def activity_from_strava(
         "streams_json": streams,
         "raw_json": raw,
         "synced_at": datetime.now(timezone.utc),
+    }
+
+
+def recompute_cadence_from_local(db: Session) -> dict[str, int]:
+    """Recalcule cadence_ppm depuis raw_json / streams_json déjà en base (sans Strava)."""
+    updated = unchanged = still_missing = 0
+    for activity in db.scalars(select(Activity)).all():
+        raw = activity.raw_json if isinstance(activity.raw_json, dict) else None
+        streams = activity.streams_json if isinstance(activity.streams_json, dict) else None
+        ppm = resolve_cadence_ppm(raw, streams, strava_id=activity.strava_id)
+        if ppm is None:
+            if activity.cadence_ppm is not None:
+                activity.cadence_ppm = None
+                updated += 1
+            else:
+                still_missing += 1
+            continue
+        if activity.cadence_ppm != ppm:
+            activity.cadence_ppm = ppm
+            updated += 1
+        else:
+            unchanged += 1
+    db.commit()
+    logger.info(
+        "Recalcul cadence local | updated=%s | unchanged=%s | still_missing=%s",
+        updated,
+        unchanged,
+        still_missing,
+    )
+    return {
+        "updated": updated,
+        "unchanged": unchanged,
+        "still_missing": still_missing,
     }
 
 
@@ -285,9 +314,13 @@ def sync_activities(db: Session, settings: Settings, *, max_pages: int = 5) -> d
         select(Activity).where(Activity.weather_json.is_(None)).limit(1)
     )
     more = " (relancer Sync pour continuer la météo)" if remaining_weather else ""
+
+    cadence_stats = recompute_cadence_from_local(db)
+
     message = (
         f"Sync terminée : {created} créée(s), {updated} mise(s) à jour, "
-        f"{skipped} ignorée(s), météo enrichie {weather_enriched}.{more}"
+        f"{skipped} ignorée(s), météo enrichie {weather_enriched}, "
+        f"cadence recalculée {cadence_stats['updated']}.{more}"
     )
     logger.info(
         "Sync terminé | sync_id=%s | created=%s | updated=%s | skipped=%s | fetched=%s | weather=%s",
