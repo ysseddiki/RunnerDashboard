@@ -1,0 +1,72 @@
+:root {
+  color: #1a241c;
+  background:
+    radial-gradient(ellipse 80% 50% at 20% 0%, #d8e8d4 0%, transparent 55%),
+    radial-gradient(ellipse 70% 45% at 90% 10%, #c5d9e8 0%, transparent 50%),
+    linear-gradient(165deg, #eef3ef 0%, #e4ebe6 45%, #dfe8e3 100%);
+  font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.page {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 4rem 1.5rem 3rem;
+}
+
+.brand .eyebrow {
+  margin: 0 0 0.75rem;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #1f4d36;
+}
+
+.brand h1 {
+  margin: 0 0 0.75rem;
+  font-size: 1.35rem;
+  font-weight: 600;
+}
+
+.lede {
+  margin: 0;
+  color: #3d4a40;
+}
+
+.status {
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #b7c4ba;
+}
+
+.status h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.status ul {
+  margin: 0;
+  padding-left: 1.15rem;
+}
+
+.error {
+  color: #8a1f1f;
+}

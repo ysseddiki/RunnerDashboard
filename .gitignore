@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+
+# Env & secrets
+.env
+.env.local
+*.pem
+
+# Logs & data
+logs/*
+!logs/.gitkeep
+*.log
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Vite
+apps/web/dist/
+
+# OpenSpec / tooling noise
+*.swp

@@ -1,0 +1,39 @@
+schema: spec-driven
+
+context: |
+  RunningDashboard — application web FR pour analyser les sorties running.
+  Source sport v1 : Strava uniquement (pas Apple Forme/Santé).
+  Météo enrichie au sync. Coach via LLM local Ollama (Qwen2.5-14B quantisé).
+  Privacy : sync réseau uniquement pour Strava + météo ; inférence LLM locale ;
+  aucune donnée personnelle envoyée à un cloud IA.
+
+  Stack :
+  - apps/web : React + Vite + TypeScript (UI seule, pas de logique métier)
+  - apps/api : Python FastAPI + SQLAlchemy (métier, sync, analytics, coach)
+  - PostgreSQL 16 (Docker)
+  - Ollama (Docker) pour le LLM
+  - Docker Compose + reverse proxy
+  - Contrat API : OpenAPI généré par FastAPI
+
+  Logs : path configurable (LOG_DIR), messages FR explicites, pas de secrets.
+  Cadence running = PPM (pas par minute), métrique prioritaire quand disponible.
+  README.md : simple (présentation, install, usage, fonctionnalités).
+  Suivi produit : OpenSpec (specs + changes). Langue UI et docs : FR.
+
+  Paliers : P0 socle → P1 Strava → P2 météo → P3 analytics → P4 coach.
+
+rules:
+  proposal:
+    - Keep proposals under 500 words
+    - Always include a "Non-goals" section
+    - Write in French
+  specs:
+    - Requirements use SHALL/MUST
+    - Include concrete scenarios (GIVEN/WHEN/THEN)
+    - Write requirement titles and scenarios in French when domain is FR
+  design:
+    - Document ADRs and trade-offs
+    - Keep front/back separation explicit
+  tasks:
+    - Break into checkbox items implementable in one sitting
+    - Group by area (openspec, infra, api, web, docs)
