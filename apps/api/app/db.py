@@ -34,3 +34,14 @@ def init_db() -> None:
         conn.execute(
             text("ALTER TABLE activities ADD COLUMN IF NOT EXISTS weather_json JSONB")
         )
+        conn.execute(
+            text(
+                "ALTER TABLE activities ADD COLUMN IF NOT EXISTS session_type VARCHAR(32)"
+            )
+        )
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_activities_session_type "
+                "ON activities (session_type)"
+            )
+        )

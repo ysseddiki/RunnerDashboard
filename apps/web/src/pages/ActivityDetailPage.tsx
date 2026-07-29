@@ -5,6 +5,7 @@ import { formatDate, formatDuration, formatKm, formatPace } from '../format'
 import { buildStreamPoints } from '../streams'
 import { ActivityMap } from '../components/ActivityMap'
 import { StreamCharts } from '../components/StreamCharts'
+import { SessionTypePicker } from '../components/SessionTypePicker'
 
 export function ActivityDetailPage() {
   const { id } = useParams()
@@ -37,6 +38,7 @@ export function ActivityDetailPage() {
   }, [id])
 
   const points = useMemo(() => buildStreamPoints(detail?.streams_json), [detail?.streams_json])
+  const activityId = detail?.id
 
   return (
     <section className="panel detail-view" style={{ borderTop: 0, paddingTop: 0, marginTop: 0 }}>
@@ -45,13 +47,33 @@ export function ActivityDetailPage() {
       </Link>
       {error && <p className="banner error">{error}</p>}
       {loading && <p className="muted">Chargement du détail…</p>}
-      {!loading && detail && (
+      {!loading && detail && activityId != null && (
         <>
           <header className="detail-hero">
-            <p className="eyebrow-sm">{detail.sport_type ?? detail.activity_type ?? 'Course'}</p>
+            <p className="eyebrow-sm">
+              {detail.session_type_label_fr
+                ? detail.session_type_label_fr
+                : (detail.sport_type ?? detail.activity_type ?? 'Course')}
+            </p>
             <h1>{detail.name}</h1>
             <p className="muted">{formatDate(detail.start_date)}</p>
           </header>
+
+          <SessionTypePicker
+            activityId={activityId}
+            value={detail.session_type}
+            onSaved={(sessionType, label) => {
+              setDetail((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      session_type: sessionType,
+                      session_type_label_fr: label,
+                    }
+                  : prev,
+              )
+            }}
+          />
 
           <div className="stat-grid">
             <div className="stat">

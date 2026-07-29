@@ -39,6 +39,9 @@ export function ActivitiesPage() {
               <Link to={`/activities/${activity.id}`} className="activity">
                 <strong>{activity.name}</strong>
                 <span>
+                  {activity.session_type_label_fr
+                    ? `${activity.session_type_label_fr} · `
+                    : ''}
                   {formatDate(activity.start_date)} · {formatKm(activity.distance_m)} ·{' '}
                   {formatPace(activity.average_speed_mps)}
                   {activity.average_heartrate != null

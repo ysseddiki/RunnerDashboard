@@ -43,6 +43,8 @@ export type ActivitySummary = {
   average_heartrate: number | null
   cadence_ppm: number | null
   total_elevation_gain_m: number | null
+  session_type?: string | null
+  session_type_label_fr?: string | null
   weather_json?: WeatherInfo | null
 }
 
@@ -102,6 +104,12 @@ export type AppSettings = {
   ollama_model: string
   allowed_ollama_models: string[]
   ollama_model_source: string
+}
+
+export type SessionTypeInfo = {
+  id: string
+  label_fr: string
+  description_fr: string
 }
 
 export type StreamPoint = {

@@ -248,11 +248,13 @@ def sync_activities(db: Session, settings: Settings, *, max_pages: int = 5) -> d
                     payload["cadence_ppm"],
                 )
             else:
-                # Ne pas écraser une météo déjà présente lors d'un update Strava
+                # Ne pas écraser météo ni type de séance manuel
                 previous_weather = existing.weather_json
+                previous_session_type = existing.session_type
                 for key, value in payload.items():
                     setattr(existing, key, value)
                 existing.weather_json = previous_weather
+                existing.session_type = previous_session_type
                 updated += 1
                 logger.info(
                     "Activité mise à jour | sync_id=%s | strava_id=%s | cadence_ppm=%s",

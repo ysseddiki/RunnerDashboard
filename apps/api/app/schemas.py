@@ -5,7 +5,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, computed_field, field_validator
+
+from app.services.session_types import SESSION_TYPE_IDS, label_for
 
 
 class StravaStatus(BaseModel):
@@ -41,6 +43,12 @@ class WeatherInfo(BaseModel):
     source: str | None = None
 
 
+class SessionTypeInfo(BaseModel):
+    id: str
+    label_fr: str
+    description_fr: str
+
+
 class ActivitySummary(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -55,7 +63,13 @@ class ActivitySummary(BaseModel):
     average_heartrate: float | None
     cadence_ppm: float | None
     total_elevation_gain_m: float | None
+    session_type: str | None = None
     weather_json: dict[str, Any] | None = None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def session_type_label_fr(self) -> str | None:
+        return label_for(self.session_type)
 
 
 class ActivityDetail(ActivitySummary):
@@ -74,3 +88,19 @@ class ActivityDetail(ActivitySummary):
     activity_type: str | None = None
     streams_json: dict[str, Any] | None = None
     synced_at: datetime | None = None
+
+
+class ActivitySessionTypeUpdate(BaseModel):
+    session_type: str | None = None
+
+    @field_validator("session_type")
+    @classmethod
+    def validate_session_type(cls, value: str | None) -> str | None:
+        if value is None or value == "":
+            return None
+        if value not in SESSION_TYPE_IDS:
+            raise ValueError(
+                f"Type de séance inconnu: {value}. "
+                f"Choix: {', '.join(sorted(SESSION_TYPE_IDS))}"
+            )
+        return value
