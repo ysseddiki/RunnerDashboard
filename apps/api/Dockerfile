@@ -4,13 +4,13 @@ WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    LOG_DIR=/var/log/running-dashboard \
+    LOG_DIR=/var/log/running-dashboards/host-logs \
     LOG_LEVEL=INFO
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/* \
-    && mkdir -p /var/log/running-dashboard
+    && mkdir -p /var/log/running-dashboards/host-logs
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

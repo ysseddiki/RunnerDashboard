@@ -19,13 +19,13 @@ Prérequis : Docker et Docker Compose.
 
 ```bash
 cp .env.example .env
-mkdir -p logs
+sudo mkdir -p /var/log/running-dashboards/host-logs
 docker compose -f infra/docker-compose.yml --env-file .env up --build -d
 ```
 
-Ouvrir [http://localhost:8080](http://localhost:8080).
+Ouvrir [http://localhost:443](http://localhost:443) (port UI par défaut : `APP_PORT=443`).
 
-Les logs API : dossier `logs/` (ou le chemin défini par `HOST_LOG_DIR` / `LOG_DIR`).
+Les logs API : `/var/log/running-dashboards/host-logs/` (`HOST_LOG_DIR` et `LOG_DIR` pointent au même endroit).
 
 ## Usage
 

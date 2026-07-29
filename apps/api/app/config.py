@@ -10,11 +10,11 @@ class Settings(BaseSettings):
 
     app_name: str = "RunningDashboard API"
     environment: str = "development"
-    log_dir: str = "/var/log/running-dashboard"
+    log_dir: str = "/var/log/running-dashboards/host-logs"
     log_level: str = "INFO"
     log_file_name: str = "api.log"
     database_url: str = "postgresql+psycopg://running:running@postgres:5432/runningdashboard"
-    cors_origins: str = "http://localhost:5173,http://localhost:8080"
+    cors_origins: str = "http://localhost:443,http://localhost:5173"
 
 
 @lru_cache

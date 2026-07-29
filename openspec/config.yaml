@@ -18,7 +18,9 @@ context: |
   - Docker Compose + reverse proxy
   - Contrat API : OpenAPI généré par FastAPI
 
-  Logs : path configurable (LOG_DIR), messages FR explicites, pas de secrets.
+  Logs : HOST_LOG_DIR et LOG_DIR au même path
+  `/var/log/running-dashboards/host-logs` ; messages FR explicites, pas de secrets.
+  UI exposée sur APP_PORT=443 par défaut ; CORS_ORIGINS doit suivre l’URL navigateur.
   Cadence running = PPM (pas par minute), métrique prioritaire quand disponible.
   README.md : simple (présentation, install, usage, fonctionnalités).
   Suivi produit : OpenSpec (specs + changes). Langue UI et docs : FR.
