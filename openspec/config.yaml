@@ -3,7 +3,10 @@ schema: spec-driven
 context: |
   RunningDashboard — application web FR pour analyser les sorties running.
   Source sport v1 : Strava uniquement (pas Apple Forme/Santé).
-  Météo enrichie au sync. Coach via LLM local Ollama (Qwen2.5-14B quantisé).
+  Météo enrichie au sync. Coach via LLM local Ollama (famille Qwen2.5).
+  Profils modèle : qwen2.5:7b (VM ~16 Go) et qwen2.5:14b (VM ~32 Go, défaut).
+  Choix exposé dans UI Paramètres, persisté via API/Postgres ; OLLAMA_MODEL
+  sert de défaut au premier démarrage. Le front n’appelle jamais Ollama.
   Privacy : sync réseau uniquement pour Strava + météo ; inférence LLM locale ;
   aucune donnée personnelle envoyée à un cloud IA.
 

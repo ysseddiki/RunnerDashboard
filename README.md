@@ -2,6 +2,17 @@
 
 Application web pour suivre vos sorties running (Strava), corréler la météo, et obtenir des conseils via un modèle IA local. Les données restent sur votre machine.
 
+## Spécifications machine
+
+Deux profils selon la RAM de la VM (CPU Intel/AMD, Docker) :
+
+| Profil | RAM | Disque libre | Modèle IA (`OLLAMA_MODEL`) |
+|--------|-----|--------------|----------------------------|
+| **Minimum** | **16 Go** | ~20 Go | `qwen2.5:7b` |
+| **Recommandé** | **32 Go** | ~40 Go | `qwen2.5:14b` (défaut) |
+
+La RAM inclut OS + Postgres + API + web + Ollama. Sur 16 Go, rester sur le profil 7B. Le choix se règle aussi plus tard dans l’UI Paramètres (P4).
+
 ## Installation
 
 Prérequis : Docker et Docker Compose.
@@ -36,6 +47,6 @@ docker compose -f infra/docker-compose.yml --env-file .env down
 | **P1** | Prévu | Sync Strava + activités (dont cadence PPM si dispo) |
 | **P2** | Prévu | Météo liée aux sorties |
 | **P3** | Prévu | Analytics / évolution |
-| **P4** | Prévu | Coach IA local (Ollama) |
+| **P4** | Prévu | Coach IA local (Ollama) + choix modèle en Paramètres |
 
 Suivi produit : dossier `openspec/`.
