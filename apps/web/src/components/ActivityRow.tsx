@@ -1,19 +1,22 @@
 import { Link } from 'react-router-dom'
 import type { ActivitySummary } from '../types'
 import { formatDate, formatKm, formatPace } from '../format'
+import { sessionToneClass } from '../sessionTone'
 
 type Props = {
   activity: ActivitySummary
 }
 
 export function ActivityRow({ activity }: Props) {
+  const tone = sessionToneClass(activity.session_type)
+
   return (
     <Link to={`/activities/${activity.id}`} className="activity">
       <div className="activity-top">
         {activity.session_type_label_fr ? (
-          <span className="chip">{activity.session_type_label_fr}</span>
+          <span className={`chip ${tone}`}>{activity.session_type_label_fr}</span>
         ) : (
-          <span className="chip neutral">Non classé</span>
+          <span className={`chip ${tone}`}>Non classé</span>
         )}
         <strong>{activity.name}</strong>
       </div>

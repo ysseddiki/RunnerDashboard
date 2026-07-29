@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import type { SessionTypeInfo } from '../types'
+import { sessionToneClass } from '../sessionTone'
 
 type Props = {
   activityId: number
@@ -75,10 +76,10 @@ export function SessionTypePicker({ activityId, value, onSaved }: Props) {
   }
 
   const current = types.find((t) => t.id === selected)
-  const empty = !selected
+  const tone = sessionToneClass(selected || null)
 
   return (
-    <div className={`session-tag ${empty ? 'is-empty' : ''} ${saving ? 'is-saving' : ''}`}>
+    <div className={`session-tag ${tone} ${saving ? 'is-saving' : ''}`}>
       <label className="visually-hidden" htmlFor={selectId}>
         Type de séance
       </label>
