@@ -62,9 +62,9 @@ export function StreamCharts({ points }: Props) {
     if (sampled.length < 2 || available.length === 0) return null
 
     const xData = sampled.map((p) => Number(p.distance_km.toFixed(3)))
-    const gridHeight = 88
-    const gap = 28
-    const topPad = 48
+    const gridHeight = 92
+    const gap = 56
+    const topPad = 36
     const grids = available.map((_, i) => ({
       left: 56,
       right: 24,
@@ -89,7 +89,14 @@ export function StreamCharts({ points }: Props) {
       type: 'value' as const,
       gridIndex: i,
       name: SERIES_META[key].label,
-      nameTextStyle: { color: SERIES_META[key].color, fontSize: 11 },
+      nameLocation: 'end' as const,
+      nameGap: 12,
+      nameTextStyle: {
+        color: SERIES_META[key].color,
+        fontSize: 12,
+        fontWeight: 600,
+        padding: [0, 0, 4, 0],
+      },
       inverse: Boolean(SERIES_META[key].invertY),
       scale: true,
       axisLabel: {
@@ -165,7 +172,7 @@ export function StreamCharts({ points }: Props) {
     return <p className="muted">Aucune série numérique exploitable pour les graphs.</p>
   }
 
-  const height = 48 + available.length * 116 + 40
+  const height = 36 + available.length * 148 + 44
 
   return (
     <div className="charts-wrap">
