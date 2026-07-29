@@ -20,19 +20,50 @@ def rpm_to_ppm(rpm: float | None) -> float | None:
     return round(value * 2, 1)
 
 
+def _numeric_list(data: Any) -> list[float]:
+    if not isinstance(data, list):
+        return []
+    return [float(v) for v in data if isinstance(v, (int, float)) and v > 0]
+
+
 def average_cadence_rpm_from_stream(streams: dict[str, Any] | None) -> float | None:
     if not streams:
         return None
     cadence = streams.get("cadence")
-    if not isinstance(cadence, dict):
+    if isinstance(cadence, dict):
+        values = _numeric_list(cadence.get("data"))
+        if values:
+            return sum(values) / len(values)
+    if isinstance(cadence, list):
+        values = _numeric_list(cadence)
+        if values:
+            return sum(values) / len(values)
+    return None
+
+
+def average_cadence_rpm_from_raw(raw: dict[str, Any] | None) -> float | None:
+    """Cherche average_cadence activité, puis moyenne des laps/splits si présents."""
+    if not isinstance(raw, dict):
         return None
-    data = cadence.get("data")
-    if not isinstance(data, list) or not data:
-        return None
-    values = [float(v) for v in data if isinstance(v, (int, float)) and v > 0]
-    if not values:
-        return None
-    return sum(values) / len(values)
+
+    avg = raw.get("average_cadence")
+    if isinstance(avg, (int, float)) and avg > 0:
+        return float(avg)
+
+    collected: list[float] = []
+    for key in ("laps", "splits_metric", "splits_standard"):
+        items = raw.get(key)
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            cad = item.get("average_cadence")
+            if isinstance(cad, (int, float)) and cad > 0:
+                collected.append(float(cad))
+    if collected:
+        return sum(collected) / len(collected)
+    return None
 
 
 def resolve_cadence_ppm(
@@ -41,12 +72,9 @@ def resolve_cadence_ppm(
     *,
     strava_id: Any = None,
 ) -> float | None:
-    """Priorité : average_cadence Strava (RPM×2), sinon moyenne du stream cadence."""
-    average = None
-    if isinstance(raw, dict):
-        average = raw.get("average_cadence")
-
-    ppm = rpm_to_ppm(average if isinstance(average, (int, float)) else None)
+    """Priorité : average_cadence / laps Strava (RPM×2), sinon moyenne du stream cadence."""
+    rpm = average_cadence_rpm_from_raw(raw)
+    ppm = rpm_to_ppm(rpm)
     if ppm is not None:
         return ppm
 
@@ -66,3 +94,22 @@ def resolve_cadence_ppm(
         strava_id,
     )
     return None
+
+
+def cadence_source_stats(
+    raw: dict[str, Any] | None,
+    streams: dict[str, Any] | None,
+) -> dict[str, bool]:
+    has_streams = isinstance(streams, dict) and bool(streams)
+    has_cadence_stream = average_cadence_rpm_from_stream(streams) is not None
+    has_average = False
+    if isinstance(raw, dict):
+        avg = raw.get("average_cadence")
+        has_average = isinstance(avg, (int, float)) and avg > 0
+    has_laps_cadence = average_cadence_rpm_from_raw(raw) is not None and not has_average
+    return {
+        "has_streams": has_streams,
+        "has_cadence_stream": has_cadence_stream,
+        "has_average_cadence": has_average,
+        "has_laps_cadence": has_laps_cadence,
+    }

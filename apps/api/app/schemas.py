@@ -90,8 +90,10 @@ class ActivityDetail(ActivitySummary):
     synced_at: datetime | None = None
 
 
-class ActivitySessionTypeUpdate(BaseModel):
+class ActivityUpdate(BaseModel):
     session_type: str | None = None
+    cadence_ppm: float | None = None
+    clear_cadence: bool = False
 
     @field_validator("session_type")
     @classmethod
@@ -105,9 +107,29 @@ class ActivitySessionTypeUpdate(BaseModel):
             )
         return value
 
+    @field_validator("cadence_ppm")
+    @classmethod
+    def validate_cadence(cls, value: float | None) -> float | None:
+        if value is None:
+            return None
+        if value < 80 or value > 250:
+            raise ValueError("Cadence PPM attendue entre 80 et 250")
+        return round(float(value), 1)
+
 
 class CadenceRecomputeResult(BaseModel):
     updated: int
-    unchanged: int
+    unchanged: int = 0
     still_missing: int
+    with_streams: int = 0
+    with_cadence_stream: int = 0
+    with_average_cadence: int = 0
+    with_laps_cadence: int = 0
+    fetched: int = 0
+    errors: int = 0
+    remaining: int = 0
     message: str
+
+
+# Alias conservé pour imports existants
+ActivitySessionTypeUpdate = ActivityUpdate

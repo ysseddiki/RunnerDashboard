@@ -6,6 +6,7 @@ import { buildStreamPoints } from '../streams'
 import { ActivityMap } from '../components/ActivityMap'
 import { StreamCharts } from '../components/StreamCharts'
 import { SessionTypePicker } from '../components/SessionTypePicker'
+import { CadenceEditor } from '../components/CadenceEditor'
 
 export function ActivityDetailPage() {
   const { id } = useParams()
@@ -72,6 +73,14 @@ export function ActivityDetailPage() {
                     }
                   : prev,
               )
+            }}
+          />
+
+          <CadenceEditor
+            activityId={activityId}
+            value={detail.cadence_ppm}
+            onSaved={(cadencePpm) => {
+              setDetail((prev) => (prev ? { ...prev, cadence_ppm: cadencePpm } : prev))
             }}
           />
 

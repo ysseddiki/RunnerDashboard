@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.models import Activity, StravaToken
-from app.services.cadence import resolve_cadence_ppm
+from app.services.cadence import cadence_source_stats, resolve_cadence_ppm
 from app.services.strava_client import StravaClient, StravaError
 from app.services.weather import WeatherError, fetch_weather_for_activity
 
@@ -133,14 +133,25 @@ def activity_from_strava(
 def recompute_cadence_from_local(db: Session) -> dict[str, int]:
     """Recalcule cadence_ppm depuis raw_json / streams_json déjà en base (sans Strava)."""
     updated = unchanged = still_missing = 0
+    with_streams = with_cadence_stream = with_average = with_laps = 0
     for activity in db.scalars(select(Activity)).all():
         raw = activity.raw_json if isinstance(activity.raw_json, dict) else None
         streams = activity.streams_json if isinstance(activity.streams_json, dict) else None
+        stats = cadence_source_stats(raw, streams)
+        if stats["has_streams"]:
+            with_streams += 1
+        if stats["has_cadence_stream"]:
+            with_cadence_stream += 1
+        if stats["has_average_cadence"]:
+            with_average += 1
+        if stats["has_laps_cadence"]:
+            with_laps += 1
+
         ppm = resolve_cadence_ppm(raw, streams, strava_id=activity.strava_id)
         if ppm is None:
             if activity.cadence_ppm is not None:
-                activity.cadence_ppm = None
-                updated += 1
+                # conserver une cadence saisie manuellement si aucune source Strava
+                unchanged += 1
             else:
                 still_missing += 1
             continue
@@ -151,15 +162,106 @@ def recompute_cadence_from_local(db: Session) -> dict[str, int]:
             unchanged += 1
     db.commit()
     logger.info(
-        "Recalcul cadence local | updated=%s | unchanged=%s | still_missing=%s",
+        "Recalcul cadence local | updated=%s | unchanged=%s | still_missing=%s | "
+        "with_streams=%s | with_cadence_stream=%s | with_average=%s | with_laps=%s",
         updated,
         unchanged,
         still_missing,
+        with_streams,
+        with_cadence_stream,
+        with_average,
+        with_laps,
     )
     return {
         "updated": updated,
         "unchanged": unchanged,
         "still_missing": still_missing,
+        "with_streams": with_streams,
+        "with_cadence_stream": with_cadence_stream,
+        "with_average_cadence": with_average,
+        "with_laps_cadence": with_laps,
+    }
+
+
+def refresh_cadence_from_strava(
+    db: Session,
+    settings: Settings,
+    *,
+    max_activities: int = 25,
+) -> dict[str, int]:
+    """Re-télécharge détail + streams Strava pour les sorties sans cadence."""
+    token = get_token(db)
+    if token is None:
+        raise StravaError("Aucun compte Strava connecté | action=connecter_strava_ui")
+
+    token = ensure_fresh_token(db, settings, token)
+    client = StravaClient(settings)
+
+    candidates = list(
+        db.scalars(
+            select(Activity)
+            .where(Activity.cadence_ppm.is_(None))
+            .order_by(Activity.start_date.desc().nullslast())
+        ).all()
+    )
+    fetched = updated = still_missing = errors = 0
+    for activity in candidates:
+        if fetched >= max_activities:
+            break
+        fetched += 1
+        try:
+            detailed = client.get_activity(token.access_token, int(activity.strava_id))
+            try:
+                streams = client.get_streams(token.access_token, int(activity.strava_id))
+            except StravaError as exc:
+                logger.warning(
+                    "Streams indisponibles (refresh cadence) | strava_id=%s | detail=%s",
+                    activity.strava_id,
+                    str(exc),
+                )
+                streams = activity.streams_json if isinstance(activity.streams_json, dict) else None
+
+            # conserver météo + type de séance manuels
+            previous_weather = activity.weather_json
+            previous_session_type = activity.session_type
+            if not isinstance(detailed.get("athlete"), dict):
+                detailed["athlete"] = {"id": activity.athlete_id}
+
+            payload = activity_from_strava(detailed, streams=streams)
+            for key, value in payload.items():
+                setattr(activity, key, value)
+            activity.weather_json = previous_weather
+            activity.session_type = previous_session_type
+
+            if activity.cadence_ppm is not None:
+                updated += 1
+            else:
+                still_missing += 1
+        except StravaError as exc:
+            errors += 1
+            logger.warning(
+                "Refresh cadence échoué | strava_id=%s | detail=%s",
+                activity.strava_id,
+                str(exc),
+            )
+
+    db.commit()
+    remaining = max(0, len(candidates) - fetched)
+    logger.info(
+        "Refresh cadence Strava | fetched=%s | updated=%s | still_missing=%s | "
+        "errors=%s | remaining=%s",
+        fetched,
+        updated,
+        still_missing,
+        errors,
+        remaining,
+    )
+    return {
+        "fetched": fetched,
+        "updated": updated,
+        "still_missing": still_missing,
+        "errors": errors,
+        "remaining": remaining,
     }
 
 

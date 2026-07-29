@@ -140,6 +140,28 @@ export function AdminPage() {
     }
   }
 
+  async function refreshCadenceStrava() {
+    setCadenceBusy(true)
+    setSyncMessage(null)
+    setError(null)
+    try {
+      const res = await fetch('/api/activities/refresh-cadence-strava?max_activities=25', {
+        method: 'POST',
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(
+          typeof body.detail === 'string' ? body.detail : `Refresh cadence HTTP ${res.status}`,
+        )
+      }
+      setSyncMessage(typeof body.message === 'string' ? body.message : 'Refresh cadence terminé.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Refresh cadence impossible')
+    } finally {
+      setCadenceBusy(false)
+    }
+  }
+
   return (
     <>
       <section className="hero">
@@ -192,9 +214,9 @@ export function AdminPage() {
       <section className="panel">
         <h2>Cadence</h2>
         <p className="muted">
-          Strava envoie la cadence en RPM (un pied). On la convertit en PPM (×2), et si la moyenne
-          Strava manque on utilise le stream. Pas besoin de resync : recalcul local sur les données
-          déjà en base. Si Apple Forme n’envoie pas la cadence à Strava, elle restera absente.
+          Si le recalcul local trouve 0 source cadence, Strava n’a probablement jamais reçu la
+          donnée (fréquent Apple Forme → Strava). Vous pouvez quand même recharger depuis Strava
+          (25 sorties / clic) ou saisir la cadence manuellement sur chaque fiche.
         </p>
         <div className="admin-actions">
           <button
@@ -203,7 +225,15 @@ export function AdminPage() {
             onClick={() => void recomputeCadence()}
             disabled={cadenceBusy}
           >
-            {cadenceBusy ? 'Recalcul…' : 'Recalculer les cadences'}
+            {cadenceBusy ? '…' : 'Recalcul local'}
+          </button>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => void refreshCadenceStrava()}
+            disabled={cadenceBusy || !strava?.connected}
+          >
+            {cadenceBusy ? '…' : 'Recharger depuis Strava (25)'}
           </button>
         </div>
       </section>
