@@ -51,11 +51,21 @@ export function ActivityDetailPage() {
         <>
           <header className="detail-hero">
             <div className="detail-meta">
-              <span className="chip">
-                {detail.session_type_label_fr
-                  ? detail.session_type_label_fr
-                  : (detail.sport_type ?? detail.activity_type ?? 'Course')}
-              </span>
+              <SessionTypePicker
+                activityId={activityId}
+                value={detail.session_type}
+                onSaved={(sessionType, label) => {
+                  setDetail((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          session_type: sessionType,
+                          session_type_label_fr: label,
+                        }
+                      : prev,
+                  )
+                }}
+              />
               <span>{formatDate(detail.start_date)}</span>
             </div>
             <h1>{detail.name}</h1>
@@ -83,22 +93,6 @@ export function ActivityDetailPage() {
               </strong>
             </div>
           </div>
-
-          <SessionTypePicker
-            activityId={activityId}
-            value={detail.session_type}
-            onSaved={(sessionType, label) => {
-              setDetail((prev) =>
-                prev
-                  ? {
-                      ...prev,
-                      session_type: sessionType,
-                      session_type_label_fr: label,
-                    }
-                  : prev,
-              )
-            }}
-          />
 
           <div className="detail-block">
             <h3>Trace GPS</h3>

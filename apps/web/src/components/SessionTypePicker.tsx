@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { SessionTypeInfo } from '../types'
 
 type Props = {
@@ -12,7 +12,8 @@ export function SessionTypePicker({ activityId, value, onSaved }: Props) {
   const [selected, setSelected] = useState(value ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [ok, setOk] = useState<string | null>(null)
+  const selectId = useId()
+  const requestId = useRef(0)
 
   useEffect(() => {
     setSelected(value ?? '')
@@ -38,15 +39,15 @@ export function SessionTypePicker({ activityId, value, onSaved }: Props) {
     }
   }, [])
 
-  async function save() {
+  async function persist(next: string) {
+    const id = ++requestId.current
     setSaving(true)
     setError(null)
-    setOk(null)
     try {
       const res = await fetch(`/api/activities/${activityId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_type: selected || null }),
+        body: JSON.stringify({ session_type: next || null }),
       })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -59,56 +60,48 @@ export function SessionTypePicker({ activityId, value, onSaved }: Props) {
               : `Enregistrement HTTP ${res.status}`
         throw new Error(message)
       }
+      if (id !== requestId.current) return
       const label =
         typeof body.session_type_label_fr === 'string' ? body.session_type_label_fr : null
       const nextType = typeof body.session_type === 'string' ? body.session_type : null
       onSaved(nextType, label)
-      setOk('Type de séance enregistré.')
     } catch (err) {
+      if (id !== requestId.current) return
+      setSelected(value ?? '')
       setError(err instanceof Error ? err.message : 'Enregistrement impossible')
     } finally {
-      setSaving(false)
+      if (id === requestId.current) setSaving(false)
     }
   }
 
-  const dirty = (selected || '') !== (value ?? '')
+  const current = types.find((t) => t.id === selected)
+  const empty = !selected
 
   return (
-    <div className="session-type-box">
-      <label className="session-type-label" htmlFor="session-type">
+    <div className={`session-tag ${empty ? 'is-empty' : ''} ${saving ? 'is-saving' : ''}`}>
+      <label className="visually-hidden" htmlFor={selectId}>
         Type de séance
       </label>
-      <p className="muted session-type-help">
-        Attribuez EF, fractionné, seuil… pour que le coach IA analyse mieux chaque sortie.
-      </p>
-      <div className="session-type-row">
-        <select
-          id="session-type"
-          value={selected}
-          onChange={(e) => {
-            setSelected(e.target.value)
-            setOk(null)
-          }}
-          disabled={saving || types.length === 0}
-        >
-          <option value="">Non classé</option>
-          {types.map((t) => (
-            <option key={t.id} value={t.id} title={t.description_fr}>
-              {t.label_fr}
-            </option>
-          ))}
-        </select>
-        <button type="button" className="btn" onClick={() => void save()} disabled={saving || !dirty}>
-          {saving ? '…' : 'Enregistrer'}
-        </button>
-      </div>
-      {selected && types.find((t) => t.id === selected) && (
-        <p className="muted session-type-desc">
-          {types.find((t) => t.id === selected)?.description_fr}
-        </p>
-      )}
-      {error && <p className="banner error">{error}</p>}
-      {ok && <p className="banner ok">{ok}</p>}
+      <select
+        id={selectId}
+        className="session-tag-select"
+        value={selected}
+        title={current?.description_fr ?? 'Attribuer un type de séance'}
+        disabled={saving || types.length === 0}
+        onChange={(e) => {
+          const next = e.target.value
+          setSelected(next)
+          void persist(next)
+        }}
+      >
+        <option value="">Non classé</option>
+        {types.map((t) => (
+          <option key={t.id} value={t.id}>
+            {t.label_fr}
+          </option>
+        ))}
+      </select>
+      {error && <span className="session-tag-error">{error}</span>}
     </div>
   )
 }
