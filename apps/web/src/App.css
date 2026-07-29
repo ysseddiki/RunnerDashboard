@@ -52,7 +52,8 @@ body {
 
 .status,
 .activities,
-.detail {
+.detail,
+.evolution {
   margin-top: 2rem;
   padding-top: 1.5rem;
   border-top: 1px solid #b7c4ba;
@@ -60,7 +61,8 @@ body {
 
 .status h2,
 .activities h2,
-.detail h2 {
+.detail h2,
+.evolution h2 {
   margin: 0 0 0.75rem;
   font-size: 1rem;
   font-weight: 600;
@@ -128,8 +130,47 @@ button:disabled {
   font-size: 0.92rem;
 }
 
-.detail h3 {
+.detail h3,
+.evolution h3 {
   margin: 1.25rem 0 0.5rem;
   font-size: 0.95rem;
   font-weight: 600;
+}
+
+.category {
+  margin: 0 0 0.75rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #1f4d36;
+}
+
+.cat-baisse,
+.cat-charge_elevee {
+  color: #8a1f1f;
+}
+
+.cat-plateau,
+.cat-donnees_insuffisantes {
+  color: #5a6b5e;
+}
+
+.reasons {
+  margin: 0 0 1rem;
+  padding-left: 1.15rem;
+}
+
+.metrics {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 720px) {
+  .metrics {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.weeks {
+  margin: 0;
+  padding-left: 1.15rem;
 }

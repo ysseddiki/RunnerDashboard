@@ -265,15 +265,27 @@ def sync_activities(db: Session, settings: Settings, *, max_pages: int = 5) -> d
             break
         page += 1
 
-    # Enrichissement météo : toutes les activités encore sans météo
+    # Enrichissement météo : max 15 / Sync pour éviter timeout HTTP
+    weather_budget = 15
     for activity in db.scalars(select(Activity).where(Activity.weather_json.is_(None))).all():
+        if weather_enriched >= weather_budget:
+            weather_logger.info(
+                "Budget météo Sync atteint | sync_id=%s | enriched=%s | restera_au_prochain_sync=oui",
+                sync_id,
+                weather_enriched,
+            )
+            break
         if enrich_activity_weather(activity, sync_id=sync_id):
             weather_enriched += 1
     db.commit()
 
+    remaining_weather = db.scalar(
+        select(Activity).where(Activity.weather_json.is_(None)).limit(1)
+    )
+    more = " (relancer Sync pour continuer la météo)" if remaining_weather else ""
     message = (
         f"Sync terminée : {created} créée(s), {updated} mise(s) à jour, "
-        f"{skipped} ignorée(s), météo enrichie {weather_enriched}."
+        f"{skipped} ignorée(s), météo enrichie {weather_enriched}.{more}"
     )
     logger.info(
         "Sync terminé | sync_id=%s | created=%s | updated=%s | skipped=%s | fetched=%s | weather=%s",

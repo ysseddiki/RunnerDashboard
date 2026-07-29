@@ -55,7 +55,7 @@ docker compose -f infra/docker-compose.yml --env-file .env down
 | **P0** | Fait | Socle front/back, Postgres, logs, Ollama prêt |
 | **P1** | Fait | Sync Strava + activités (cadence PPM si dispo) |
 | **P2** | Fait | Météo liée aux sorties (Open-Meteo au Sync) |
-| **P3** | Prévu | Analytics / évolution |
+| **P3** | Fait | Analytics / évolution (volumes, tendances, catégories) |
 | **P4** | Prévu | Coach IA local (Ollama) + choix modèle en Paramètres |
 
 Suivi produit : dossier `openspec/`.

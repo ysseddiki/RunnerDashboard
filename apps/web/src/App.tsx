@@ -81,10 +81,52 @@ function formatDate(value: string | null): string {
   })
 }
 
+function formatPaceSec(secPerKm: number | null | undefined): string {
+  if (secPerKm == null || secPerKm <= 0) return '—'
+  const mm = Math.floor(secPerKm / 60)
+  const ss = Math.round(secPerKm % 60)
+  return `${mm}:${String(ss).padStart(2, '0')} /km`
+}
+
+type AnalyticsOverview = {
+  category: string
+  category_label_fr: string
+  reasons: string[]
+  totals: {
+    activities: number
+    distance_km: number
+    moving_time_h: number
+  }
+  window_28d: {
+    activities: number
+    distance_km: number
+    avg_pace_sec_per_km: number | null
+    avg_heartrate: number | null
+    avg_cadence_ppm: number | null
+  }
+  previous_28d: {
+    activities: number
+    distance_km: number
+    avg_pace_sec_per_km: number | null
+  }
+  trends: {
+    volume_pct: number | null
+    speed_pct: number | null
+  }
+  weekly_volume: Array<{ week: string; distance_km: number; runs: number }>
+  weather: {
+    activities_with_weather: number
+    avg_temperature_c: number | null
+    rainy_runs: number
+    rainy_share_pct: number | null
+  }
+}
+
 function App() {
   const [health, setHealth] = useState<HealthResponse | null>(null)
   const [strava, setStrava] = useState<StravaStatus | null>(null)
   const [activities, setActivities] = useState<ActivitySummary[]>([])
+  const [analytics, setAnalytics] = useState<AnalyticsOverview | null>(null)
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [detail, setDetail] = useState<ActivityDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -102,17 +144,20 @@ function App() {
 
   const refresh = useCallback(async () => {
     setError(null)
-    const [healthRes, statusRes, listRes] = await Promise.all([
+    const [healthRes, statusRes, listRes, analyticsRes] = await Promise.all([
       fetch('/api/health'),
       fetch('/api/strava/status'),
       fetch('/api/activities?limit=50'),
+      fetch('/api/analytics/overview'),
     ])
     if (!healthRes.ok) throw new Error(`Health HTTP ${healthRes.status}`)
     if (!statusRes.ok) throw new Error(`Status Strava HTTP ${statusRes.status}`)
     if (!listRes.ok) throw new Error(`Activités HTTP ${listRes.status}`)
+    if (!analyticsRes.ok) throw new Error(`Analytics HTTP ${analyticsRes.status}`)
     setHealth((await healthRes.json()) as HealthResponse)
     setStrava((await statusRes.json()) as StravaStatus)
     setActivities((await listRes.json()) as ActivitySummary[])
+    setAnalytics((await analyticsRes.json()) as AnalyticsOverview)
   }, [])
 
   useEffect(() => {
@@ -187,10 +232,10 @@ function App() {
     <main className="page">
       <header className="brand">
         <p className="eyebrow">RunningDashboard</p>
-                <h1>Palier P2 — Strava + météo</h1>
+        <h1>Palier P3 — Évolution</h1>
         <p className="lede">
-          Connectez Strava, synchronisez vos sorties running et la météo associée,
-          consultez distance, allure, FC, cadence PPM et conditions.
+          Volumes, tendances d’allure et catégorie d’évolution à partir de vos
+          sorties Strava et de la météo associée.
         </p>
       </header>
 
@@ -222,6 +267,94 @@ function App() {
           )}
         </div>
       </section>
+
+      {analytics && (
+        <section className="evolution">
+          <h2>Évolution</h2>
+          <p className={`category cat-${analytics.category}`}>
+            {analytics.category_label_fr}
+          </p>
+          <ul className="reasons">
+            {analytics.reasons.map((reason) => (
+              <li key={reason}>{reason}</li>
+            ))}
+          </ul>
+          <div className="metrics">
+            <div>
+              <h3>Total</h3>
+              <ul>
+                <li>{analytics.totals.activities} sorties</li>
+                <li>{analytics.totals.distance_km} km</li>
+                <li>{analytics.totals.moving_time_h} h</li>
+              </ul>
+            </div>
+            <div>
+              <h3>28 derniers jours</h3>
+              <ul>
+                <li>{analytics.window_28d.activities} sorties · {analytics.window_28d.distance_km} km</li>
+                <li>Allure : {formatPaceSec(analytics.window_28d.avg_pace_sec_per_km)}</li>
+                <li>
+                  FC :{' '}
+                  {analytics.window_28d.avg_heartrate != null
+                    ? `${analytics.window_28d.avg_heartrate} bpm`
+                    : '—'}
+                </li>
+                <li>
+                  Cadence :{' '}
+                  {analytics.window_28d.avg_cadence_ppm != null
+                    ? `${analytics.window_28d.avg_cadence_ppm} PPM`
+                    : '—'}
+                </li>
+              </ul>
+            </div>
+            <div>
+              <h3>Tendances vs 28 j avant</h3>
+              <ul>
+                <li>
+                  Volume :{' '}
+                  {analytics.trends.volume_pct != null
+                    ? `${analytics.trends.volume_pct > 0 ? '+' : ''}${analytics.trends.volume_pct} %`
+                    : '—'}
+                </li>
+                <li>
+                  Vitesse :{' '}
+                  {analytics.trends.speed_pct != null
+                    ? `${analytics.trends.speed_pct > 0 ? '+' : ''}${analytics.trends.speed_pct} %`
+                    : '—'}
+                </li>
+              </ul>
+            </div>
+          </div>
+          {analytics.weekly_volume.length > 0 && (
+            <>
+              <h3>Volume hebdomadaire</h3>
+              <ul className="weeks">
+                {analytics.weekly_volume.slice(-8).map((w) => (
+                  <li key={w.week}>
+                    {w.week} : {w.distance_km} km ({w.runs} sortie{w.runs > 1 ? 's' : ''})
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          <h3>Météo (historique enrichi)</h3>
+          <ul>
+            <li>{analytics.weather.activities_with_weather} sorties avec météo</li>
+            <li>
+              Temp. moyenne :{' '}
+              {analytics.weather.avg_temperature_c != null
+                ? `${analytics.weather.avg_temperature_c} °C`
+                : '—'}
+            </li>
+            <li>
+              Sorties sous pluie : {analytics.weather.rainy_runs}
+              {analytics.weather.rainy_share_pct != null
+                ? ` (${analytics.weather.rainy_share_pct} %)`
+                : ''}
+            </li>
+          </ul>
+        </section>
+      )}
 
       <section className="activities">
         <h2>Activités</h2>

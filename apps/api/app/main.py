@@ -1,4 +1,4 @@
-"""Point d'entrée FastAPI — palier P2."""
+"""Point d'entrée FastAPI — palier P3."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.db import init_db
 from app.logging_config import setup_logging
-from app.routers import activities, strava
+from app.routers import activities, analytics, strava
 
 logger = logging.getLogger("api")
 
@@ -21,7 +21,7 @@ async def lifespan(_app: FastAPI):
     settings = get_settings()
     log_path = setup_logging(settings.log_dir, settings.log_level, settings.log_file_name)
     logger.info(
-        "Démarrage API | app=%s | env=%s | log_path=%s | palier=P2",
+        "Démarrage API | app=%s | env=%s | log_path=%s | palier=P3",
         settings.app_name,
         settings.environment,
         log_path,
@@ -36,7 +36,7 @@ def create_app() -> FastAPI:
     settings = get_settings()
     application = FastAPI(
         title=settings.app_name,
-        version="0.3.0",
+        version="0.4.0",
         lifespan=lifespan,
     )
     origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
@@ -54,12 +54,13 @@ def create_app() -> FastAPI:
         return {
             "status": "ok",
             "service": "api",
-            "version": "0.3.0",
-            "palier": "P2",
+            "version": "0.4.0",
+            "palier": "P3",
         }
 
     application.include_router(strava.router)
     application.include_router(activities.router)
+    application.include_router(analytics.router)
     return application
 
 
