@@ -19,22 +19,28 @@ Prérequis : Docker et Docker Compose.
 
 ```bash
 cp .env.example .env
-# Éditer .env : PUBLIC_HOST=<IP_DE_LA_VM> et CORS_ORIGINS avec http(s)://<IP>
+# Éditer .env : PUBLIC_HOST, PUBLIC_APP_URL, CORS_ORIGINS, STRAVA_*
 sudo mkdir -p /var/log/running-dashboards/host-logs
 docker compose -f infra/docker-compose.yml --env-file .env up --build -d
 ```
 
 Accès :
-- **HTTP (recommandé si pas de domaine)** : `http://VOTRE_IP`
-- **HTTPS** : `https://VOTRE_IP` (certificat auto-signé → accepter l’avertissement navigateur)
+- **HTTP** : `http://VOTRE_IP`
+- **HTTPS** : `https://VOTRE_IP` (certificat auto-signé → accepter l’avertissement)
 
-Les logs API : `/var/log/running-dashboards/host-logs/` (`HOST_LOG_DIR` et `LOG_DIR` pointent au même endroit).
+Les logs API : `/var/log/running-dashboards/host-logs/`.
+
+### Strava
+
+1. Créer une app sur [Strava API](https://www.strava.com/settings/api)
+2. **Authorization Callback Domain** = hôte sans `http://` (ex. `localhost` ou votre IP)
+3. Renseigner dans `.env` : `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_REDIRECT_URI` (`http://VOTRE_IP/api/strava/callback`), `PUBLIC_APP_URL`
 
 ## Usage
 
-1. Démarrer la stack (commande ci-dessus).
-2. Vérifier la page d’accueil et l’état API.
-3. (Paliers suivants) Connecter Strava, synchroniser, consulter tendances et coach.
+1. Démarrer la stack.
+2. Ouvrir l’UI → **Connecter Strava** → autoriser.
+3. **Synchroniser** → consulter la liste / le détail (cadence PPM si dispo).
 
 Arrêt :
 
@@ -47,7 +53,7 @@ docker compose -f infra/docker-compose.yml --env-file .env down
 | Palier | Statut | Contenu |
 |--------|--------|---------|
 | **P0** | Fait | Socle front/back, Postgres, logs, Ollama prêt |
-| **P1** | Prévu | Sync Strava + activités (dont cadence PPM si dispo) |
+| **P1** | Fait | Sync Strava + activités (cadence PPM si dispo) |
 | **P2** | Prévu | Météo liée aux sorties |
 | **P3** | Prévu | Analytics / évolution |
 | **P4** | Prévu | Coach IA local (Ollama) + choix modèle en Paramètres |

@@ -1,4 +1,4 @@
-"""Point d'entrée FastAPI — socle P0."""
+"""Point d'entrée FastAPI — palier P1."""
 
 from __future__ import annotations
 
@@ -9,7 +9,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
+from app.db import init_db
 from app.logging_config import setup_logging
+from app.routers import activities, strava
 
 logger = logging.getLogger("api")
 
@@ -19,11 +21,13 @@ async def lifespan(_app: FastAPI):
     settings = get_settings()
     log_path = setup_logging(settings.log_dir, settings.log_level, settings.log_file_name)
     logger.info(
-        "Démarrage API | app=%s | env=%s | log_path=%s",
+        "Démarrage API | app=%s | env=%s | log_path=%s | palier=P1",
         settings.app_name,
         settings.environment,
         log_path,
     )
+    init_db()
+    logger.info("Schéma base initialisé | action=create_all")
     yield
     logger.info("Arrêt API | raison=shutdown")
 
@@ -32,7 +36,7 @@ def create_app() -> FastAPI:
     settings = get_settings()
     application = FastAPI(
         title=settings.app_name,
-        version="0.1.0",
+        version="0.2.0",
         lifespan=lifespan,
     )
     origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
@@ -45,19 +49,17 @@ def create_app() -> FastAPI:
     )
 
     @application.get("/health")
+    @application.get("/api/health")
     def health():
         return {
             "status": "ok",
             "service": "api",
-            "version": "0.1.0",
-            "palier": "P0",
+            "version": "0.2.0",
+            "palier": "P1",
         }
 
-    @application.get("/api/health")
-    def health_prefixed():
-        """Alias derrière le reverse proxy (/api → api)."""
-        return health()
-
+    application.include_router(strava.router)
+    application.include_router(activities.router)
     return application
 
 

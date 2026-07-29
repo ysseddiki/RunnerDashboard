@@ -14,7 +14,15 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_file_name: str = "api.log"
     database_url: str = "postgresql+psycopg://running:running@postgres:5432/runningdashboard"
-    cors_origins: str = "https://localhost,https://localhost:443,http://localhost,http://localhost:80,http://localhost:5173"
+    cors_origins: str = (
+        "https://localhost,https://localhost:443,http://localhost,"
+        "http://localhost:80,http://localhost:5173"
+    )
+    public_app_url: str = "http://localhost"
+    strava_client_id: str = ""
+    strava_client_secret: str = ""
+    strava_redirect_uri: str = "http://localhost/api/strava/callback"
+    strava_scopes: str = "read,activity:read_all,profile:read_all"
 
 
 @lru_cache
