@@ -23,7 +23,9 @@ sudo mkdir -p /var/log/running-dashboards/host-logs
 docker compose -f infra/docker-compose.yml --env-file .env up --build -d
 ```
 
-Ouvrir [http://localhost:443](http://localhost:443) (port UI par défaut : `APP_PORT=443`).
+Ouvrir [https://localhost](https://localhost) (HTTPS sur le port `APP_PORT=443`).
+
+Caddy utilise un certificat local (`tls internal`). Le navigateur affichera un avertissement à accepter (normal sans nom de domaine). En accès par IP, ajoute `https://VOTRE_IP` dans `CORS_ORIGINS`.
 
 Les logs API : `/var/log/running-dashboards/host-logs/` (`HOST_LOG_DIR` et `LOG_DIR` pointent au même endroit).
 

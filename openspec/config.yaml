@@ -20,7 +20,8 @@ context: |
 
   Logs : HOST_LOG_DIR et LOG_DIR au même path
   `/var/log/running-dashboards/host-logs` ; messages FR explicites, pas de secrets.
-  UI exposée sur APP_PORT=443 par défaut ; CORS_ORIGINS doit suivre l’URL navigateur.
+  UI exposée en HTTPS sur APP_PORT=443 (Caddy tls internal) ; CORS_ORIGINS doit
+  suivre l’URL navigateur (https://…).
   Cadence running = PPM (pas par minute), métrique prioritaire quand disponible.
   README.md : simple (présentation, install, usage, fonctionnalités).
   Suivi produit : OpenSpec (specs + changes). Langue UI et docs : FR.

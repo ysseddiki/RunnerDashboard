@@ -1,4 +1,11 @@
-:80 {
+{
+	# Certificat local (idéal sans nom de domaine / accès par IP).
+	# Le navigateur affichera un avertissement à accepter une fois.
+	auto_https disable_redirects
+}
+
+:443 {
+	tls internal
 	encode gzip
 
 	handle /api/* {
@@ -12,4 +19,8 @@
 	handle {
 		reverse_proxy web:80
 	}
+}
+
+:80 {
+	redir https://{host}{uri} permanent
 }
