@@ -108,20 +108,26 @@ export function StreamCharts({ points, features }: Props) {
     }))
 
     const segments = features?.chart_overlays?.interval_segments ?? []
-    const markAreas =
+    type MarkAreaPair = [
+      { xAxis: string; itemStyle: { color: string } },
+      { xAxis: string },
+    ]
+    const markAreas: MarkAreaPair[] | undefined =
       segments.length > 0
-        ? segments.map((seg) => [
-            {
-              xAxis: String(Number((seg.start_distance_m / 1000).toFixed(3))),
-              itemStyle: { color: 'rgba(26, 92, 58, 0.12)' },
-            },
-            {
-              xAxis: String(Number((seg.end_distance_m / 1000).toFixed(3))),
-            },
-          ])
+        ? segments.map(
+            (seg): MarkAreaPair => [
+              {
+                xAxis: String(Number((seg.start_distance_m / 1000).toFixed(3))),
+                itemStyle: { color: 'rgba(26, 92, 58, 0.12)' },
+              },
+              {
+                xAxis: String(Number((seg.end_distance_m / 1000).toFixed(3))),
+              },
+            ],
+          )
         : undefined
 
-    const series = available.map((key, i) => ({
+    const series: EChartsOption['series'] = available.map((key, i) => ({
       name: SERIES_META[key].label,
       type: 'line' as const,
       showSymbol: false,
