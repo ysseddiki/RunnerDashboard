@@ -72,6 +72,7 @@ class Activity(Base):
     device_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     trainer: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     session_type: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    terrain: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     streams_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     weather_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     raw_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)

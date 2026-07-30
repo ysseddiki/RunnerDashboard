@@ -10,17 +10,19 @@ from sqlalchemy.orm import Session
 from app.config import Settings, get_settings
 from app.db import get_db
 from app.models import Activity
+from app.services import session_type_suggest as suggest_service
+from app.services import sync as sync_service
+from app.services.session_types import SESSION_TYPES
+from app.services.strava_client import StravaError
+from app.services.terrains import TERRAINS
 from app.schemas import (
     ActivityDetail,
     ActivityUpdate,
     ActivitySummary,
     CadenceRecomputeResult,
     SessionTypeInfo,
+    TerrainInfo,
 )
-from app.services import session_type_suggest as suggest_service
-from app.services import sync as sync_service
-from app.services.session_types import SESSION_TYPES
-from app.services.strava_client import StravaError
 
 router = APIRouter(prefix="/api/activities", tags=["activities"])
 
@@ -58,6 +60,11 @@ class ClearSessionTypesResult(BaseModel):
 @router.get("/session-types", response_model=list[SessionTypeInfo])
 def list_session_types() -> list[SessionTypeInfo]:
     return [SessionTypeInfo(**item) for item in SESSION_TYPES]
+
+
+@router.get("/terrains", response_model=list[TerrainInfo])
+def list_terrains() -> list[TerrainInfo]:
+    return [TerrainInfo(**item) for item in TERRAINS]
 
 
 @router.post("/clear-session-types", response_model=ClearSessionTypesResult)
@@ -189,6 +196,8 @@ def patch_activity(
     payload = body.model_dump(exclude_unset=True)
     if "session_type" in payload:
         row.session_type = payload["session_type"]
+    if "terrain" in payload:
+        row.terrain = payload["terrain"]
     if payload.get("clear_cadence"):
         row.cadence_ppm = None
     elif "cadence_ppm" in payload and payload["cadence_ppm"] is not None:

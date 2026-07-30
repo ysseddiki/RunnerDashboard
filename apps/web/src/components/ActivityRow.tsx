@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import type { ActivitySummary } from '../types'
 import { formatDate, formatKm, formatPace } from '../format'
 import { SessionTypePicker } from './SessionTypePicker'
+import { TerrainPicker } from './TerrainPicker'
 
 type Props = {
   activity: ActivitySummary
@@ -10,6 +11,7 @@ type Props = {
     sessionType: string | null,
     label: string | null,
   ) => void
+  onTerrainSaved?: (activityId: number, terrain: string | null, label: string | null) => void
 }
 
 function sourceBadge(activity: ActivitySummary): { label: string; className: string } {
@@ -25,7 +27,7 @@ function sourceBadge(activity: ActivitySummary): { label: string; className: str
   }
 }
 
-export function ActivityRow({ activity, onSessionTypeSaved }: Props) {
+export function ActivityRow({ activity, onSessionTypeSaved, onTerrainSaved }: Props) {
   const detailTo = `/activities/${activity.id}`
   const badge = sourceBadge(activity)
 
@@ -39,6 +41,13 @@ export function ActivityRow({ activity, onSessionTypeSaved }: Props) {
             onSessionTypeSaved?.(activity.id, sessionType, label)
           }}
         >
+          <TerrainPicker
+            activityId={activity.id}
+            value={activity.terrain}
+            onSaved={(terrain, label) => {
+              onTerrainSaved?.(activity.id, terrain, label)
+            }}
+          />
           <span className={badge.className}>{badge.label}</span>
           <Link to={detailTo} className="activity-title-link">
             <strong>{activity.name}</strong>

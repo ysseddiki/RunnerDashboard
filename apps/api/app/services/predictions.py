@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.models import Activity
 from app.services.analytics import build_overview as build_analytics_overview
 from app.services.session_types import label_for
+from app.services.terrains import is_roadish, label_for as terrain_label_for
 
 MIN_ACTIVITIES = 5
 RIEGEL_EXP = 0.06
@@ -157,27 +158,32 @@ def _pick_anchor(
         # On prend la meilleure allure (plus rapide) parmi les candidats.
         return min(scored, key=lambda x: _pace_sec_per_km(x[0].average_speed_mps) or 9999)[0]
 
-    # 1) compétition / test ≤ 180 j
+    # 1) compétition / test ≤ 180 j (préférence route / piste pour chronos plats)
     races = [
         a
         for a in usable
         if a.session_type in ANCHOR_TYPES and a.start_date and a.start_date >= as_of - timedelta(days=180)
     ]
-    race = best_by_finish(races)
+    races_road = [a for a in races if is_roadish(a.terrain)]
+    race = best_by_finish(races_road) or best_by_finish(races)
     if race is not None:
         age = (as_of - race.start_date).days if race.start_date else 999
         conf: Confidence = "haute" if age <= 120 and len(usable) >= 8 else "moyenne"
+        if not is_roadish(race.terrain):
+            conf = "basse"
         return race, "competition_ou_test", conf
 
-    # 2) qualité taguée ≤ 90 j
+    # 2) qualité taguée ≤ 90 j (hors trail si possible)
     quality = [
         a
         for a in usable
         if a.session_type in QUALITY_TYPES and a.start_date and a.start_date >= as_of - timedelta(days=90)
     ]
-    q = best_by_finish(quality)
+    quality_road = [a for a in quality if is_roadish(a.terrain)]
+    q = best_by_finish(quality_road) or best_by_finish(quality)
     if q is not None:
-        return q, "seance_qualite", "moyenne"
+        conf_q: Confidence = "moyenne" if is_roadish(q.terrain) else "basse"
+        return q, "seance_qualite", conf_q
 
     # 3) meilleures sorties ≥ 5 km hors récup (28–90 j)
     mid = [
@@ -187,6 +193,7 @@ def _pick_anchor(
         and a.start_date
         and as_of - timedelta(days=90) <= a.start_date <= as_of
         and a.session_type not in EASY_TYPES
+        and is_roadish(a.terrain)
     ]
     if not mid:
         mid = [
@@ -269,6 +276,8 @@ def _estimate_for_rows(
             "pace_sec_per_km": round(pace, 1),
             "session_type": anchor.session_type,
             "session_type_label_fr": label_for(anchor.session_type),
+            "terrain": anchor.terrain,
+            "terrain_label_fr": terrain_label_for(anchor.terrain),
             "method": method,
             "charge_factor": round(adj, 3),
         },

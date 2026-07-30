@@ -89,3 +89,11 @@ def init_db() -> None:
                 "ALTER TABLE athlete_profile ADD COLUMN IF NOT EXISTS birth_date DATE"
             )
         )
+        conn.execute(
+            text("ALTER TABLE activities ADD COLUMN IF NOT EXISTS terrain VARCHAR(32)")
+        )
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_activities_terrain ON activities (terrain)"
+            )
+        )

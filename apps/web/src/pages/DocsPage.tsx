@@ -230,6 +230,12 @@ function SeancesTab() {
         <strong>Suggérer</strong> propose un type (allure vs 10 km estimé, distance, D+, titre) —
         à confirmer avant enregistrement.
       </p>
+      <p>
+        En parallèle, le <strong>terrain</strong> (Route, Trail, Piste, Indoor, Mixte) est un
+        contexte orthogonal : il n’écrase pas le type de séance. Les trails sont dépriorisés pour
+        les chronos route ; Strava <em>TrailRun</em> / D+ élevé / titre peuvent pré-remplir le
+        terrain à l’import.
+      </p>
       <ul className="docs-session-list">
         {SESSION_DOCS.map((s) => (
           <li key={s.id}>

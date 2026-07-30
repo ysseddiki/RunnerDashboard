@@ -14,6 +14,7 @@ from app.config import Settings
 from app.models import Activity, StravaToken
 from app.services.cadence import cadence_source_stats, resolve_cadence_ppm
 from app.services.strava_client import StravaClient, StravaError
+from app.services.terrains import activity_infer as infer_terrain
 from app.services.weather import WeatherError, fetch_weather_for_activity
 
 logger = logging.getLogger("sync.strava")
@@ -222,9 +223,10 @@ def refresh_cadence_from_strava(
                 )
                 streams = activity.streams_json if isinstance(activity.streams_json, dict) else None
 
-            # conserver météo + type de séance manuels
+            # conserver météo + type de séance + terrain manuels
             previous_weather = activity.weather_json
             previous_session_type = activity.session_type
+            previous_terrain = activity.terrain
             if not isinstance(detailed.get("athlete"), dict):
                 detailed["athlete"] = {"id": activity.athlete_id}
 
@@ -233,6 +235,7 @@ def refresh_cadence_from_strava(
                 setattr(activity, key, value)
             activity.weather_json = previous_weather
             activity.session_type = previous_session_type
+            activity.terrain = previous_terrain
 
             if activity.cadence_ppm is not None:
                 updated += 1
@@ -369,26 +372,36 @@ def sync_activities(db: Session, settings: Settings, *, max_pages: int = 5) -> d
             existing = db.scalar(select(Activity).where(Activity.strava_id == strava_id))
             if existing is None:
                 row = Activity(**payload)
+                guessed = infer_terrain(row)
+                if guessed:
+                    row.terrain = guessed
                 db.add(row)
                 db.flush()
                 created += 1
                 logger.info(
-                    "Activité importée | sync_id=%s | strava_id=%s | distance_m=%s | cadence_ppm=%s",
+                    "Activité importée | sync_id=%s | strava_id=%s | distance_m=%s | cadence_ppm=%s | terrain=%s",
                     sync_id,
                     strava_id,
                     payload["distance_m"],
                     payload["cadence_ppm"],
+                    row.terrain,
                 )
             else:
-                # Ne pas écraser météo, type de séance, ni lien Apple
+                # Ne pas écraser météo, type de séance, terrain, ni lien Apple
                 previous_weather = existing.weather_json
                 previous_session_type = existing.session_type
+                previous_terrain = existing.terrain
                 previous_apple_uuid = existing.apple_uuid
                 for key, value in payload.items():
                     setattr(existing, key, value)
                 existing.weather_json = previous_weather
                 existing.session_type = previous_session_type
+                existing.terrain = previous_terrain
                 existing.apple_uuid = previous_apple_uuid
+                if previous_terrain is None:
+                    guessed = infer_terrain(existing)
+                    if guessed:
+                        existing.terrain = guessed
                 if previous_apple_uuid:
                     existing.source = "strava"  # source sync reste strava ; lien via apple_uuid
                 updated += 1

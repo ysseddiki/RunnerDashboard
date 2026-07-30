@@ -48,6 +48,8 @@ export type ActivitySummary = {
   total_elevation_gain_m: number | null
   session_type?: string | null
   session_type_label_fr?: string | null
+  terrain?: string | null
+  terrain_label_fr?: string | null
   weather_json?: WeatherInfo | null
 }
 
@@ -135,6 +137,12 @@ export type SessionTypeInfo = {
   description_fr: string
 }
 
+export type TerrainInfo = {
+  id: string
+  label_fr: string
+  description_fr: string
+}
+
 export type StreamPoint = {
   index: number
   time_s: number
@@ -181,6 +189,8 @@ export type PredictionsOverview = {
     pace_sec_per_km: number
     session_type: string | null
     session_type_label_fr: string | null
+    terrain?: string | null
+    terrain_label_fr?: string | null
     method: string
     charge_factor: number
   } | null

@@ -8,6 +8,7 @@ import { buildStreamPoints } from '../streams'
 import { ActivityMap } from '../components/ActivityMap'
 import { StreamCharts } from '../components/StreamCharts'
 import { SessionTypePicker } from '../components/SessionTypePicker'
+import { TerrainPicker } from '../components/TerrainPicker'
 
 type AppleLinkInfo = {
   activity_id: number
@@ -138,6 +139,21 @@ export function ActivityDetailPage() {
                           ...prev,
                           session_type: sessionType,
                           session_type_label_fr: label,
+                        }
+                      : prev,
+                  )
+                }}
+              />
+              <TerrainPicker
+                activityId={activityId}
+                value={detail.terrain}
+                onSaved={(terrain, label) => {
+                  setDetail((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          terrain,
+                          terrain_label_fr: label,
                         }
                       : prev,
                   )

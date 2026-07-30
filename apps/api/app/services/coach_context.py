@@ -12,6 +12,7 @@ from app.models import Activity
 from app.services.analytics import build_overview
 from app.services.predictions import build_predictions_overview
 from app.services.session_types import label_for
+from app.services.terrains import label_for as terrain_label_for
 
 
 def _pace_sec_per_km(mps: float | None) -> float | None:
@@ -55,6 +56,8 @@ def build_coach_context(db: Session, *, recent_limit: int = 12) -> dict[str, Any
                 "name": a.name,
                 "session_type": a.session_type,
                 "session_type_label_fr": label_for(a.session_type),
+                "terrain": a.terrain,
+                "terrain_label_fr": terrain_label_for(a.terrain),
                 "distance_km": round((a.distance_m or 0) / 1000.0, 2),
                 "pace_sec_per_km": pace,
                 "pace_label": _fmt_pace(pace),

@@ -8,6 +8,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, computed_field, field_validator
 
 from app.services.session_types import SESSION_TYPE_IDS, label_for
+from app.services.terrains import TERRAIN_IDS, label_for as terrain_label_for
 
 
 class StravaStatus(BaseModel):
@@ -49,6 +50,12 @@ class SessionTypeInfo(BaseModel):
     description_fr: str
 
 
+class TerrainInfo(BaseModel):
+    id: str
+    label_fr: str
+    description_fr: str
+
+
 class ActivitySummary(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -66,12 +73,18 @@ class ActivitySummary(BaseModel):
     cadence_ppm: float | None
     total_elevation_gain_m: float | None
     session_type: str | None = None
+    terrain: str | None = None
     weather_json: dict[str, Any] | None = None
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def session_type_label_fr(self) -> str | None:
         return label_for(self.session_type)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def terrain_label_fr(self) -> str | None:
+        return terrain_label_for(self.terrain)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -105,6 +118,7 @@ class ActivityDetail(ActivitySummary):
 
 class ActivityUpdate(BaseModel):
     session_type: str | None = None
+    terrain: str | None = None
     cadence_ppm: float | None = None
     clear_cadence: bool = False
 
@@ -117,6 +131,17 @@ class ActivityUpdate(BaseModel):
             raise ValueError(
                 f"Type de séance inconnu: {value}. "
                 f"Choix: {', '.join(sorted(SESSION_TYPE_IDS))}"
+            )
+        return value
+
+    @field_validator("terrain")
+    @classmethod
+    def validate_terrain(cls, value: str | None) -> str | None:
+        if value is None or value == "":
+            return None
+        if value not in TERRAIN_IDS:
+            raise ValueError(
+                f"Terrain inconnu: {value}. Choix: {', '.join(sorted(TERRAIN_IDS))}"
             )
         return value
 
@@ -176,6 +201,8 @@ class PredictionAnchor(BaseModel):
     pace_sec_per_km: float
     session_type: str | None = None
     session_type_label_fr: str | None = None
+    terrain: str | None = None
+    terrain_label_fr: str | None = None
     method: str
     charge_factor: float = 1.0
 

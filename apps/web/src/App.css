@@ -545,6 +545,93 @@ a {
   --tone-bg: rgba(92, 111, 98, 0.14);
 }
 
+.terrain-tone-empty {
+  --tone-fg: var(--muted);
+  --tone-bg: rgba(92, 111, 98, 0.1);
+}
+.terrain-tone-route {
+  --tone-fg: #2a4a6e;
+  --tone-bg: rgba(42, 74, 110, 0.12);
+}
+.terrain-tone-trail {
+  --tone-fg: #3d5c28;
+  --tone-bg: rgba(61, 92, 40, 0.16);
+}
+.terrain-tone-piste {
+  --tone-fg: #6b3d1f;
+  --tone-bg: rgba(107, 61, 31, 0.12);
+}
+.terrain-tone-indoor {
+  --tone-fg: #4a3d6b;
+  --tone-bg: rgba(74, 61, 107, 0.12);
+}
+.terrain-tone-mixed {
+  --tone-fg: #3d5a4a;
+  --tone-bg: rgba(61, 90, 74, 0.14);
+}
+
+.terrain-tag {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  --tone-fg: var(--muted);
+  --tone-bg: rgba(92, 111, 98, 0.1);
+}
+
+.terrain-tag-control {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.terrain-tag-select {
+  appearance: none;
+  margin: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  padding: 0.28rem 1.4rem 0.28rem 0.65rem;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  line-height: 1.35;
+  color: var(--tone-fg);
+  background-color: var(--tone-bg);
+  cursor: pointer;
+  max-width: 9rem;
+  outline: none;
+}
+
+.terrain-tag-control::after {
+  content: "";
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  width: 0;
+  height: 0;
+  border-left: 3.5px solid transparent;
+  border-right: 3.5px solid transparent;
+  border-top: 5px solid var(--tone-fg);
+  pointer-events: none;
+  transform: translateY(-35%);
+  opacity: 0.85;
+}
+
+.terrain-tag-select:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--tone-fg) 28%, transparent);
+}
+
+.terrain-tag-select:focus-visible {
+  border-color: var(--tone-fg);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tone-fg) 22%, transparent);
+}
+
+.terrain-tag.is-saving .terrain-tag-select {
+  opacity: 0.75;
+}
+
 .chip[class*="session-tone-"]:not(.session-tone-empty) {
   color: var(--tone-fg);
   background: var(--tone-bg);

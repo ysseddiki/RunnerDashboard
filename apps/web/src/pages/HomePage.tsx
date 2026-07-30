@@ -191,6 +191,19 @@ export function HomePage() {
                       ),
                     )
                   }}
+                  onTerrainSaved={(activityId, terrain, label) => {
+                    setActivities((prev) =>
+                      prev.map((a) =>
+                        a.id === activityId
+                          ? {
+                              ...a,
+                              terrain,
+                              terrain_label_fr: label,
+                            }
+                          : a,
+                      ),
+                    )
+                  }}
                 />
               </li>
             ))}

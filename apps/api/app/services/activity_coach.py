@@ -17,6 +17,7 @@ from app.services import settings as settings_service
 from app.services.coach import parse_coach_answer
 from app.services.ollama_client import OllamaClient, OllamaError
 from app.services.session_types import label_for
+from app.services.terrains import label_for as terrain_label_for
 
 logger = logging.getLogger("coach.activity")
 
@@ -24,7 +25,7 @@ ANALYSIS_SYSTEM = """Tu es un coach running francophone.
 Tu analyses UNE sortie à partir du JSON activité + pack knowledge (analyse-seance.md).
 N'invente aucune métrique absente. Réponds UNIQUEMENT JSON :
 {"summary":"2–3 phrases","markdown":"## Lecture\\n- ...\\n## Points d'attention\\n- ...","focus":["metric_keys"]}
-Adapte le focus au session_type (ef vs fractionne vs competition…).
+Adapte le focus au session_type (ef vs fractionne vs competition…) et au terrain (route vs trail vs indoor).
 """
 
 
@@ -42,6 +43,8 @@ def _activity_context(activity: Activity) -> dict[str, Any]:
         "total_elevation_gain_m": activity.total_elevation_gain_m,
         "session_type": activity.session_type,
         "session_type_label_fr": label_for(activity.session_type),
+        "terrain": activity.terrain,
+        "terrain_label_fr": terrain_label_for(activity.terrain),
         "weather_json": activity.weather_json,
     }
 

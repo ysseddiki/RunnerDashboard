@@ -10,4 +10,11 @@ Selon `session_type`, l'analyse doit mettre en avant :
 - **competition / test** : perf vs prévisions distances
 - **non classé** : inviter à taguer ; analyse générique distance/allure/FC
 
+Selon `terrain` (orthogonal) :
+
+- **trail** : D+, allure non comparable à la route ; ne pas juger la perf « plat »
+- **indoor / piste** : surface contrôlée, utile pour allures cibles
+- **route** : référence pour prévisions chronos plats
+- **mixed** : nuancer les conclusions allure
+
 Ne jamais inventer cadence/FC absentes du JSON activité.
