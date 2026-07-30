@@ -13,7 +13,7 @@ from app.config import Settings
 from app.services import settings as settings_service
 from app.services.coach_context import build_coach_context
 from app.services.ollama_client import OllamaClient, OllamaError
-from app.services.session_types import SESSION_TYPE_IDS
+from app.services.session_types import SESSION_TYPE_IDS, label_for
 
 logger = logging.getLogger("coach")
 
@@ -24,7 +24,9 @@ Règles strictes :
 - N'invente AUCUN chrono, allure, FC ou cadence absent du contexte.
 - Corréle explicitement : prévisions (5/10/semi/marathon, allures d'entraînement) avec les sorties récentes.
 - Signale les trous de données (cadence manquante, peu de tags, confiance basse).
-- Réponds UNIQUEMENT avec un objet JSON valide (pas de texte avant/après, pas de fences markdown).
+- Réponds UNIQUEMENT avec un objet JSON valide UTF-8 (aucun texte avant/après, aucun ```).
+- Échappe correctement les guillemets et utilise \\n pour les retours à la ligne dans les strings.
+- Le champ "markdown" est du markdown lisible (titres ##, listes), PAS du JSON.
 
 Schéma JSON imposé :
 {
@@ -32,37 +34,101 @@ Schéma JSON imposé :
   "plan": [
     {
       "date": "YYYY-MM-DD",
-      "session_type": "un id parmi: ef, recuperation, endurance_active, sortie_longue, tempo, seuil, fractionne, vma, cotes, fartlek, competition, test, autre",
+      "session_type": "ef|recuperation|endurance_active|sortie_longue|tempo|seuil|fractionne|vma|cotes|fartlek|competition|test|autre",
       "title": "titre court",
       "details": "consigne concrète",
-      "target_pace": "ex. 5:20/km ou null",
-      "duration_or_distance": "ex. 45 min ou 10 km"
+      "target_pace": "5:20/km",
+      "duration_or_distance": "45 min"
     }
   ],
-  "markdown": "analyse détaillée en markdown français (titres ##, listes) : corrélations, points d'attention, nuances"
+  "markdown": "## Corrélations\\n- ...\\n## Points d'attention\\n- ...\\n## Nuances\\n- ..."
 }
 
-Le plan couvre 7 à 14 jours (3 à 7 séances max). Dates cohérentes à partir d'aujourd'hui (contexte).
+Le plan couvre 7 à 14 jours (3 à 7 séances max). Dates cohérentes à partir d'aujourd'hui.
 """
 
 
+def _strip_fences(text: str) -> str:
+    fence = re.search(r"```(?:json)?\s*([\s\S]*?)```", text, re.IGNORECASE)
+    if fence:
+        return fence.group(1).strip()
+    return text.strip()
+
+
+def _balanced_json_slice(text: str) -> str | None:
+    start = text.find("{")
+    if start < 0:
+        return None
+    depth = 0
+    in_str = False
+    escape = False
+    for i in range(start, len(text)):
+        ch = text[i]
+        if in_str:
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_str = False
+            continue
+        if ch == '"':
+            in_str = True
+        elif ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : i + 1]
+    chunk = text[start:]
+    if chunk.count("{") > chunk.count("}"):
+        chunk = chunk + ("}" * (chunk.count("{") - chunk.count("}")))
+    return chunk if chunk.startswith("{") else None
+
+
+def _repair_json_text(chunk: str) -> str:
+    repaired = chunk.strip()
+    repaired = re.sub(r",\s*([}\]])", r"\1", repaired)
+    repaired = (
+        repaired.replace("\u201c", '"')
+        .replace("\u201d", '"')
+        .replace("\u2018", "'")
+        .replace("\u2019", "'")
+    )
+    return repaired
+
+
+def _try_load_json(chunk: str) -> dict[str, Any] | None:
+    for candidate in (chunk, _repair_json_text(chunk)):
+        try:
+            data = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(data, dict):
+            return data
+    return None
+
+
 def _extract_json_object(raw: str) -> dict[str, Any] | None:
-    text = (raw or "").strip()
+    text = _strip_fences((raw or "").strip())
     if not text:
         return None
-    fence = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL | re.IGNORECASE)
-    if fence:
-        text = fence.group(1)
+
+    direct = _try_load_json(text)
+    if direct:
+        return direct
+
+    sliced = _balanced_json_slice(text)
+    if sliced:
+        loaded = _try_load_json(sliced)
+        if loaded:
+            return loaded
+
     start = text.find("{")
     end = text.rfind("}")
-    if start < 0 or end <= start:
-        return None
-    chunk = text[start : end + 1]
-    try:
-        data = json.loads(chunk)
-    except json.JSONDecodeError:
-        return None
-    return data if isinstance(data, dict) else None
+    if start >= 0 and end > start:
+        return _try_load_json(text[start : end + 1])
+    return None
 
 
 def _normalize_plan_item(item: Any) -> dict[str, Any] | None:
@@ -91,6 +157,58 @@ def _normalize_plan_item(item: Any) -> dict[str, Any] | None:
     }
 
 
+def _looks_like_json(text: str) -> bool:
+    s = (text or "").strip()
+    return s.startswith("{") and ("summary" in s or "plan" in s or "markdown" in s)
+
+
+def _format_plan_markdown(plan: list[dict[str, Any]]) -> str:
+    if not plan:
+        return ""
+    lines = ["## Plan proposé", ""]
+    for item in plan:
+        date = item.get("date") or "À planifier"
+        title = item.get("title") or "Séance"
+        st = item.get("session_type")
+        label = label_for(st) if st else None
+        head = f"### {date} — {title}"
+        if label:
+            head += f" ({label})"
+        lines.append(head)
+        details = item.get("details")
+        if details:
+            lines.append(str(details))
+        meta: list[str] = []
+        if item.get("duration_or_distance"):
+            meta.append(f"**Volume** : {item['duration_or_distance']}")
+        if item.get("target_pace"):
+            meta.append(f"**Allure** : {item['target_pace']}")
+        if meta:
+            lines.append("")
+            lines.extend(f"- {m}" for m in meta)
+        lines.append("")
+    return "\n".join(lines).strip()
+
+
+def _ensure_readable_markdown(
+    summary: str,
+    plan: list[dict[str, Any]],
+    markdown: str,
+) -> str:
+    md = (markdown or "").strip()
+    if md and not _looks_like_json(md):
+        return md
+    parts: list[str] = []
+    if summary and not _looks_like_json(summary):
+        parts.append(summary)
+    plan_md = _format_plan_markdown(plan)
+    if plan_md:
+        parts.append(plan_md)
+    if not parts:
+        return "Analyse indisponible sous forme lisible. Relancez l’analyse."
+    return "\n\n".join(parts)
+
+
 def parse_coach_answer(raw: str) -> dict[str, Any]:
     """Parse la réponse modèle en summary / plan / markdown (+ answer legacy)."""
     data = _extract_json_object(raw)
@@ -104,27 +222,54 @@ def parse_coach_answer(raw: str) -> dict[str, Any]:
                 normalized = _normalize_plan_item(item)
                 if normalized:
                     plan.append(normalized)
-        if not summary and markdown:
-            summary = markdown.split("\n", 1)[0][:400]
-        if not markdown:
-            markdown = summary or raw.strip()
+        if not summary and markdown and not _looks_like_json(markdown):
+            summary = markdown.split("\n", 1)[0].lstrip("# ").strip()[:400]
         if not summary:
-            summary = "Conseil généré (voir détail ci-dessous)."
-        answer = markdown if markdown else raw.strip()
+            summary = "Conseil généré — voir le plan et l’analyse ci-dessous."
+        if _looks_like_json(summary):
+            m = re.search(r'"summary"\s*:\s*"((?:[^"\\]|\\.)*)"', raw or "", re.DOTALL)
+            if m:
+                try:
+                    summary = json.loads(f'"{m.group(1)}"')
+                except json.JSONDecodeError:
+                    summary = m.group(1)
+            else:
+                summary = "Conseil généré — voir le plan et l’analyse ci-dessous."
+        markdown = _ensure_readable_markdown(summary, plan, markdown)
         return {
             "summary": summary,
             "plan": plan,
             "markdown": markdown,
-            "answer": answer,
+            "answer": markdown,
             "structured": True,
         }
 
     text = (raw or "").strip()
+    if _looks_like_json(text):
+        summary_match = re.search(r'"summary"\s*:\s*"((?:[^"\\]|\\.)*)"', text)
+        summary = "Réponse partiellement lisible."
+        if summary_match:
+            try:
+                summary = json.loads(f'"{summary_match.group(1)}"')
+            except json.JSONDecodeError:
+                summary = summary_match.group(1)[:400]
+        return {
+            "summary": summary,
+            "plan": [],
+            "markdown": (
+                f"{summary}\n\n"
+                "_Le modèle a renvoyé un JSON incomplet. "
+                "Relancez l’analyse pour obtenir le plan détaillé._"
+            ),
+            "answer": summary,
+            "structured": False,
+        }
+
     summary = text[:400] if text else "Réponse non structurée."
     return {
         "summary": summary,
         "plan": [],
-        "markdown": text,
+        "markdown": text if text else summary,
         "answer": text,
         "structured": False,
     }
@@ -190,15 +335,18 @@ def advise(db: Session, env: Settings, *, question: str | None = None) -> dict[s
         "Question athlète :\n"
         f"{question_text}\n\n"
         "Contexte JSON (source de vérité) :\n"
-        f"{json.dumps(context, ensure_ascii=False, separators=(',', ':'))}"
+        f"{json.dumps(context, ensure_ascii=False, separators=(',', ':'))}\n\n"
+        "Rappel : réponds UNIQUEMENT avec le JSON {summary, plan, markdown}. "
+        "Le champ markdown doit être du vrai markdown FR, pas du JSON."
     )
 
+    num_predict = max(env.ollama_num_predict, 1200)
     raw = client.chat(
         model=model,
         system=SYSTEM_PROMPT,
         user=user_message,
         timeout_s=env.ollama_chat_timeout_s,
-        num_predict=env.ollama_num_predict,
+        num_predict=num_predict,
     )
     parsed = parse_coach_answer(raw)
     logger.info(

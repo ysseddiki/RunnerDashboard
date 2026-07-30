@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -50,6 +50,96 @@ function formatPlanDate(iso: string | null): string {
   })
 }
 
+function looksLikeJson(text: string): boolean {
+  const s = text.trim()
+  return s.startsWith('{') && (s.includes('"summary"') || s.includes('"plan"'))
+}
+
+function normalizePlanItem(item: unknown): PlanItem | null {
+  if (!item || typeof item !== 'object') return null
+  const row = item as Record<string, unknown>
+  const title = String(row.title ?? row.name ?? 'Séance')
+  return {
+    date: row.date != null ? String(row.date) : null,
+    session_type: row.session_type != null ? String(row.session_type) : null,
+    title,
+    details: String(row.details ?? row.description ?? ''),
+    target_pace: row.target_pace != null && row.target_pace !== '' ? String(row.target_pace) : null,
+    duration_or_distance:
+      row.duration_or_distance != null && row.duration_or_distance !== ''
+        ? String(row.duration_or_distance)
+        : null,
+  }
+}
+
+function planToMarkdown(plan: PlanItem[]): string {
+  if (!plan.length) return ''
+  const lines = ['## Plan proposé', '']
+  for (const item of plan) {
+    lines.push(`### ${item.date ?? 'À planifier'} — ${item.title}`)
+    if (item.details) lines.push(item.details)
+    const meta: string[] = []
+    if (item.duration_or_distance) meta.push(`**Volume** : ${item.duration_or_distance}`)
+    if (item.target_pace) meta.push(`**Allure** : ${item.target_pace}`)
+    if (meta.length) {
+      lines.push('')
+      for (const m of meta) lines.push(`- ${m}`)
+    }
+    lines.push('')
+  }
+  return lines.join('\n').trim()
+}
+
+/** Repli UI si l’API renvoie encore du JSON brut. */
+function normalizeAdvise(raw: AdviseResponse): AdviseResponse {
+  const blob = [raw.markdown, raw.answer, raw.summary].find((t) => looksLikeJson(t || ''))
+  if (!blob) {
+    if (looksLikeJson(raw.markdown || '') || looksLikeJson(raw.summary || '')) {
+      return {
+        ...raw,
+        summary: 'Conseil généré — voir le détail ci-dessous.',
+        markdown: planToMarkdown(raw.plan) || raw.summary,
+      }
+    }
+    return raw
+  }
+
+  try {
+    const start = blob.indexOf('{')
+    const end = blob.lastIndexOf('}')
+    const data = JSON.parse(blob.slice(start, end + 1)) as Record<string, unknown>
+    const planRaw = Array.isArray(data.plan) ? data.plan : []
+    const plan = planRaw
+      .map(normalizePlanItem)
+      .filter((p): p is PlanItem => p != null)
+      .slice(0, 10)
+    let summary = String(data.summary ?? '').trim()
+    let markdown = String(data.markdown ?? '').trim()
+    if (!summary) summary = 'Conseil généré — voir le plan et l’analyse ci-dessous.'
+    if (!markdown || looksLikeJson(markdown)) {
+      markdown = [summary, planToMarkdown(plan)].filter(Boolean).join('\n\n')
+    }
+    return {
+      ...raw,
+      summary,
+      plan: plan.length ? plan : raw.plan,
+      markdown,
+      answer: markdown,
+      structured: true,
+    }
+  } catch {
+    return {
+      ...raw,
+      summary: looksLikeJson(raw.summary)
+        ? 'Le modèle a renvoyé un format difficile à lire — relancez l’analyse.'
+        : raw.summary,
+      markdown: looksLikeJson(raw.markdown || raw.answer || '')
+        ? '_Réponse JSON illisible. Relancez l’analyse pour un rendu markdown._'
+        : raw.markdown || raw.answer,
+    }
+  }
+}
+
 export function CoachPage() {
   const { types } = useSessionTypes()
   const [status, setStatus] = useState<CoachStatus | null>(null)
@@ -58,6 +148,8 @@ export function CoachPage() {
   const [error, setError] = useState<string | null>(null)
   const [loadingStatus, setLoadingStatus] = useState(true)
   const [busy, setBusy] = useState(false)
+
+  const display = useMemo(() => (answer ? normalizeAdvise(answer) : null), [answer])
 
   function labelFor(id: string | null): string {
     if (!id) return 'Séance'
@@ -100,7 +192,7 @@ export function CoachPage() {
           typeof body.detail === 'string' ? body.detail : `Coach HTTP ${res.status}`,
         )
       }
-      setAnswer(body as AdviseResponse)
+      setAnswer(normalizeAdvise(body as AdviseResponse))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Analyse impossible')
     } finally {
@@ -190,24 +282,23 @@ export function CoachPage() {
         </div>
       </section>
 
-      {answer && (
+      {display && (
         <>
           <section className="panel-block coach-summary">
-            <h3>Synthèse · {answer.model}</h3>
+            <h3>Synthèse · {display.model}</h3>
             <p className="muted">
-              Contexte : {answer.context_summary.recent_activities ?? 0} sorties · confiance
-              prévisions {answer.context_summary.confidence ?? '—'} ·{' '}
-              {answer.context_summary.analytics_category ?? '—'}
-              {!answer.structured ? ' · réponse non structurée (repli)' : ''}
+              Contexte : {display.context_summary.recent_activities ?? 0} sorties · confiance
+              prévisions {display.context_summary.confidence ?? '—'} ·{' '}
+              {display.context_summary.analytics_category ?? '—'}
             </p>
-            <p className="coach-summary-text">{answer.summary}</p>
+            <p className="coach-summary-text">{display.summary}</p>
           </section>
 
-          {answer.plan.length > 0 && (
+          {display.plan.length > 0 && (
             <section className="panel-block coach-plan">
               <h3>Plan calendrier</h3>
               <div className="coach-plan-grid">
-                {answer.plan.map((item, idx) => (
+                {display.plan.map((item, idx) => (
                   <article key={`${item.date ?? 'x'}-${idx}`} className="coach-plan-card">
                     <header>
                       <time>{formatPlanDate(item.date)}</time>
@@ -233,7 +324,7 @@ export function CoachPage() {
             <h3>Analyse détaillée</h3>
             <div className="coach-markdown">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {answer.markdown || answer.answer}
+                {display.markdown || display.answer}
               </ReactMarkdown>
             </div>
           </section>
