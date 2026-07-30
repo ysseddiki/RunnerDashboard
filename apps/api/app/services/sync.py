@@ -437,10 +437,15 @@ def sync_activities(db: Session, settings: Settings, *, max_pages: int = 5) -> d
 
     cadence_stats = recompute_cadence_from_local(db)
 
+    from app.services import activity_features as features_service
+
+    features_stats = features_service.recompute_features_batch(db, force=False)
+
     message = (
         f"Sync terminée : {created} créée(s), {updated} mise(s) à jour, "
         f"{skipped} ignorée(s), météo enrichie {weather_enriched}, "
-        f"cadence recalculée {cadence_stats['updated']}.{more}"
+        f"cadence recalculée {cadence_stats['updated']}, "
+        f"features {features_stats['updated']}.{more}"
     )
     logger.info(
         "Sync terminé | sync_id=%s | created=%s | updated=%s | skipped=%s | fetched=%s | weather=%s",

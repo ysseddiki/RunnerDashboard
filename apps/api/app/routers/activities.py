@@ -144,6 +144,22 @@ def refresh_cadence_strava(
     )
 
 
+@router.post("/recompute-features")
+def recompute_features(
+    force: bool = Query(False),
+    db: Session = Depends(get_db),
+) -> dict:
+    from app.services import activity_features as features_service
+
+    stats = features_service.recompute_features_batch(db, force=force)
+    message = (
+        f"Features recalculées : {stats['updated']} mise(s) à jour, "
+        f"{stats['skipped']} inchangée(s), {stats['errors']} erreur(s) "
+        f"sur {stats['total']} activité(s)."
+    )
+    return {**stats, "message": message}
+
+
 @router.get("", response_model=list[ActivitySummary])
 def list_activities(
     limit: int = Query(50, ge=1, le=200),
@@ -194,14 +210,21 @@ def patch_activity(
         raise HTTPException(status_code=404, detail="Activité introuvable")
 
     payload = body.model_dump(exclude_unset=True)
+    session_changed = False
     if "session_type" in payload:
         row.session_type = payload["session_type"]
+        session_changed = True
     if "terrain" in payload:
         row.terrain = payload["terrain"]
     if payload.get("clear_cadence"):
         row.cadence_ppm = None
     elif "cadence_ppm" in payload and payload["cadence_ppm"] is not None:
         row.cadence_ppm = payload["cadence_ppm"]
+
+    if session_changed or "terrain" in payload:
+        from app.services import activity_features as features_service
+
+        features_service.apply_features(db, row, force=True)
 
     db.commit()
     db.refresh(row)

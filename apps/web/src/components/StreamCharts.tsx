@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import ReactECharts from 'echarts-for-react'
 import type { EChartsOption } from 'echarts'
-import type { StreamPoint } from '../types'
+import type { ActivityFeatures, StreamPoint } from '../types'
 import { downsamplePoints } from '../streams'
 import { formatClock, formatPaceSec } from '../format'
 
@@ -45,9 +45,10 @@ function formatValue(key: SeriesKey, value: number | null): string {
 
 type Props = {
   points: StreamPoint[]
+  features?: ActivityFeatures | null
 }
 
-export function StreamCharts({ points }: Props) {
+export function StreamCharts({ points, features }: Props) {
   const sampled = useMemo(() => downsamplePoints(points), [points])
 
   const available = useMemo(() => {
@@ -106,6 +107,20 @@ export function StreamCharts({ points }: Props) {
       splitLine: { lineStyle: { color: 'rgba(20,32,24,0.08)' } },
     }))
 
+    const segments = features?.chart_overlays?.interval_segments ?? []
+    const markAreas =
+      segments.length > 0
+        ? segments.map((seg) => [
+            {
+              xAxis: String(Number((seg.start_distance_m / 1000).toFixed(3))),
+              itemStyle: { color: 'rgba(26, 92, 58, 0.12)' },
+            },
+            {
+              xAxis: String(Number((seg.end_distance_m / 1000).toFixed(3))),
+            },
+          ])
+        : undefined
+
     const series = available.map((key, i) => ({
       name: SERIES_META[key].label,
       type: 'line' as const,
@@ -120,6 +135,9 @@ export function StreamCharts({ points }: Props) {
       lineStyle: { width: 2, color: SERIES_META[key].color },
       itemStyle: { color: SERIES_META[key].color },
       connectNulls: true,
+      ...(key === 'pace' && markAreas
+        ? { markArea: { silent: true, data: markAreas } }
+        : {}),
     }))
 
     return {
@@ -166,18 +184,22 @@ export function StreamCharts({ points }: Props) {
       yAxis: yAxes,
       series,
     }
-  }, [sampled, available])
+  }, [sampled, available, features])
 
   if (!option) {
     return <p className="muted">Aucune série numérique exploitable pour les graphs.</p>
   }
 
   const height = 36 + available.length * 148 + 44
+  const hasIntervals = (features?.chart_overlays?.interval_segments?.length ?? 0) > 0
+  const hasZones = Boolean(features?.chart_overlays?.zones_summary)
 
   return (
     <div className="charts-wrap">
       <p className="muted charts-hint">
         Survolez un point pour le détail · molette ou curseur bas pour zoomer / pan.
+        {hasIntervals ? ' · Bandes vertes = intervalles détectés.' : ''}
+        {hasZones ? ' · Zones FC résumées dans la lecture séance.' : ''}
       </p>
       <ReactECharts option={option} style={{ height, width: '100%' }} notMerge lazyUpdate />
     </div>

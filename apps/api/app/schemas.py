@@ -111,6 +111,7 @@ class ActivityDetail(ActivitySummary):
     timezone: str | None = None
     activity_type: str | None = None
     streams_json: dict[str, Any] | None = None
+    features_json: dict[str, Any] | None = None
     synced_at: datetime | None = None
     coach_analysis_json: dict[str, Any] | None = None
     coach_analyzed_at: datetime | None = None

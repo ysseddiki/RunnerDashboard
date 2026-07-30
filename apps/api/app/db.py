@@ -97,3 +97,8 @@ def init_db() -> None:
                 "CREATE INDEX IF NOT EXISTS ix_activities_terrain ON activities (terrain)"
             )
         )
+        conn.execute(
+            text(
+                "ALTER TABLE activities ADD COLUMN IF NOT EXISTS features_json JSONB"
+            )
+        )

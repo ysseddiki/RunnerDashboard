@@ -238,4 +238,11 @@ def update_profile(db: Session, data: dict[str, Any]) -> dict[str, Any]:
 
     db.commit()
     db.refresh(row)
+
+    # Recalcul features si zones FC impactées
+    from app.services import activity_features as features_service
+
+    if features_service.zones_fields_changed(before, row):
+        features_service.recompute_features_batch(db, force=True)
+
     return profile_payload(db)

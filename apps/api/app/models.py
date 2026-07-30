@@ -75,6 +75,7 @@ class Activity(Base):
     terrain: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     streams_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     weather_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    features_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     raw_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     coach_analysis_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     coach_analyzed_at: Mapped[datetime | None] = mapped_column(

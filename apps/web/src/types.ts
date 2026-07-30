@@ -53,6 +53,69 @@ export type ActivitySummary = {
   weather_json?: WeatherInfo | null
 }
 
+export type ActivityFeatures = {
+  schema_version: number
+  computed_at?: string
+  profile_fingerprint?: string
+  input_fingerprint?: string
+  quality_flags?: {
+    has_hr?: boolean
+    has_streams?: boolean
+    has_gps?: boolean
+    running_eligible?: boolean
+  }
+  unavailable?: Array<{ key: string; reason_fr: string }>
+  splits_km?: Array<{
+    km: number
+    distance_m: number
+    duration_s: number
+    pace_sec_per_km: number | null
+    avg_hr: number | null
+    avg_cadence_ppm: number | null
+  }> | null
+  time_in_zone?: Record<
+    string,
+    { seconds: number; pct: number; minutes: number }
+  > | null
+  trimp_edwards?: number | null
+  decoupling_pct?: number | null
+  cv_pace?: number | null
+  cv_hr?: number | null
+  intervals?: {
+    confidence: string
+    count: number
+    reps: Array<{
+      kind: string
+      start_distance_m: number
+      end_distance_m: number
+      duration_s: number
+      distance_m: number
+      pace_sec_per_km: number | null
+      avg_hr: number | null
+    }>
+  } | null
+  session?: {
+    family?: string
+    pct_z1_z2?: number | null
+    pct_above_z2?: number | null
+    decoupling_pct?: number | null
+    split_delta_sec_per_km?: number | null
+    cv_pace?: number | null
+    regularity?: string | null
+    intervals?: ActivityFeatures['intervals']
+    even_pacing_cv?: number | null
+    climb_sample_count?: number
+  }
+  chart_overlays?: {
+    zones_summary?: Record<string, { seconds: number; pct: number; minutes: number }>
+    interval_segments?: Array<{
+      start_distance_m: number
+      end_distance_m: number
+      kind: string
+    }>
+  } | null
+}
+
 export type ActivityDetail = ActivitySummary & {
   elapsed_time_s: number | null
   max_speed_mps: number | null
@@ -68,6 +131,7 @@ export type ActivityDetail = ActivitySummary & {
   timezone: string | null
   activity_type: string | null
   streams_json: Record<string, StreamPayload> | null
+  features_json?: ActivityFeatures | null
   synced_at: string | null
   coach_analysis_json?: {
     model?: string
@@ -117,6 +181,19 @@ export type AnalyticsOverview = {
   }
   insight_notes_fr?: string[]
   weekly_volume: Array<{ week: string; distance_km: number; runs: number }>
+  running_eligible_count?: number
+  volume_easy_km_28d?: number
+  volume_quality_km_28d?: number
+  volume_untagged_km_28d?: number
+  load?: {
+    available: boolean
+    trimp_7d: number | null
+    trimp_28d: number | null
+    acr: number | null
+    acr_elevated?: boolean
+    reason_fr?: string | null
+    sample_with_trimp?: number
+  }
   weather: {
     activities_with_weather: number
     avg_temperature_c: number | null

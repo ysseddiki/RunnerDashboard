@@ -30,6 +30,29 @@ Adapte le focus au session_type (ef vs fractionne vs competition…) et au terra
 
 
 def _activity_context(activity: Activity) -> dict[str, Any]:
+    features = activity.features_json if isinstance(activity.features_json, dict) else None
+    # Tronquer overlays / splits longs pour le prompt
+    features_for_coach = None
+    if features:
+        features_for_coach = {
+            k: features.get(k)
+            for k in (
+                "schema_version",
+                "quality_flags",
+                "unavailable",
+                "time_in_zone",
+                "trimp_edwards",
+                "decoupling_pct",
+                "cv_pace",
+                "cv_hr",
+                "session",
+                "intervals",
+            )
+            if k in features
+        }
+        splits = features.get("splits_km")
+        if isinstance(splits, list) and splits:
+            features_for_coach["splits_km"] = splits[:20]
     return {
         "id": activity.id,
         "name": activity.name,
@@ -46,6 +69,7 @@ def _activity_context(activity: Activity) -> dict[str, Any]:
         "terrain": activity.terrain,
         "terrain_label_fr": terrain_label_for(activity.terrain),
         "weather_json": activity.weather_json,
+        "features_json": features_for_coach,
     }
 
 

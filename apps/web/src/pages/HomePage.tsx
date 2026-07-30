@@ -118,6 +118,41 @@ export function HomePage() {
                   : '—'}
               </p>
             </div>
+            <div className="metric-card">
+              <h3>TRIMP / ACR</h3>
+              {analytics.load?.available ? (
+                <>
+                  <p className="metric-value">
+                    {analytics.load.acr != null ? analytics.load.acr : '—'}
+                    {analytics.load.acr != null && <span className="metric-unit"> ACR</span>}
+                  </p>
+                  <p className="metric-sub">
+                    7 j. {analytics.load.trimp_7d ?? '—'} · 28 j. {analytics.load.trimp_28d ?? '—'}
+                    {analytics.load.acr_elevated ? ' · élevé' : ''}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="metric-value">—</p>
+                  <p className="metric-sub">
+                    {analytics.load?.reason_fr ?? 'Charge physiologique indisponible'}
+                  </p>
+                </>
+              )}
+            </div>
+            <div className="metric-card">
+              <h3>Volume typé 28 j.</h3>
+              <p className="metric-value">
+                {(analytics.volume_quality_km_28d ?? 0).toFixed(1)}
+                <span className="metric-unit"> km qualité</span>
+              </p>
+              <p className="metric-sub">
+                Facile {(analytics.volume_easy_km_28d ?? 0).toFixed(1)} km
+                {(analytics.volume_untagged_km_28d ?? 0) > 0
+                  ? ` · non classé ${(analytics.volume_untagged_km_28d ?? 0).toFixed(1)} km`
+                  : ''}
+              </p>
+            </div>
           </div>
 
           <div className="home-grid">

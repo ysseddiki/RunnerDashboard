@@ -11,12 +11,82 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Activity
+from app.services.activity_features import (
+    ACR_HIGH_THRESHOLD,
+    EASY_SESSION_TYPES,
+    QUALITY_SESSION_TYPES,
+    is_running_eligible,
+)
 from app.services.terrains import is_roadish
 
 MIN_ACTIVITIES = 5
 MIN_HR_WEATHER_SAMPLES = 6
 PACE_BAND_HALF_SEC = 8.0
 PACE_BAND_WIDE_HALF_SEC = 12.0
+
+
+def _trimp_of(activity: Activity) -> float | None:
+    feat = activity.features_json if isinstance(activity.features_json, dict) else None
+    if not feat:
+        return None
+    val = feat.get("trimp_edwards")
+    if val is None:
+        return None
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return None
+
+
+def _build_load(rows: list[Activity], now: datetime) -> dict[str, Any]:
+    with_trimp = [(a, _trimp_of(a)) for a in rows]
+    available = [(a, t) for a, t in with_trimp if t is not None]
+    if not available:
+        return {
+            "available": False,
+            "trimp_7d": None,
+            "trimp_28d": None,
+            "acr": None,
+            "acr_elevated": False,
+            "reason_fr": "TRIMP indisponible (FC + zones profil requis sur les sorties).",
+        }
+
+    def sum_days(days: int) -> float:
+        start = now - timedelta(days=days)
+        return sum(t for a, t in available if a.start_date and a.start_date >= start)
+
+    t7 = round(sum_days(7), 1)
+    t28 = round(sum_days(28), 1)
+    # ACR = charge aiguë 7j / moyenne hebdo sur 28j
+    weekly_equiv = t28 / 4.0 if t28 > 0 else 0.0
+    acr = round(t7 / weekly_equiv, 2) if weekly_equiv > 0 else None
+    return {
+        "available": True,
+        "trimp_7d": t7,
+        "trimp_28d": t28,
+        "acr": acr,
+        "acr_elevated": bool(acr is not None and acr >= ACR_HIGH_THRESHOLD),
+        "reason_fr": None,
+        "sample_with_trimp": len(available),
+    }
+
+
+def _volume_buckets_28d(recent: list[Activity]) -> dict[str, float]:
+    easy = quality = untagged = 0.0
+    for a in recent:
+        km = (a.distance_m or 0.0) / 1000.0
+        st = a.session_type
+        if st in EASY_SESSION_TYPES:
+            easy += km
+        elif st in QUALITY_SESSION_TYPES:
+            quality += km
+        else:
+            untagged += km
+    return {
+        "volume_easy_km_28d": round(easy, 2),
+        "volume_quality_km_28d": round(quality, 2),
+        "volume_untagged_km_28d": round(untagged, 2),
+    }
 
 
 def _pace_sec_per_km(mps: float | None) -> float | None:
@@ -226,13 +296,15 @@ def build_hr_weather_at_pace(rows: list[Activity]) -> dict[str, Any]:
 
 
 def build_overview(db: Session) -> dict[str, Any]:
-    rows = list(
+    all_rows = list(
         db.scalars(
             select(Activity)
             .where(Activity.start_date.is_not(None))
             .order_by(Activity.start_date.asc())
         ).all()
     )
+    # Pool running pour tendances / catégorie / charge
+    rows = [a for a in all_rows if is_running_eligible(a)]
 
     now = datetime.now(timezone.utc)
     recent_start = now - timedelta(days=28)
@@ -261,7 +333,7 @@ def build_overview(db: Session) -> dict[str, Any]:
     speed_recent = avg_speed(recent)
     speed_previous = avg_speed(previous)
 
-    # Volumes hebdomadaires (12 dernières semaines)
+    # Volumes hebdomadaires (12 dernières semaines) — running only
     week_buckets: dict[str, float] = defaultdict(float)
     week_counts: dict[str, int] = defaultdict(int)
     cutoff = now - timedelta(weeks=12)
@@ -285,25 +357,35 @@ def build_overview(db: Session) -> dict[str, Any]:
         and now - timedelta(days=56) <= a.start_date < now - timedelta(days=14)
     ]
     vol_14 = volume_km(last_14)
-    # moyenne sur ~6 semaines (42j) → volume hebdo moyen * 2
     weeks_before = max((42 / 7), 1)
     avg_14_equivalent = (volume_km(before_14) / weeks_before) * 2
+
+    load = _build_load(rows, now)
 
     category = "donnees_insuffisantes"
     reasons: list[str] = []
     if len(rows) < MIN_ACTIVITIES:
-        reasons.append(f"Seulement {len(rows)} sortie(s) (minimum {MIN_ACTIVITIES}).")
+        reasons.append(
+            f"Seulement {len(rows)} sortie(s) running (minimum {MIN_ACTIVITIES})."
+        )
     else:
         vol_change = _pct_change(vol_previous if vol_previous > 0 else None, vol_recent)
-        # Allure : hausse de vitesse = progression
         speed_change = _pct_change(speed_previous, speed_recent)
 
-        if avg_14_equivalent > 0 and vol_14 > avg_14_equivalent * 1.35:
+        volume_spike = avg_14_equivalent > 0 and vol_14 > avg_14_equivalent * 1.35
+        acr_high = bool(load.get("acr_elevated"))
+
+        if volume_spike or acr_high:
             category = "charge_elevee"
-            reasons.append(
-                f"Volume 14 j ({vol_14:.1f} km) nettement au-dessus de la référence "
-                f"({avg_14_equivalent:.1f} km)."
-            )
+            if volume_spike:
+                reasons.append(
+                    f"Volume 14 j ({vol_14:.1f} km) nettement au-dessus de la référence "
+                    f"({avg_14_equivalent:.1f} km)."
+                )
+            if acr_high and load.get("acr") is not None:
+                reasons.append(
+                    f"Ratio charge aiguë/chronique élevé (ACR {load['acr']}, seuil {ACR_HIGH_THRESHOLD})."
+                )
         else:
             improved = False
             declined = False
@@ -331,7 +413,7 @@ def build_overview(db: Session) -> dict[str, Any]:
                 if not reasons:
                     reasons.append("Peu de variation de volume / allure sur 28 jours.")
 
-    # Météo
+    # Météo (running)
     with_weather = [a for a in rows if a.weather_json]
     temps = [
         float(a.weather_json["temperature_c"])
@@ -360,7 +442,6 @@ def build_overview(db: Session) -> dict[str, Any]:
 
     pace_recent = _pace_sec_per_km(speed_recent) if speed_recent else None
     pace_previous = _pace_sec_per_km(speed_previous) if speed_previous else None
-    # Positive = gained seconds per km (faster). pace down ⇒ gain.
     pace_gain_sec = None
     if pace_recent is not None and pace_previous is not None:
         pace_gain_sec = round(pace_previous - pace_recent, 1)
@@ -411,10 +492,13 @@ def build_overview(db: Session) -> dict[str, Any]:
                 "Plus lent avec FC plus haute : fatigue ou charge élevée probable."
             )
 
+    volume_buckets = _volume_buckets_28d(recent)
+
     return {
         "category": category,
         "category_label_fr": labels[category],
         "reasons": reasons,
+        "running_eligible_count": len(rows),
         "totals": {
             "activities": len(rows),
             "distance_km": round(volume_km(rows), 2),
@@ -459,4 +543,6 @@ def build_overview(db: Session) -> dict[str, Any]:
         "weekly_volume": weekly_volume,
         "weather": weather_summary,
         "hr_weather": build_hr_weather_at_pace(rows),
+        "load": load,
+        **volume_buckets,
     }

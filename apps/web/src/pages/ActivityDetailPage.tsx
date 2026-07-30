@@ -7,6 +7,7 @@ import { formatDate, formatDuration, formatKm, formatPace } from '../format'
 import { buildStreamPoints } from '../streams'
 import { ActivityMap } from '../components/ActivityMap'
 import { StreamCharts } from '../components/StreamCharts'
+import { SessionInsights, FeatureTables } from '../components/SessionInsights'
 import { SessionTypePicker } from '../components/SessionTypePicker'
 import { TerrainPicker } from '../components/TerrainPicker'
 
@@ -336,10 +337,13 @@ export function ActivityDetailPage() {
             )}
           </div>
 
+          <SessionInsights features={detail.features_json} sessionType={detail.session_type} />
+          <FeatureTables features={detail.features_json} />
+
           <div className="detail-block">
             <h3>Graphs</h3>
             {points.length > 0 ? (
-              <StreamCharts points={points} />
+              <StreamCharts points={points} features={detail.features_json} />
             ) : (
               <p className="muted">Aucun stream stocké pour cette sortie.</p>
             )}

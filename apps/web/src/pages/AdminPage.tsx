@@ -29,6 +29,7 @@ export function AdminPage() {
   const [busy, setBusy] = useState(false)
   const [savingSettings, setSavingSettings] = useState(false)
   const [cadenceBusy, setCadenceBusy] = useState(false)
+  const [featuresBusy, setFeaturesBusy] = useState(false)
   const [clearTypesBusy, setClearTypesBusy] = useState(false)
   const [pullBusy, setPullBusy] = useState(false)
   const [appleBusy, setAppleBusy] = useState(false)
@@ -181,6 +182,28 @@ export function AdminPage() {
       setError(err instanceof Error ? err.message : 'Recalcul cadence impossible')
     } finally {
       setCadenceBusy(false)
+    }
+  }
+
+  async function recomputeFeatures() {
+    setFeaturesBusy(true)
+    setSyncMessage(null)
+    setError(null)
+    try {
+      const res = await fetch('/api/activities/recompute-features?force=true', {
+        method: 'POST',
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(
+          typeof body.detail === 'string' ? body.detail : `Features HTTP ${res.status}`,
+        )
+      }
+      setSyncMessage(typeof body.message === 'string' ? body.message : 'Features recalculées.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Recalcul features impossible')
+    } finally {
+      setFeaturesBusy(false)
     }
   }
 
@@ -404,6 +427,24 @@ export function AdminPage() {
               disabled={cadenceBusy}
             >
               {cadenceBusy ? 'Recalcul…' : 'Recalculer les cadences'}
+            </button>
+          </div>
+        </section>
+
+        <section className="admin-card">
+          <h2>Features séance</h2>
+          <p className="muted">
+            Recalcule splits, zones FC, TRIMP, dérive et intervalles à partir des streams et du
+            profil. Déjà lancé après Sync ; utile après import historique ou changement de zones.
+          </p>
+          <div className="admin-actions">
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => void recomputeFeatures()}
+              disabled={featuresBusy}
+            >
+              {featuresBusy ? 'Recalcul…' : 'Recalculer les features'}
             </button>
           </div>
         </section>
