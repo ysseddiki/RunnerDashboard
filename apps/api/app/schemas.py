@@ -53,7 +53,9 @@ class ActivitySummary(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    strava_id: int
+    strava_id: int | None = None
+    source: str = "strava"
+    apple_uuid: str | None = None
     name: str
     sport_type: str | None
     start_date: datetime | None
@@ -70,6 +72,15 @@ class ActivitySummary(BaseModel):
     @property
     def session_type_label_fr(self) -> str | None:
         return label_for(self.session_type)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def source_label_fr(self) -> str:
+        if self.source == "apple":
+            return "Apple"
+        if self.apple_uuid:
+            return "Strava+Apple"
+        return "Strava"
 
 
 class ActivityDetail(ActivitySummary):

@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.db import init_db
 from app.logging_config import setup_logging
-from app.routers import activities, analytics, strava
+from app.routers import activities, analytics, apple_health, strava
 from app.routers import coach as coach_router
 from app.routers import predictions as predictions_router
 from app.routers import settings as settings_router
@@ -63,6 +63,7 @@ def create_app() -> FastAPI:
 
     application.include_router(strava.router)
     application.include_router(activities.router)
+    application.include_router(apple_health.router)
     application.include_router(analytics.router)
     application.include_router(predictions_router.router)
     application.include_router(coach_router.router)

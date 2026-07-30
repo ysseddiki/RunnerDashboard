@@ -33,7 +33,10 @@ export type StreamPayload = {
 
 export type ActivitySummary = {
   id: number
-  strava_id: number
+  strava_id: number | null
+  source?: string
+  source_label_fr?: string
+  apple_uuid?: string | null
   name: string
   sport_type: string | null
   start_date: string | null
@@ -164,5 +167,50 @@ export type PredictionsOverview = {
   reasons: string[]
   warnings: string[]
   activities_considered: number
+}
+
+export type AppleWorkout = {
+  id: number
+  apple_uuid: string
+  workout_type: string | null
+  workout_type_label_fr?: string | null
+  start_date: string | null
+  end_date: string | null
+  duration_s: number | null
+  distance_m: number | null
+  avg_hr: number | null
+  max_hr: number | null
+  energy_kcal: number | null
+  cadence_ppm: number | null
+  activity_id: number | null
+  imported_at: string | null
+}
+
+export type AppleMatchCandidate = {
+  activity_id: number
+  activity_name: string
+  strava_id: number | null
+  start_date: string | null
+  distance_m: number | null
+  score: number
+  confidence: string
+  reasons_fr: string[]
+}
+
+export type AppleImportItem = {
+  workout: AppleWorkout
+  candidates: AppleMatchCandidate[]
+  action: string
+  enriched_fields: string[]
+}
+
+export type AppleImportResult = {
+  imported: number
+  updated: number
+  auto_linked: number
+  promoted: number
+  total: number
+  items: AppleImportItem[]
+  message: string
 }
 

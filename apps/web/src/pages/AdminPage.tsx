@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import type { AppSettings, HealthResponse, StravaStatus } from '../types'
+import type { AppSettings, AppleImportResult, HealthResponse, StravaStatus } from '../types'
 
 type CoachStatus = {
   reachable: boolean
@@ -30,6 +30,9 @@ export function AdminPage() {
   const [savingSettings, setSavingSettings] = useState(false)
   const [cadenceBusy, setCadenceBusy] = useState(false)
   const [pullBusy, setPullBusy] = useState(false)
+  const [appleBusy, setAppleBusy] = useState(false)
+  const [appleMessage, setAppleMessage] = useState<string | null>(null)
+  const [appleImport, setAppleImport] = useState<AppleImportResult | null>(null)
 
   const queryMessage = useMemo(() => {
     if (searchParams.get('strava') === 'connected') return 'Compte Strava connecté.'
@@ -180,6 +183,112 @@ export function AdminPage() {
     }
   }
 
+  async function importAppleZip(file: File) {
+    setAppleBusy(true)
+    setAppleMessage(null)
+    setError(null)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const res = await fetch('/api/apple-health/import?auto_link=true&auto_promote=true', {
+        method: 'POST',
+        body: form,
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(
+          typeof body.detail === 'string' ? body.detail : `Import Apple HTTP ${res.status}`,
+        )
+      }
+      const result = body as AppleImportResult
+      setAppleImport(result)
+      setAppleMessage(result.message)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Import Apple impossible')
+    } finally {
+      setAppleBusy(false)
+    }
+  }
+
+  async function applyAppleLink(workoutId: number, activityId: number) {
+    setAppleBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/apple-health/workouts/${workoutId}/link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activity_id: activityId }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(typeof body.detail === 'string' ? body.detail : `Lien HTTP ${res.status}`)
+      }
+      setAppleMessage(
+        `Lien appliqué (activité #${activityId})${
+          Array.isArray(body.enriched_fields) && body.enriched_fields.length
+            ? ` · enrichi : ${body.enriched_fields.join(', ')}`
+            : ''
+        }`,
+      )
+      setAppleImport((prev) => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          items: prev.items.map((item) =>
+            item.workout.id === workoutId
+              ? {
+                  ...item,
+                  action: 'manual_linked',
+                  workout: { ...item.workout, activity_id: activityId },
+                  candidates: [],
+                }
+              : item,
+          ),
+        }
+      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Lien impossible')
+    } finally {
+      setAppleBusy(false)
+    }
+  }
+
+  async function promoteApple(workoutId: number) {
+    setAppleBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/apple-health/workouts/${workoutId}/promote`, {
+        method: 'POST',
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(
+          typeof body.detail === 'string' ? body.detail : `Création HTTP ${res.status}`,
+        )
+      }
+      setAppleMessage(`Activité Apple créée (#${body.activity_id})`)
+      setAppleImport((prev) => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          items: prev.items.map((item) =>
+            item.workout.id === workoutId
+              ? {
+                  ...item,
+                  action: 'promoted',
+                  workout: { ...item.workout, activity_id: body.activity_id },
+                }
+              : item,
+          ),
+        }
+      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Création impossible')
+    } finally {
+      setAppleBusy(false)
+    }
+  }
+
   return (
     <>
       <header className="page-hero">
@@ -191,6 +300,7 @@ export function AdminPage() {
       {queryMessage && <p className="banner ok">{queryMessage}</p>}
       {syncMessage && <p className="banner ok">{syncMessage}</p>}
       {settingsMessage && <p className="banner ok">{settingsMessage}</p>}
+      {appleMessage && <p className="banner ok">{appleMessage}</p>}
 
       <div className="admin-grid">
         <section className="admin-card">
@@ -266,6 +376,98 @@ export function AdminPage() {
               {cadenceBusy ? 'Recalcul…' : 'Recalculer les cadences'}
             </button>
           </div>
+        </section>
+
+        <section className="admin-card admin-span">
+          <h2>Import Apple Santé</h2>
+          <p className="muted">
+            iPhone → Santé → profil → Exporter les données Santé → uploader le ZIP ici. Les
+            workouts course/marche sont matchés à Strava (candidats). Lien haute confiance
+            automatique ; sinon enrichissement des trous seulement, ou création d’une activité
+            Apple.
+          </p>
+          <div className="admin-actions">
+            <label className={`btn ${appleBusy ? 'is-disabled' : ''}`}>
+              {appleBusy ? 'Import…' : 'Choisir un ZIP export'}
+              <input
+                type="file"
+                accept=".zip,application/zip"
+                hidden
+                disabled={appleBusy}
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  e.target.value = ''
+                  if (file) void importAppleZip(file)
+                }}
+              />
+            </label>
+          </div>
+          {appleImport && (
+            <div className="apple-import-result">
+              <p className="muted">
+                {appleImport.total} workout(s) · liés auto {appleImport.auto_linked} · créés{' '}
+                {appleImport.promoted}
+              </p>
+              <ul className="apple-import-list">
+                {appleImport.items.slice(0, 40).map((item) => (
+                  <li key={item.workout.id}>
+                    <div className="apple-import-head">
+                      <strong>
+                        {item.workout.workout_type_label_fr ?? item.workout.workout_type ?? 'Séance'}
+                      </strong>
+                      <span className="muted">
+                        {item.workout.start_date
+                          ? new Date(item.workout.start_date).toLocaleString('fr-FR')
+                          : '—'}
+                        {item.workout.distance_m != null
+                          ? ` · ${(item.workout.distance_m / 1000).toFixed(2)} km`
+                          : ''}
+                      </span>
+                      <span className="chip">{item.action}</span>
+                    </div>
+                    {item.candidates.length > 0 && item.action !== 'auto_linked' && (
+                      <div className="apple-candidates">
+                        {item.candidates.map((c) => (
+                          <div key={c.activity_id} className="apple-candidate-row">
+                            <span>
+                              Candidat : {c.activity_name} · score {c.score} · {c.confidence}
+                              <span className="muted"> ({c.reasons_fr.join(', ')})</span>
+                            </span>
+                            <button
+                              type="button"
+                              className="btn btn-small"
+                              disabled={appleBusy}
+                              onClick={() => void applyAppleLink(item.workout.id, c.activity_id)}
+                            >
+                              Lier
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {!item.workout.activity_id && item.candidates.length === 0 && (
+                      <button
+                        type="button"
+                        className="btn btn-small btn-ghost"
+                        disabled={appleBusy}
+                        onClick={() => void promoteApple(item.workout.id)}
+                      >
+                        Créer activité Apple
+                      </button>
+                    )}
+                    {item.workout.activity_id && (
+                      <p className="muted">
+                        Lié à activité #{item.workout.activity_id}
+                        {item.enriched_fields.length
+                          ? ` · enrichi : ${item.enriched_fields.join(', ')}`
+                          : ''}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </section>
 
         <section className="admin-card admin-span">

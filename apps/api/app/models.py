@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Float, Integer, String, Text, func
+from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -39,8 +39,16 @@ class Activity(Base):
     __tablename__ = "activities"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    strava_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
-    athlete_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    strava_id: Mapped[int | None] = mapped_column(
+        BigInteger, unique=True, index=True, nullable=True
+    )
+    athlete_id: Mapped[int] = mapped_column(BigInteger, index=True, default=0)
+    source: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="strava", server_default="strava", index=True
+    )
+    apple_uuid: Mapped[str | None] = mapped_column(
+        String(64), unique=True, nullable=True, index=True
+    )
     name: Mapped[str] = mapped_column(String(255))
     sport_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     activity_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -68,5 +76,30 @@ class Activity(Base):
     weather_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     raw_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     synced_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class AppleWorkout(Base):
+    __tablename__ = "apple_workouts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    apple_uuid: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    workout_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    start_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
+    end_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    duration_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+    distance_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+    avg_hr: Mapped[float | None] = mapped_column(Float, nullable=True)
+    max_hr: Mapped[float | None] = mapped_column(Float, nullable=True)
+    energy_kcal: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cadence_ppm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    raw_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    activity_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("activities.id"), nullable=True, index=True
+    )
+    imported_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

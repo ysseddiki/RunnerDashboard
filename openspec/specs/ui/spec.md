@@ -58,6 +58,23 @@ L’UI SHALL exposer une page `/coach` permettant de lancer une analyse IA et d�
 - THEN un conseil FR s’affiche
 - AND un état d’erreur clair apparaît si Ollama / modèle est indisponible
 
+### Requirement: UI synthèse et calendrier coach
+L’UI Coach SHALL afficher en tête la synthèse et le plan sous forme de calendrier / cartes par jour, puis le markdown rendu.
+
+#### Scenario: Rendu markdown
+- GIVEN une réponse avec markdown (titres, listes)
+- WHEN la page Coach affiche le conseil
+- THEN le markdown est rendu (pas uniquement en texte préformaté)
+
+### Requirement: Suggestion de type de séance
+L’UI SHALL permettre de demander une suggestion de type de séance pour une activité et de l’appliquer après confirmation.
+
+#### Scenario: Suggérer puis appliquer
+- GIVEN une activité sans type ou avec type à revoir
+- WHEN l’utilisateur demande une suggestion
+- THEN un type proposé et une confiance sont affichés
+- AND l’utilisateur peut appliquer via le sélecteur existant
+
 ### Requirement: Admin intégration modèle
 L’UI Admin SHALL afficher le statut Ollama (joignable, modèle installé) et permettre de lancer le pull du modèle sélectionné.
 
@@ -66,4 +83,20 @@ L’UI Admin SHALL afficher le statut Ollama (joignable, modèle installé) et p
 - WHEN l’utilisateur lance « Télécharger le modèle »
 - THEN l’API `pull-model` est appelée
 - AND le statut est rafraîchi ensuite
+
+### Requirement: Import Apple Santé dans Admin
+L’UI Admin SHALL permettre d’uploader un export ZIP Apple Santé et d’afficher le résumé (candidats, liens, créations).
+
+#### Scenario: Upload
+- GIVEN Admin ouvert
+- WHEN l’utilisateur envoie un ZIP valide
+- THEN un résumé d’import s’affiche avec les candidats proposés
+
+### Requirement: Badge source activité
+L’UI SHALL indiquer la source d’une activité (Strava, Apple, ou Strava lié Apple).
+
+#### Scenario: Liste
+- GIVEN des activités de sources différentes
+- WHEN la liste Activités est affichée
+- THEN un badge source lisible est visible
 

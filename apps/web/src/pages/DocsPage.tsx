@@ -12,6 +12,7 @@ const TABS: DocTab[] = [
   { id: 'evolution', label: 'Évolution' },
   { id: 'seances', label: 'Types de séance' },
   { id: 'cadence', label: 'Cadence' },
+  { id: 'apple', label: 'Apple Santé' },
   { id: 'meteo', label: 'Météo' },
   { id: 'coach', label: 'Coach IA' },
 ]
@@ -225,7 +226,9 @@ function SeancesTab() {
       <h2>Types de séance</h2>
       <p>
         Attribution manuelle (tag) sur chaque sortie, depuis la liste ou le détail. Ces tags
-        améliorent les prévisions (ancres, allures observées) et le coach IA.
+        améliorent les prévisions (ancres, allures observées) et le coach IA. Un bouton{' '}
+        <strong>Suggérer</strong> propose un type (allure vs 10 km estimé, distance, D+, titre) —
+        à confirmer avant enregistrement.
       </p>
       <ul className="docs-session-list">
         {SESSION_DOCS.map((s) => (
@@ -264,8 +267,42 @@ function CadenceTab() {
           Saisie manuelle possible sur le détail si la donnée manque (plage typique 80–250 PPM)
         </li>
         <li>
-          Si Apple Forme n’envoie pas la cadence à Strava, elle restera absente côté sync
+          Si Apple Forme n’envoie pas la cadence à Strava, importez un export Apple Santé
+          (Admin) pour enrichir les trous, ou saisissez la PPM manuellement
         </li>
+      </ul>
+      <p>
+        <Link to="/admin" className="inline-link">
+          Ouvrir Admin
+        </Link>
+      </p>
+    </div>
+  )
+}
+
+function AppleTab() {
+  return (
+    <div className="docs-panel">
+      <h2>Apple Santé</h2>
+      <p>
+        Strava reste la sync principale. Apple Santé s’importe via le ZIP d’export officiel
+        (workouts course / marche / randonnée).
+      </p>
+      <ul className="docs-list">
+        <li>
+          iPhone → Santé → profil → <strong>Exporter les données Santé</strong> → ZIP
+        </li>
+        <li>Admin → Import Apple Santé → upload du ZIP</li>
+        <li>
+          Matching sur début / distance / durée : candidats affichés ; lien haute confiance
+          automatique si candidat unique
+        </li>
+        <li>
+          Lien → enrichit uniquement les <strong>trous</strong> (cadence, FC…) — jamais
+          d’écrasement des valeurs Strava
+        </li>
+        <li>Sans match → création d’une activité source Apple</li>
+        <li>Sur le détail d’une sortie Strava : lier / délier un workout Apple</li>
       </ul>
       <p>
         <Link to="/admin" className="inline-link">
@@ -300,11 +337,10 @@ function MeteoTab() {
 function CoachTab() {
   return (
     <div className="docs-panel">
-      <h2>Coach IA (P4)</h2>
+      <h2>Coach IA (P4 → v2)</h2>
       <p>
-        Le coach tourne en local via Ollama (Qwen2.5 7B ou 14B). Il ne calcule pas les chronos :
-        il commente le contexte déterministe (prévisions, analytics, sorties : min/km, FC, tags,
-        météo).
+        Le coach tourne en local via Ollama (Qwen2.5 7B ou 14B). Il renvoie une synthèse, un plan
+        calendrier (7–14 j) et une analyse markdown — sans inventer de chronos absents du contexte.
       </p>
       <ul className="docs-list">
         <li>Admin → choisir le modèle selon la RAM → Enregistrer</li>
@@ -332,6 +368,8 @@ function TabContent({ id }: { id: string }) {
       return <SeancesTab />
     case 'cadence':
       return <CadenceTab />
+    case 'apple':
+      return <AppleTab />
     case 'meteo':
       return <MeteoTab />
     case 'coach':

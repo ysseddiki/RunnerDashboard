@@ -48,6 +48,16 @@ Le système SHALL exposer `GET /api/coach/status`, `POST /api/coach/pull-model` 
 - WHEN le client appelle `/api/coach/advise`
 - THEN une réponse texte FR est renvoyée avec le tag modèle utilisé
 
+### Requirement: Réponse coach structurée
+Le système SHALL faire produire par le coach un objet avec `summary`, `plan` (séances planifiées) et `markdown`, parsés côté API même si le modèle ajoute du texte autour.
+
+#### Scenario: Plan calendrier
+- GIVEN un modèle installé et des activités
+- WHEN `/api/coach/advise` réussit
+- THEN la réponse contient un `summary` non vide
+- AND un tableau `plan` (éventuellement vide si parsing échoue)
+- AND un champ `markdown` pour l’analyse détaillée
+
 ### Requirement: Procédure d’intégration documentée
 Le README SHALL documenter le pull du modèle (CLI et/ou UI Admin) et le choix 7B/14B selon la RAM.
 

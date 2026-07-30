@@ -102,6 +102,7 @@ def activity_from_strava(
         "athlete_id": int(raw["athlete"]["id"])
         if isinstance(raw.get("athlete"), dict)
         else int(raw.get("athlete", 0) or 0),
+        "source": "strava",
         "name": raw.get("name") or f"Activité {raw.get('id')}",
         "sport_type": raw.get("sport_type") or raw.get("type"),
         "activity_type": raw.get("type"),
@@ -379,13 +380,17 @@ def sync_activities(db: Session, settings: Settings, *, max_pages: int = 5) -> d
                     payload["cadence_ppm"],
                 )
             else:
-                # Ne pas écraser météo ni type de séance manuel
+                # Ne pas écraser météo, type de séance, ni lien Apple
                 previous_weather = existing.weather_json
                 previous_session_type = existing.session_type
+                previous_apple_uuid = existing.apple_uuid
                 for key, value in payload.items():
                     setattr(existing, key, value)
                 existing.weather_json = previous_weather
                 existing.session_type = previous_session_type
+                existing.apple_uuid = previous_apple_uuid
+                if previous_apple_uuid:
+                    existing.source = "strava"  # source sync reste strava ; lien via apple_uuid
                 updated += 1
                 logger.info(
                     "Activité mise à jour | sync_id=%s | strava_id=%s | cadence_ppm=%s",

@@ -1,17 +1,42 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import type { ActivityDetail } from '../types'
+import type { ActivityDetail, AppleWorkout } from '../types'
 import { formatDate, formatDuration, formatKm, formatPace } from '../format'
 import { buildStreamPoints } from '../streams'
 import { ActivityMap } from '../components/ActivityMap'
 import { StreamCharts } from '../components/StreamCharts'
 import { SessionTypePicker } from '../components/SessionTypePicker'
 
+type AppleLinkInfo = {
+  activity_id: number
+  source: string
+  apple_uuid: string | null
+  linked_workout: AppleWorkout | null
+  apple_candidates: Array<{
+    workout: AppleWorkout
+    score: number
+    confidence: string
+    reasons_fr: string[]
+  }>
+}
+
 export function ActivityDetailPage() {
   const { id } = useParams()
   const [detail, setDetail] = useState<ActivityDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [appleLink, setAppleLink] = useState<AppleLinkInfo | null>(null)
+  const [appleBusy, setAppleBusy] = useState(false)
+
+  function loadAppleLink(activityId: number) {
+    return fetch(`/api/apple-health/activities/${activityId}/link`)
+      .then(async (res) => {
+        if (!res.ok) return null
+        return (await res.json()) as AppleLinkInfo
+      })
+      .then((data) => setAppleLink(data))
+      .catch(() => setAppleLink(null))
+  }
 
   useEffect(() => {
     if (!id) return
@@ -24,7 +49,10 @@ export function ActivityDetailPage() {
         return (await res.json()) as ActivityDetail
       })
       .then((data) => {
-        if (!cancelled) setDetail(data)
+        if (!cancelled) {
+          setDetail(data)
+          void loadAppleLink(data.id)
+        }
       })
       .catch((err: unknown) => {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Détail impossible')
@@ -39,6 +67,52 @@ export function ActivityDetailPage() {
 
   const points = useMemo(() => buildStreamPoints(detail?.streams_json), [detail?.streams_json])
   const activityId = detail?.id
+
+  async function linkAppleWorkout(workoutId: number) {
+    if (!activityId) return
+    setAppleBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/apple-health/workouts/${workoutId}/link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activity_id: activityId }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(typeof body.detail === 'string' ? body.detail : `Lien HTTP ${res.status}`)
+      }
+      const refreshed = await fetch(`/api/activities/${activityId}`)
+      if (refreshed.ok) setDetail((await refreshed.json()) as ActivityDetail)
+      await loadAppleLink(activityId)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Lien Apple impossible')
+    } finally {
+      setAppleBusy(false)
+    }
+  }
+
+  async function unlinkApple(workoutId: number) {
+    if (!activityId) return
+    setAppleBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/apple-health/workouts/${workoutId}/unlink`, {
+        method: 'POST',
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(typeof body.detail === 'string' ? body.detail : `Unlink HTTP ${res.status}`)
+      }
+      const refreshed = await fetch(`/api/activities/${activityId}`)
+      if (refreshed.ok) setDetail((await refreshed.json()) as ActivityDetail)
+      await loadAppleLink(activityId)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Déliaison impossible')
+    } finally {
+      setAppleBusy(false)
+    }
+  }
 
   return (
     <section className="detail-view">
@@ -69,6 +143,22 @@ export function ActivityDetailPage() {
               <span>{formatDate(detail.start_date)}</span>
             </div>
             <h1>{detail.name}</h1>
+            {(detail.source_label_fr || detail.source) && (
+              <p className="muted">
+                Source :{' '}
+                <span
+                  className={`source-badge ${
+                    detail.source === 'apple'
+                      ? 'source-apple'
+                      : detail.apple_uuid
+                        ? 'source-linked'
+                        : 'source-strava'
+                  }`}
+                >
+                  {detail.source_label_fr ?? detail.source}
+                </span>
+              </p>
+            )}
           </header>
 
           <div className="stat-grid">
@@ -97,6 +187,62 @@ export function ActivityDetailPage() {
           <div className="detail-block">
             <h3>Trace GPS</h3>
             <ActivityMap activity={detail} />
+          </div>
+
+          <div className="detail-block apple-link-panel">
+            <h3>Lien Apple Santé</h3>
+            {appleLink?.linked_workout ? (
+              <>
+                <p>
+                  Lié à workout{' '}
+                  <strong>
+                    {appleLink.linked_workout.workout_type_label_fr ??
+                      appleLink.linked_workout.workout_type}
+                  </strong>
+                  {appleLink.linked_workout.cadence_ppm != null
+                    ? ` · cadence Apple ${appleLink.linked_workout.cadence_ppm} PPM`
+                    : ''}
+                </p>
+                <button
+                  type="button"
+                  className="btn btn-small btn-ghost"
+                  disabled={appleBusy}
+                  onClick={() => void unlinkApple(appleLink.linked_workout!.id)}
+                >
+                  Délier
+                </button>
+                <p className="muted">
+                  Délier ne retire pas les valeurs déjà enrichies (cadence / FC).
+                </p>
+              </>
+            ) : appleLink?.apple_candidates?.length ? (
+              <ul className="apple-import-list">
+                {appleLink.apple_candidates.map((c) => (
+                  <li key={c.workout.id}>
+                    <div className="apple-candidate-row">
+                      <span>
+                        {c.workout.workout_type_label_fr ?? 'Séance'} · score {c.score} ·{' '}
+                        {c.confidence}
+                        <span className="muted"> ({c.reasons_fr.join(', ')})</span>
+                      </span>
+                      <button
+                        type="button"
+                        className="btn btn-small"
+                        disabled={appleBusy}
+                        onClick={() => void linkAppleWorkout(c.workout.id)}
+                      >
+                        Lier
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="muted">
+                Aucun workout Apple lié. Importez un export dans Admin pour proposer des
+                candidats.
+              </p>
+            )}
           </div>
 
           <div className="detail-block">
@@ -248,7 +394,15 @@ export function ActivityDetailPage() {
                 </div>
                 <div>
                   <dt>Strava ID</dt>
-                  <dd>{detail.strava_id}</dd>
+                  <dd>{detail.strava_id ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt>Source</dt>
+                  <dd>{detail.source_label_fr ?? detail.source ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt>Apple UUID</dt>
+                  <dd className="truncate-id">{detail.apple_uuid ?? '—'}</dd>
                 </div>
                 <div>
                   <dt>Sync</dt>

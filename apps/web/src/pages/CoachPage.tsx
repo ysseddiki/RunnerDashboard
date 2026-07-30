@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import { sessionToneClass } from '../sessionTone'
+import { useSessionTypes } from '../useSessionTypes'
 
 type CoachStatus = {
   reachable: boolean
@@ -11,9 +15,22 @@ type CoachStatus = {
   chat_timeout_s?: number
 }
 
+type PlanItem = {
+  date: string | null
+  session_type: string | null
+  title: string
+  details: string
+  target_pace: string | null
+  duration_or_distance: string | null
+}
+
 type AdviseResponse = {
   model: string
   answer: string
+  summary: string
+  plan: PlanItem[]
+  markdown: string
+  structured: boolean
   context_summary: {
     predictions_available?: boolean
     confidence?: string
@@ -22,13 +39,30 @@ type AdviseResponse = {
   }
 }
 
+function formatPlanDate(iso: string | null): string {
+  if (!iso) return 'À planifier'
+  const d = new Date(`${iso}T12:00:00`)
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toLocaleDateString('fr-FR', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  })
+}
+
 export function CoachPage() {
+  const { types } = useSessionTypes()
   const [status, setStatus] = useState<CoachStatus | null>(null)
   const [question, setQuestion] = useState('')
   const [answer, setAnswer] = useState<AdviseResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loadingStatus, setLoadingStatus] = useState(true)
   const [busy, setBusy] = useState(false)
+
+  function labelFor(id: string | null): string {
+    if (!id) return 'Séance'
+    return types.find((t) => t.id === id)?.label_fr ?? id
+  }
 
   function refreshStatus() {
     setLoadingStatus(true)
@@ -67,7 +101,6 @@ export function CoachPage() {
         )
       }
       setAnswer(body as AdviseResponse)
-      await refreshStatus()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Analyse impossible')
     } finally {
@@ -80,8 +113,8 @@ export function CoachPage() {
       <header className="page-hero">
         <h1>Coach IA</h1>
         <p>
-          Analyse locale via Ollama : corrélation des prévisions d’allure avec vos sorties (FC,
-          types de séance, min/km, volume, météo). Aucune donnée n’est envoyée vers un cloud IA.
+          Analyse locale via Ollama : synthèse, plan de séances, puis détail markdown. Aucune donnée
+          n’est envoyée vers un cloud IA.
         </p>
       </header>
 
@@ -110,7 +143,9 @@ export function CoachPage() {
             </div>
             <div>
               <dt>Timeout chat</dt>
-              <dd>{status.chat_timeout_s != null ? `${Math.round(status.chat_timeout_s)} s` : '—'}</dd>
+              <dd>
+                {status.chat_timeout_s != null ? `${Math.round(status.chat_timeout_s)} s` : '—'}
+              </dd>
             </div>
           </dl>
         )}
@@ -136,7 +171,7 @@ export function CoachPage() {
         <textarea
           className="coach-question"
           rows={3}
-          placeholder="Ex. Est-ce que mon allure 10 km estimée est cohérente avec mes seuils et ma FC récente ?"
+          placeholder="Ex. Propose un plan sur 10 jours cohérent avec mon allure 10 km estimée."
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           disabled={busy}
@@ -156,16 +191,53 @@ export function CoachPage() {
       </section>
 
       {answer && (
-        <section className="panel-block coach-answer">
-          <h3>Conseil · {answer.model}</h3>
-          <p className="muted">
-            Contexte :{' '}
-            {answer.context_summary.recent_activities ?? 0} sorties · confiance prévisions{' '}
-            {answer.context_summary.confidence ?? '—'} ·{' '}
-            {answer.context_summary.analytics_category ?? '—'}
-          </p>
-          <pre className="coach-answer-text">{answer.answer}</pre>
-        </section>
+        <>
+          <section className="panel-block coach-summary">
+            <h3>Synthèse · {answer.model}</h3>
+            <p className="muted">
+              Contexte : {answer.context_summary.recent_activities ?? 0} sorties · confiance
+              prévisions {answer.context_summary.confidence ?? '—'} ·{' '}
+              {answer.context_summary.analytics_category ?? '—'}
+              {!answer.structured ? ' · réponse non structurée (repli)' : ''}
+            </p>
+            <p className="coach-summary-text">{answer.summary}</p>
+          </section>
+
+          {answer.plan.length > 0 && (
+            <section className="panel-block coach-plan">
+              <h3>Plan calendrier</h3>
+              <div className="coach-plan-grid">
+                {answer.plan.map((item, idx) => (
+                  <article key={`${item.date ?? 'x'}-${idx}`} className="coach-plan-card">
+                    <header>
+                      <time>{formatPlanDate(item.date)}</time>
+                      {item.session_type && (
+                        <span className={`chip ${sessionToneClass(item.session_type)}`}>
+                          {labelFor(item.session_type)}
+                        </span>
+                      )}
+                    </header>
+                    <strong>{item.title}</strong>
+                    {item.details && <p>{item.details}</p>}
+                    <footer>
+                      {item.duration_or_distance && <span>{item.duration_or_distance}</span>}
+                      {item.target_pace && <span>{item.target_pace}</span>}
+                    </footer>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <section className="panel-block coach-answer">
+            <h3>Analyse détaillée</h3>
+            <div className="coach-markdown">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {answer.markdown || answer.answer}
+              </ReactMarkdown>
+            </div>
+          </section>
+        </>
       )}
     </>
   )

@@ -40,9 +40,22 @@ class CoachAdviseRequest(BaseModel):
     )
 
 
+class CoachPlanItem(BaseModel):
+    date: str | None = None
+    session_type: str | None = None
+    title: str
+    details: str = ""
+    target_pace: str | None = None
+    duration_or_distance: str | None = None
+
+
 class CoachAdviseResponse(BaseModel):
     model: str
     answer: str
+    summary: str
+    plan: list[CoachPlanItem] = []
+    markdown: str
+    structured: bool = False
     context_summary: dict
 
 

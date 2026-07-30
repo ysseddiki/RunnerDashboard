@@ -12,8 +12,22 @@ type Props = {
   ) => void
 }
 
+function sourceBadge(activity: ActivitySummary): { label: string; className: string } {
+  if (activity.source === 'apple') {
+    return { label: 'Apple', className: 'source-badge source-apple' }
+  }
+  if (activity.apple_uuid) {
+    return { label: 'Strava+Apple', className: 'source-badge source-linked' }
+  }
+  return {
+    label: activity.source_label_fr || 'Strava',
+    className: 'source-badge source-strava',
+  }
+}
+
 export function ActivityRow({ activity, onSessionTypeSaved }: Props) {
   const detailTo = `/activities/${activity.id}`
+  const badge = sourceBadge(activity)
 
   return (
     <article className="activity">
@@ -25,6 +39,7 @@ export function ActivityRow({ activity, onSessionTypeSaved }: Props) {
             onSessionTypeSaved?.(activity.id, sessionType, label)
           }}
         />
+        <span className={badge.className}>{badge.label}</span>
         <Link to={detailTo} className="activity-title-link">
           <strong>{activity.name}</strong>
         </Link>

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -16,6 +17,7 @@ from app.schemas import (
     CadenceRecomputeResult,
     SessionTypeInfo,
 )
+from app.services import session_type_suggest as suggest_service
 from app.services import sync as sync_service
 from app.services.session_types import SESSION_TYPES
 from app.services.strava_client import StravaError
@@ -23,9 +25,51 @@ from app.services.strava_client import StravaError
 router = APIRouter(prefix="/api/activities", tags=["activities"])
 
 
+class SessionTypeSuggestRequest(BaseModel):
+    use_ai: bool = False
+
+
+class SessionTypeSuggestBatchRequest(BaseModel):
+    use_ai: bool = False
+    untagged_only: bool = True
+    limit: int = Field(default=20, ge=1, le=50)
+
+
+class SessionTypeSuggestResponse(BaseModel):
+    activity_id: int
+    current_session_type: str | None = None
+    suggested_session_type: str
+    confidence: str
+    source: str
+    rationale_fr: str
+    label_fr: str | None = None
+
+
+class SessionTypeSuggestBatchResponse(BaseModel):
+    count: int
+    suggestions: list[dict]
+
+
 @router.get("/session-types", response_model=list[SessionTypeInfo])
 def list_session_types() -> list[SessionTypeInfo]:
     return [SessionTypeInfo(**item) for item in SESSION_TYPES]
+
+
+@router.post("/suggest-session-types", response_model=SessionTypeSuggestBatchResponse)
+def suggest_session_types_batch(
+    body: SessionTypeSuggestBatchRequest | None = None,
+    db: Session = Depends(get_db),
+    env: Settings = Depends(get_settings),
+) -> SessionTypeSuggestBatchResponse:
+    req = body or SessionTypeSuggestBatchRequest()
+    result = suggest_service.suggest_batch(
+        db,
+        env=env,
+        use_ai=req.use_ai,
+        untagged_only=req.untagged_only,
+        limit=req.limit,
+    )
+    return SessionTypeSuggestBatchResponse.model_validate(result)
 
 
 @router.post("/recompute-cadence", response_model=CadenceRecomputeResult)
@@ -90,6 +134,24 @@ def get_activity(activity_id: int, db: Session = Depends(get_db)) -> Activity:
     if row is None:
         raise HTTPException(status_code=404, detail="Activité introuvable")
     return row
+
+
+@router.post(
+    "/{activity_id}/suggest-session-type",
+    response_model=SessionTypeSuggestResponse,
+)
+def suggest_session_type(
+    activity_id: int,
+    body: SessionTypeSuggestRequest | None = None,
+    db: Session = Depends(get_db),
+    env: Settings = Depends(get_settings),
+) -> SessionTypeSuggestResponse:
+    row = db.get(Activity, activity_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Activité introuvable")
+    use_ai = body.use_ai if body else False
+    result = suggest_service.suggest_for_activity(db, row, env=env, use_ai=use_ai)
+    return SessionTypeSuggestResponse.model_validate(result)
 
 
 @router.patch("/{activity_id}", response_model=ActivityDetail)

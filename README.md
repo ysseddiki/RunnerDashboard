@@ -48,19 +48,21 @@ Les logs API : `/var/log/running-dashboards/host-logs/`.
      # ou qwen2.5:7b sur VM 16 Go
      ```
 4. Contrôle : Admin affiche « Prêt coach = Oui », ou `GET /api/coach/status`
-5. Ouvrir **Coach** → **Lancer l’analyse**
+5. Ouvrir **Coach** → **Lancer l’analyse** (synthèse + plan calendrier + markdown)
 
 **Timeouts / CPU** : le premier appel charge le modèle en RAM (souvent plusieurs minutes sur CPU).
 Timeout par défaut `OLLAMA_CHAT_TIMEOUT_S=600`. Si ça timeout encore, passez à `qwen2.5:7b`
 (Admin) ou augmentez le timeout dans `.env`. Les appels suivants sont plus rapides (`keep_alive`).
 
 Le coach reçoit un contexte déterministe : prévisions d’allure, analytics, sorties récentes (min/km, FC, type de séance, cadence si dispo, météo). Aucun cloud IA.
+Sur les activités, **Suggérer** propose un type de séance (règles ; confirmation humaine).
 
 ## Usage
 
 1. Démarrer la stack.
 2. **Admin** → Connecter Strava → Synchroniser.
-3. Consulter Activités / Prévisions / Coach.
+3. (Optionnel) **Admin** → Import Apple Santé : uploader le ZIP d’export iPhone (Santé → profil → Exporter). Matching Strava + enrichissement des trous (pas d’écrasement) ; sans match → activité Apple.
+4. Consulter Activités / Prévisions / Coach.
 
 Arrêt :
 
@@ -77,5 +79,6 @@ docker compose -f infra/docker-compose.yml --env-file .env down
 | **P2** | Fait | Météo liée aux sorties (Open-Meteo au Sync) |
 | **P3** | Fait | Analytics / évolution + prévisions d’allure |
 | **P4** | Fait | Coach IA local (Ollama) + choix / pull modèle |
+| **Apple** | Fait | Import ZIP Santé, matching Strava, enrichissement sans écrasement |
 
 Suivi produit : dossier `openspec/`.

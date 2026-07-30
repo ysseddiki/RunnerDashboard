@@ -29,7 +29,7 @@ def init_db() -> None:
     from app import models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
-    # Migrations légères sans Alembic (P2)
+    # Migrations légères sans Alembic
     with engine.begin() as conn:
         conn.execute(
             text("ALTER TABLE activities ADD COLUMN IF NOT EXISTS weather_json JSONB")
@@ -43,5 +43,33 @@ def init_db() -> None:
             text(
                 "CREATE INDEX IF NOT EXISTS ix_activities_session_type "
                 "ON activities (session_type)"
+            )
+        )
+        conn.execute(
+            text(
+                "ALTER TABLE activities ADD COLUMN IF NOT EXISTS source VARCHAR(16) "
+                "DEFAULT 'strava'"
+            )
+        )
+        conn.execute(
+            text("ALTER TABLE activities ADD COLUMN IF NOT EXISTS apple_uuid VARCHAR(64)")
+        )
+        conn.execute(
+            text(
+                "UPDATE activities SET source = 'strava' "
+                "WHERE source IS NULL OR source = ''"
+            )
+        )
+        # strava_id nullable for Apple-only activities
+        conn.execute(text("ALTER TABLE activities ALTER COLUMN strava_id DROP NOT NULL"))
+        conn.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS ix_activities_apple_uuid "
+                "ON activities (apple_uuid) WHERE apple_uuid IS NOT NULL"
+            )
+        )
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_activities_source ON activities (source)"
             )
         )
