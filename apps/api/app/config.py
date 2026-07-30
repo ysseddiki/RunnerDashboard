@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     strava_redirect_uri: str = "http://localhost/api/strava/callback"
     strava_scopes: str = "read,activity:read_all,profile:read_all"
     ollama_model: str = "qwen2.5:14b"
+    ollama_base_url: str = "http://ollama:11434"
 
 
 @lru_cache

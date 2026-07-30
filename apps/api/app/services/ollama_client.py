@@ -1,0 +1,119 @@
+"""Client HTTP Ollama (local uniquement)."""
+
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+import httpx
+
+logger = logging.getLogger("coach.ollama")
+
+
+class OllamaError(Exception):
+    def __init__(self, message: str, *, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+
+
+class OllamaClient:
+    def __init__(self, base_url: str) -> None:
+        self.base_url = base_url.rstrip("/")
+
+    def is_reachable(self) -> bool:
+        try:
+            with httpx.Client(timeout=5.0) as client:
+                res = client.get(f"{self.base_url}/api/tags")
+            return res.status_code < 500
+        except httpx.HTTPError:
+            return False
+
+    def list_models(self) -> list[str]:
+        try:
+            with httpx.Client(timeout=15.0) as client:
+                res = client.get(f"{self.base_url}/api/tags")
+            if res.status_code >= 400:
+                raise OllamaError(
+                    f"Ollama tags HTTP {res.status_code}",
+                    status_code=res.status_code,
+                )
+            payload = res.json()
+            models = payload.get("models") or []
+            names: list[str] = []
+            for item in models:
+                if isinstance(item, dict) and item.get("name"):
+                    names.append(str(item["name"]))
+            return names
+        except httpx.HTTPError as exc:
+            raise OllamaError(f"Ollama injoignable | detail={exc}") from exc
+
+    def model_installed(self, model: str) -> bool:
+        target = model.strip()
+        for name in self.list_models():
+            if name == target or name.startswith(target):
+                return True
+        return False
+
+    def pull_model(self, model: str) -> dict[str, Any]:
+        logger.info("Pull modèle Ollama | model=%s", model)
+        try:
+            with httpx.Client(timeout=900.0) as client:
+                res = client.post(
+                    f"{self.base_url}/api/pull",
+                    json={"name": model, "stream": False},
+                )
+            if res.status_code >= 400:
+                logger.error(
+                    "Échec pull Ollama | model=%s | status=%s | detail=%s",
+                    model,
+                    res.status_code,
+                    res.text[:300],
+                )
+                raise OllamaError(
+                    f"Échec pull modèle {model} (HTTP {res.status_code})",
+                    status_code=res.status_code,
+                )
+            logger.info("Pull modèle OK | model=%s", model)
+            return res.json() if res.content else {"status": "success"}
+        except httpx.HTTPError as exc:
+            raise OllamaError(f"Échec pull Ollama | detail={exc}") from exc
+
+    def chat(self, *, model: str, system: str, user: str) -> str:
+        logger.info("Chat Ollama | model=%s | user_chars=%s", model, len(user))
+        try:
+            with httpx.Client(timeout=180.0) as client:
+                res = client.post(
+                    f"{self.base_url}/api/chat",
+                    json={
+                        "model": model,
+                        "stream": False,
+                        "messages": [
+                            {"role": "system", "content": system},
+                            {"role": "user", "content": user},
+                        ],
+                        "options": {
+                            "temperature": 0.35,
+                            "num_predict": 1200,
+                        },
+                    },
+                )
+            if res.status_code >= 400:
+                logger.error(
+                    "Échec chat Ollama | model=%s | status=%s | detail=%s",
+                    model,
+                    res.status_code,
+                    res.text[:400],
+                )
+                raise OllamaError(
+                    f"Échec chat Ollama (HTTP {res.status_code}) — "
+                    "modèle installé ? action=pull_model_admin",
+                    status_code=res.status_code,
+                )
+            data = res.json()
+            message = data.get("message") or {}
+            content = message.get("content")
+            if not isinstance(content, str) or not content.strip():
+                raise OllamaError("Réponse Ollama vide")
+            return content.strip()
+        except httpx.HTTPError as exc:
+            raise OllamaError(f"Ollama chat injoignable | detail={exc}") from exc

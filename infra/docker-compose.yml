@@ -32,11 +32,15 @@ services:
       STRAVA_CLIENT_SECRET: ${STRAVA_CLIENT_SECRET:-}
       STRAVA_REDIRECT_URI: ${STRAVA_REDIRECT_URI:-http://localhost/api/strava/callback}
       STRAVA_SCOPES: ${STRAVA_SCOPES:-read,activity:read_all,profile:read_all}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:14b}
     volumes:
       - ${HOST_LOG_DIR:-/var/log/running-dashboards/host-logs}:${LOG_DIR:-/var/log/running-dashboards/host-logs}
     depends_on:
       postgres:
         condition: service_healthy
+      ollama:
+        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s

@@ -1,9 +1,6 @@
-# coach Specification
+# Delta for coach
 
-## Purpose
-Coach running local via Ollama : conseils FR à partir des prévisions, analytics et activités, sans cloud IA.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Deux profils de modèle locaux
 Le système SHALL supporter exactement deux profils de modèle Ollama documentés : `qwen2.5:7b` (VM ~16 Go) et `qwen2.5:14b` (VM ~32 Go, défaut recommandé).
@@ -25,6 +22,8 @@ Le système SHALL exécuter le coach via Ollama en local, sans envoyer les donn�
 - GIVEN une demande de conseil coach
 - WHEN l’API appelle le modèle
 - THEN l’appel cible uniquement le service Ollama local
+
+## ADDED Requirements
 
 ### Requirement: Contexte prévisions et métriques
 Le système SHALL construire un contexte déterministe pour le coach incluant prévisions d’allure, analytics d’évolution, et sorties récentes (distance, allure min/km, FC, type de séance, cadence si dispo, météo).

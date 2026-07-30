@@ -13,6 +13,7 @@ const TABS: DocTab[] = [
   { id: 'seances', label: 'Types de séance' },
   { id: 'cadence', label: 'Cadence' },
   { id: 'meteo', label: 'Météo' },
+  { id: 'coach', label: 'Coach IA' },
 ]
 
 const SESSION_DOCS: Array<{ id: string; label: string; description: string }> = [
@@ -224,7 +225,7 @@ function SeancesTab() {
       <h2>Types de séance</h2>
       <p>
         Attribution manuelle (tag) sur chaque sortie, depuis la liste ou le détail. Ces tags
-        améliorent les prévisions (ancres, allures observées) et prépareront le coach IA.
+        améliorent les prévisions (ancres, allures observées) et le coach IA.
       </p>
       <ul className="docs-session-list">
         {SESSION_DOCS.map((s) => (
@@ -282,7 +283,7 @@ function MeteoTab() {
       <p>
         À chaque Sync, les sorties avec GPS (hors indoor) peuvent être enrichies via{' '}
         <strong>Open-Meteo</strong> (archive + forecast). On prend l’heure horaire la plus proche du
-        départ.
+        départ. Utile aussi au coach pour contextualiser une séance.
       </p>
       <ul className="docs-list">
         <li>Température, ressenti, humidité, précipitations, vent, conditions (libellé FR)</li>
@@ -292,6 +293,33 @@ function MeteoTab() {
           <code>précipitations &gt; 0</code>)
         </li>
       </ul>
+    </div>
+  )
+}
+
+function CoachTab() {
+  return (
+    <div className="docs-panel">
+      <h2>Coach IA (P4)</h2>
+      <p>
+        Le coach tourne en local via Ollama (Qwen2.5 7B ou 14B). Il ne calcule pas les chronos :
+        il commente le contexte déterministe (prévisions, analytics, sorties : min/km, FC, tags,
+        météo).
+      </p>
+      <ul className="docs-list">
+        <li>Admin → choisir le modèle selon la RAM → Enregistrer</li>
+        <li>Télécharger le modèle (bouton Admin ou <code>ollama pull</code>)</li>
+        <li>Page Coach → Lancer l’analyse (question optionnelle)</li>
+      </ul>
+      <p>
+        <Link to="/coach" className="inline-link">
+          Ouvrir le Coach
+        </Link>
+        {' · '}
+        <Link to="/admin" className="inline-link">
+          Admin modèle
+        </Link>
+      </p>
     </div>
   )
 }
@@ -306,6 +334,8 @@ function TabContent({ id }: { id: string }) {
       return <CadenceTab />
     case 'meteo':
       return <MeteoTab />
+    case 'coach':
+      return <CoachTab />
     case 'allure':
     default:
       return <AllureTab />
@@ -324,8 +354,8 @@ export function DocsPage() {
       <header className="page-hero">
         <h1>Documentation</h1>
         <p>
-          Concepts, formules et règles utilisés par RunningDashboard — calculs locaux, sans modèle
-          IA pour les chiffres affichés aujourd’hui.
+          Concepts, formules et règles utilisés par RunningDashboard. Les chiffres (allures,
+          analytics) restent déterministes ; le coach IA les commente sans les inventer.
         </p>
       </header>
 
