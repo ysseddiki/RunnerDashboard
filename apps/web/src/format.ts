@@ -19,8 +19,12 @@ export function formatPace(mps: number | null | undefined): string {
 
 export function formatPaceSec(secPerKm: number | null | undefined): string {
   if (secPerKm == null || !Number.isFinite(secPerKm) || secPerKm <= 0) return '—'
-  const mm = Math.floor(secPerKm / 60)
-  const ss = Math.round(secPerKm % 60)
+  let mm = Math.floor(secPerKm / 60)
+  let ss = Math.round(secPerKm % 60)
+  if (ss === 60) {
+    mm += 1
+    ss = 0
+  }
   return `${mm}:${String(ss).padStart(2, '0')} /km`
 }
 
