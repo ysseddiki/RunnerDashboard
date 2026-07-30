@@ -1839,6 +1839,30 @@ label.btn.is-disabled {
 }
 
 
+.coach-status-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.55rem;
+  margin: 0 0 1.15rem;
+}
+
+.coach-status-hint {
+  margin: 0;
+  flex: 1 1 100%;
+  font-size: 0.85rem;
+}
+
+.status-pill.compact.is-warn {
+  color: var(--warn);
+  border-color: rgba(138, 90, 18, 0.28);
+  background: var(--warn-soft);
+}
+
+.status-pill.compact.muted-pill {
+  color: var(--muted);
+}
+
 .coach-question {
   width: 100%;
   font: inherit;

@@ -212,51 +212,54 @@ export function CoachPage() {
 
       {error && <p className="banner error">{error}</p>}
 
-      <section className="panel-block">
-        <h3>État du modèle</h3>
-        {loadingStatus && <p className="muted">Vérification Ollama…</p>}
+      <div className="coach-status-bar" aria-label="État du modèle">
+        {loadingStatus && <span className="muted">Vérification Ollama…</span>}
         {status && (
-          <dl className="kv">
-            <div>
-              <dt>Ollama</dt>
-              <dd>{status.reachable ? 'Joignable' : 'Injoignable'}</dd>
-            </div>
-            <div>
-              <dt>Modèle</dt>
-              <dd>{status.model}</dd>
-            </div>
-            <div>
-              <dt>Installé</dt>
-              <dd>{status.model_installed ? 'Oui' : 'Non — téléchargez-le dans Admin'}</dd>
-            </div>
-            <div>
-              <dt>Prêt</dt>
-              <dd>{status.ready ? 'Oui' : 'Non'}</dd>
-            </div>
-            <div>
-              <dt>Timeout chat</dt>
-              <dd>
-                {status.chat_timeout_s != null ? `${Math.round(status.chat_timeout_s)} s` : '—'}
-              </dd>
-            </div>
-          </dl>
+          <>
+            <span
+              className="status-pill compact"
+              title={status.reachable ? 'Ollama joignable' : 'Ollama injoignable'}
+            >
+              <span className={`status-dot ${status.reachable ? 'on' : ''}`} />
+              Ollama
+            </span>
+            <span
+              className="status-pill compact"
+              title={status.model_installed ? 'Modèle installé' : 'Modèle non installé'}
+            >
+              <span className={`status-dot ${status.model_installed ? 'on' : ''}`} />
+              {status.model}
+            </span>
+            <span
+              className={`status-pill compact ${status.ready ? '' : 'is-warn'}`}
+              title={status.ready ? 'Prêt à analyser' : 'Pas prêt'}
+            >
+              <span className={`status-dot ${status.ready ? 'on' : ''}`} />
+              {status.ready ? 'Prêt' : 'Pas prêt'}
+            </span>
+            {status.chat_timeout_s != null && (
+              <span className="status-pill compact muted-pill" title="Timeout chat">
+                {Math.round(status.chat_timeout_s)} s
+              </span>
+            )}
+          </>
         )}
-        {!status?.ready && (
-          <p className="muted">
-            Procédure : Admin → choisir 7B/14B → « Télécharger le modèle », ou voir{' '}
-            <Link to="/docs" className="inline-link">
+        {!loadingStatus && !status?.ready && (
+          <p className="muted coach-status-hint">
+            Admin → choisir 7B/14B → « Télécharger le modèle », ou{' '}
+            <Link to="/docs?tab=coach" className="inline-link">
               Docs
-            </Link>{' '}
-            / README.
+            </Link>
+            .
           </p>
         )}
         {status?.ready && (
-          <p className="muted">
-            Sur CPU, le 1er appel charge le modèle (peut prendre plusieurs minutes). Si timeout :
-            réessayez, ou passez au profil 7B dans Admin.
+          <p className="muted coach-status-hint">
+            1er appel CPU : chargement possible (plusieurs minutes). Timeout → réessayez ou profil
+            7B dans Admin.
           </p>
         )}
-      </section>
+      </div>
 
       <section className="panel-block">
         <h3>Question (optionnel)</h3>
