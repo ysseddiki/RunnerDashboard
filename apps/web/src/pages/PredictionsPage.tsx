@@ -165,6 +165,100 @@ function InsightCards({ insights }: { insights: AnalyticsOverview }) {
           )}
         </section>
       </div>
+
+      <section className="section">
+        <div className="section-head">
+          <h2>FC × météo (même allure)</h2>
+        </div>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Corrélation déterministe : FC moyenne dans une bande d’allure comparable, selon la
+          température. Pas d’IA sur les chiffres.
+        </p>
+        {!insights.hr_weather?.available ? (
+          <p className="muted">
+            {insights.hr_weather?.reason_fr ??
+              'Pas encore assez de sorties avec FC + météo sur terrain route.'}
+          </p>
+        ) : (
+          <>
+            <div className="metrics pred-metrics">
+              <div className="metric-card">
+                <h3>Bande d’allure</h3>
+                <p className="metric-value" style={{ fontSize: '1.35rem' }}>
+                  {insights.hr_weather.pace_band_label_fr}
+                </p>
+                <p className="metric-sub">
+                  n={insights.hr_weather.sample_size} · confiance{' '}
+                  {insights.hr_weather.confidence_label_fr}
+                </p>
+              </div>
+              <div className="metric-card">
+                <h3>Δ FC chaud vs frais</h3>
+                <p
+                  className="metric-value"
+                  style={{
+                    color:
+                      insights.hr_weather.hr_delta_warm_vs_cool_bpm == null
+                        ? undefined
+                        : insights.hr_weather.hr_delta_warm_vs_cool_bpm > 0
+                          ? '#8a3b2a'
+                          : 'var(--brand)',
+                  }}
+                >
+                  {insights.hr_weather.hr_delta_warm_vs_cool_bpm == null
+                    ? '—'
+                    : `${insights.hr_weather.hr_delta_warm_vs_cool_bpm > 0 ? '+' : ''}${Math.round(
+                        insights.hr_weather.hr_delta_warm_vs_cool_bpm,
+                      )} bpm`}
+                </p>
+                <p className="metric-sub">≥20 °C vs &lt;12 °C</p>
+              </div>
+              <div className="metric-card">
+                <h3>Pente FC / °C</h3>
+                <p className="metric-value" style={{ fontSize: '1.45rem' }}>
+                  {insights.hr_weather.slope_bpm_per_c == null
+                    ? '—'
+                    : `${insights.hr_weather.slope_bpm_per_c > 0 ? '+' : ''}${
+                        insights.hr_weather.slope_bpm_per_c
+                      }`}
+                </p>
+                <p className="metric-sub">bpm par degré (régression simple)</p>
+              </div>
+            </div>
+            <div className="home-grid" style={{ marginTop: '0.85rem' }}>
+              <section className="panel-block">
+                <h3>Par tranche de température</h3>
+                <ul className="pred-training-list">
+                  {insights.hr_weather.buckets.map((b) => (
+                    <li key={b.id}>
+                      <div className="pred-training-main">
+                        <strong>{b.label_fr}</strong>
+                        <span className="muted">
+                          {b.n} sortie{b.n > 1 ? 's' : ''}
+                          {b.avg_temp_c != null ? ` · ${b.avg_temp_c} °C` : ''}
+                        </span>
+                      </div>
+                      <strong className="pred-training-pace">{formatHr(b.avg_hr)}</strong>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+              <section className="panel-block">
+                <h3>Lecture</h3>
+                <ul className="docs-list">
+                  {insights.hr_weather.notes_fr.map((n) => (
+                    <li key={n}>{n}</li>
+                  ))}
+                </ul>
+                <p className="muted" style={{ marginBottom: 0 }}>
+                  Filtres : {insights.hr_weather.filters_fr}. Eligible brutes :{' '}
+                  {insights.hr_weather.eligible_with_hr_weather}.
+                </p>
+              </section>
+            </div>
+          </>
+        )}
+      </section>
     </>
   )
 }

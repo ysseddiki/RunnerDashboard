@@ -11,8 +11,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Activity
+from app.services.terrains import is_roadish
 
 MIN_ACTIVITIES = 5
+MIN_HR_WEATHER_SAMPLES = 6
+PACE_BAND_HALF_SEC = 8.0
+PACE_BAND_WIDE_HALF_SEC = 12.0
 
 
 def _pace_sec_per_km(mps: float | None) -> float | None:
@@ -34,6 +38,191 @@ def _pct_change(old: float | None, new: float | None) -> float | None:
 def _week_key(dt: datetime) -> str:
     iso = dt.isocalendar()
     return f"{iso.year}-W{iso.week:02d}"
+
+
+def _fmt_pace_band(lo: float, hi: float) -> str:
+    def one(sec: float) -> str:
+        mm = int(sec // 60)
+        ss = int(round(sec % 60))
+        if ss == 60:
+            mm += 1
+            ss = 0
+        return f"{mm}:{ss:02d}"
+
+    return f"{one(lo)}–{one(hi)} /km"
+
+
+def _linear_slope(xs: list[float], ys: list[float]) -> float | None:
+    if len(xs) < 4 or len(xs) != len(ys):
+        return None
+    mx = mean(xs)
+    my = mean(ys)
+    num = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
+    den = sum((x - mx) ** 2 for x in xs)
+    if den < 1e-6:
+        return None
+    return num / den
+
+
+def _eligible_hr_weather(rows: list[Activity]) -> list[dict[str, float]]:
+    """Points (pace, hr, temp) filtrés route-ish, ≥3 km."""
+    out: list[dict[str, float]] = []
+    for a in rows:
+        if not is_roadish(getattr(a, "terrain", None)):
+            continue
+        if (a.distance_m or 0) < 3000:
+            continue
+        if a.average_heartrate is None or a.average_heartrate <= 0:
+            continue
+        pace = _pace_sec_per_km(a.average_speed_mps)
+        if pace is None or pace < 150 or pace > 480:
+            continue
+        w = a.weather_json if isinstance(a.weather_json, dict) else None
+        if not w or w.get("temperature_c") is None:
+            continue
+        # Exclure D+ trop marqué même sans tag trail
+        km = (a.distance_m or 0) / 1000.0
+        elev = a.total_elevation_gain_m or 0.0
+        if km > 0 and elev / km >= 50:
+            continue
+        out.append(
+            {
+                "pace": float(pace),
+                "hr": float(a.average_heartrate),
+                "temp": float(w["temperature_c"]),
+            }
+        )
+    return out
+
+
+def build_hr_weather_at_pace(rows: list[Activity]) -> dict[str, Any]:
+    """Variance FC à allure comparable selon la température (déterministe)."""
+    points = _eligible_hr_weather(rows)
+    base = {
+        "available": False,
+        "sample_size": 0,
+        "eligible_with_hr_weather": len(points),
+        "pace_band_sec_per_km": None,
+        "pace_band_label_fr": None,
+        "buckets": [],
+        "hr_delta_warm_vs_cool_bpm": None,
+        "slope_bpm_per_c": None,
+        "confidence": "basse",
+        "confidence_label_fr": "Basse",
+        "notes_fr": [],
+        "filters_fr": "Route/piste, ≥3 km, FC + température, D+ faible",
+        "reason_fr": None,
+    }
+    if len(points) < MIN_HR_WEATHER_SAMPLES:
+        base["reason_fr"] = (
+            f"Pas assez de sorties comparables ({len(points)}/{MIN_HR_WEATHER_SAMPLES} "
+            "avec FC + météo sur terrain route)."
+        )
+        return base
+
+    paces = sorted(p["pace"] for p in points)
+    center = paces[len(paces) // 2]
+
+    def in_band(half: float) -> list[dict[str, float]]:
+        return [p for p in points if abs(p["pace"] - center) <= half]
+
+    band = in_band(PACE_BAND_HALF_SEC)
+    half_used = PACE_BAND_HALF_SEC
+    if len(band) < MIN_HR_WEATHER_SAMPLES:
+        band = in_band(PACE_BAND_WIDE_HALF_SEC)
+        half_used = PACE_BAND_WIDE_HALF_SEC
+    if len(band) < MIN_HR_WEATHER_SAMPLES:
+        base["reason_fr"] = (
+            f"Trop peu de sorties dans une même bande d’allure ({len(band)} autour de "
+            f"{_fmt_pace_band(center - half_used, center + half_used)})."
+        )
+        base["eligible_with_hr_weather"] = len(points)
+        return base
+
+    lo = center - half_used
+    hi = center + half_used
+    cool = [p for p in band if p["temp"] < 12]
+    mild = [p for p in band if 12 <= p["temp"] < 20]
+    warm = [p for p in band if p["temp"] >= 20]
+
+    def bucket(bid: str, label: str, items: list[dict[str, float]]) -> dict[str, Any]:
+        return {
+            "id": bid,
+            "label_fr": label,
+            "n": len(items),
+            "avg_hr": round(_avg([p["hr"] for p in items]) or 0, 1) if items else None,
+            "avg_temp_c": round(_avg([p["temp"] for p in items]) or 0, 1) if items else None,
+        }
+
+    buckets = [
+        bucket("cool", "Frais (< 12 °C)", cool),
+        bucket("mild", "Doux (12–20 °C)", mild),
+        bucket("warm", "Chaud (≥ 20 °C)", warm),
+    ]
+
+    hr_cool = _avg([p["hr"] for p in cool])
+    hr_warm = _avg([p["hr"] for p in warm])
+    delta = None
+    if hr_cool is not None and hr_warm is not None and len(cool) >= 2 and len(warm) >= 2:
+        delta = round(hr_warm - hr_cool, 1)
+
+    slope = _linear_slope([p["temp"] for p in band], [p["hr"] for p in band])
+    slope_r = round(slope, 2) if slope is not None else None
+
+    conf = "basse"
+    if len(band) >= 20 and len(cool) >= 5 and len(warm) >= 5:
+        conf = "haute"
+    elif len(band) >= 10 and len(cool) >= 3 and len(warm) >= 3:
+        conf = "moyenne"
+    elif len(band) >= 10 and slope_r is not None:
+        conf = "moyenne"
+
+    conf_labels = {"haute": "Haute", "moyenne": "Moyenne", "basse": "Basse"}
+    notes: list[str] = []
+    if delta is not None:
+        if delta >= 3:
+            notes.append(
+                f"À allure comparable, FC moyenne +{delta:.0f} bpm par temps chaud vs frais."
+            )
+        elif delta <= -3:
+            notes.append(
+                f"À allure comparable, FC moyenne {delta:.0f} bpm par temps chaud vs frais "
+                "(signal atypique — vérifier échantillon)."
+            )
+        else:
+            notes.append(
+                "À allure comparable, peu d’écart FC entre frais et chaud (±3 bpm)."
+            )
+    if slope_r is not None and abs(slope_r) >= 0.25:
+        direction = "hausse" if slope_r > 0 else "baisse"
+        notes.append(
+            f"Tendance linéaire : environ {abs(slope_r):.2f} bpm de {direction} par °C "
+            f"(n={len(band)})."
+        )
+    if not notes:
+        notes.append(
+            "Échantillon encore mince pour conclure sur la sensibilité FC × température."
+        )
+
+    return {
+        "available": True,
+        "sample_size": len(band),
+        "eligible_with_hr_weather": len(points),
+        "pace_band_sec_per_km": {
+            "low": round(lo, 1),
+            "high": round(hi, 1),
+            "center": round(center, 1),
+        },
+        "pace_band_label_fr": _fmt_pace_band(lo, hi),
+        "buckets": buckets,
+        "hr_delta_warm_vs_cool_bpm": delta,
+        "slope_bpm_per_c": slope_r,
+        "confidence": conf,
+        "confidence_label_fr": conf_labels[conf],
+        "notes_fr": notes,
+        "filters_fr": "Route/piste, ≥3 km, FC + température, D+ faible",
+        "reason_fr": None,
+    }
 
 
 def build_overview(db: Session) -> dict[str, Any]:
@@ -269,4 +458,5 @@ def build_overview(db: Session) -> dict[str, Any]:
         "insight_notes_fr": insight_notes,
         "weekly_volume": weekly_volume,
         "weather": weather_summary,
+        "hr_weather": build_hr_weather_at_pace(rows),
     }

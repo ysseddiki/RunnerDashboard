@@ -123,6 +123,27 @@ export type AnalyticsOverview = {
     rainy_runs: number
     rainy_share_pct: number | null
   }
+  hr_weather?: {
+    available: boolean
+    sample_size: number
+    eligible_with_hr_weather: number
+    pace_band_sec_per_km: { low: number; high: number; center: number } | null
+    pace_band_label_fr: string | null
+    buckets: Array<{
+      id: string
+      label_fr: string
+      n: number
+      avg_hr: number | null
+      avg_temp_c: number | null
+    }>
+    hr_delta_warm_vs_cool_bpm: number | null
+    slope_bpm_per_c: number | null
+    confidence: string
+    confidence_label_fr: string
+    notes_fr: string[]
+    filters_fr: string
+    reason_fr: string | null
+  }
 }
 
 export type AppSettings = {

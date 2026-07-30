@@ -356,8 +356,8 @@ function CoachTab() {
         <li>Chiffres déterministes ; l’IA commente seulement</li>
         <li>
           Page <Link to="/profile">Profil</Link> : date de naissance, zones FC, VO2max, historique
-          des enregistrements. Page <Link to="/predictions">Prévisions</Link> : bilan, allures et
-          projection.
+          des enregistrements. Page <Link to="/predictions">Prévisions</Link> : bilan, allures,
+          projection et corrélation FC × météo à allure comparable.
         </li>
       </ul>
       <p>
