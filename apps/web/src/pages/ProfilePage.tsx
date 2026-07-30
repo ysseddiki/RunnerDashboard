@@ -157,66 +157,142 @@ export function ProfilePage() {
       {error && <p className="banner error">{error}</p>}
 
       <form className="panel-block profile-form" onSubmit={(e) => void save(e)}>
-        <h3>Identité & physiologie</h3>
-        <div className="profile-grid">
-          <label className="profile-field">
-            <span>Date de naissance</span>
-            <input
-              type="date"
-              value={form.birth_date}
-              max={new Date().toISOString().slice(0, 10)}
-              onChange={(e) => setForm((f) => ({ ...f, birth_date: e.target.value }))}
-            />
-            {computedAge != null ? (
-              <span className="profile-field-hint">{computedAge} ans</span>
-            ) : profile?.age != null && !form.birth_date ? (
-              <span className="profile-field-hint">
-                Âge actuel {profile.age} ans — saisissez la date de naissance
-              </span>
-            ) : null}
-          </label>
-          {(
-            [
-              ['weight_kg', 'Poids (kg)'],
-              ['height_cm', 'Taille (cm)'],
-              ['resting_hr', 'FC repos'],
-              ['max_hr', 'FC max'],
-            ] as const
-          ).map(([key, label]) => (
-            <label key={key} className="profile-field">
-              <span>{label}</span>
-              <input
-                type="number"
-                value={form[key]}
-                onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-              />
+        <header className="profile-form-head">
+          <h3>Identité & physiologie</h3>
+          <p className="muted">
+            Base pour zones FC et VO2max. L’âge est dérivé de la date de naissance.
+          </p>
+        </header>
+
+        <fieldset className="profile-section">
+          <legend>Identité</legend>
+          <div className="profile-grid profile-grid-identity">
+            <label className="profile-field profile-field-birth">
+              <span>Date de naissance</span>
+              <div className="profile-birth-row">
+                <input
+                  type="date"
+                  value={form.birth_date}
+                  max={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => setForm((f) => ({ ...f, birth_date: e.target.value }))}
+                />
+                {computedAge != null ? (
+                  <span className="profile-age-pill">{computedAge} ans</span>
+                ) : null}
+              </div>
+              {profile?.age != null && !form.birth_date ? (
+                <span className="profile-field-hint">
+                  Âge actuel {profile.age} ans — saisissez la date de naissance
+                </span>
+              ) : null}
             </label>
-          ))}
-          <label className="profile-field">
-            <span>Sexe (optionnel)</span>
-            <select
-              value={form.sex}
-              onChange={(e) => setForm((f) => ({ ...f, sex: e.target.value }))}
-            >
-              <option value="">—</option>
-              <option value="F">F</option>
-              <option value="M">M</option>
-              <option value="X">Autre</option>
-            </select>
+            <label className="profile-field">
+              <span>Sexe</span>
+              <select
+                value={form.sex}
+                onChange={(e) => setForm((f) => ({ ...f, sex: e.target.value }))}
+              >
+                <option value="">Non renseigné</option>
+                <option value="F">Féminin</option>
+                <option value="M">Masculin</option>
+                <option value="X">Autre</option>
+              </select>
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset className="profile-section">
+          <legend>Morphologie</legend>
+          <div className="profile-grid profile-grid-2">
+            <label className="profile-field">
+              <span>Poids</span>
+              <div className="profile-input-unit">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min={30}
+                  max={250}
+                  step={0.1}
+                  value={form.weight_kg}
+                  onChange={(e) => setForm((f) => ({ ...f, weight_kg: e.target.value }))}
+                  placeholder="—"
+                />
+                <span className="profile-unit">kg</span>
+              </div>
+            </label>
+            <label className="profile-field">
+              <span>Taille</span>
+              <div className="profile-input-unit">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={100}
+                  max={250}
+                  step={1}
+                  value={form.height_cm}
+                  onChange={(e) => setForm((f) => ({ ...f, height_cm: e.target.value }))}
+                  placeholder="—"
+                />
+                <span className="profile-unit">cm</span>
+              </div>
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset className="profile-section">
+          <legend>Cardio</legend>
+          <div className="profile-grid profile-grid-2">
+            <label className="profile-field">
+              <span>FC repos</span>
+              <div className="profile-input-unit">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={30}
+                  max={120}
+                  value={form.resting_hr}
+                  onChange={(e) => setForm((f) => ({ ...f, resting_hr: e.target.value }))}
+                  placeholder="—"
+                />
+                <span className="profile-unit">bpm</span>
+              </div>
+            </label>
+            <label className="profile-field">
+              <span>FC max</span>
+              <div className="profile-input-unit">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={100}
+                  max={230}
+                  value={form.max_hr}
+                  onChange={(e) => setForm((f) => ({ ...f, max_hr: e.target.value }))}
+                  placeholder="—"
+                />
+                <span className="profile-unit">bpm</span>
+              </div>
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset className="profile-section">
+          <legend>Objectif</legend>
+          <label className="profile-field profile-field-full">
+            <span className="visually-hidden">Objectif</span>
+            <textarea
+              rows={3}
+              value={form.goal_text}
+              onChange={(e) => setForm((f) => ({ ...f, goal_text: e.target.value }))}
+              placeholder="Ex. Semi-marathon en moins de 1h45 — avril 2027"
+            />
           </label>
+        </fieldset>
+
+        <div className="profile-form-actions">
+          <button type="submit" className="btn" disabled={saving}>
+            {saving ? 'Enregistrement…' : 'Enregistrer'}
+          </button>
         </div>
-        <label className="profile-field profile-field-full">
-          <span>Objectif</span>
-          <textarea
-            rows={2}
-            value={form.goal_text}
-            onChange={(e) => setForm((f) => ({ ...f, goal_text: e.target.value }))}
-            placeholder="Ex. Semi en moins de 1h45"
-          />
-        </label>
-        <button type="submit" className="btn" disabled={saving}>
-          {saving ? 'Enregistrement…' : 'Enregistrer'}
-        </button>
       </form>
 
       {profile && (
