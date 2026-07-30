@@ -113,7 +113,22 @@ export function ActivitiesPage() {
             <ul className="activity-list">
               {filtered.map((activity) => (
                 <li key={activity.id}>
-                  <ActivityRow activity={activity} />
+                  <ActivityRow
+                    activity={activity}
+                    onSessionTypeSaved={(activityId, sessionType, label) => {
+                      setActivities((prev) =>
+                        prev.map((a) =>
+                          a.id === activityId
+                            ? {
+                                ...a,
+                                session_type: sessionType,
+                                session_type_label_fr: label,
+                              }
+                            : a,
+                        ),
+                      )
+                    }}
+                  />
                 </li>
               ))}
             </ul>

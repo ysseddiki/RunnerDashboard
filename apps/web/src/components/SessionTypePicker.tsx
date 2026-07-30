@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import type { SessionTypeInfo } from '../types'
 import { sessionToneClass } from '../sessionTone'
+import { useSessionTypes } from '../useSessionTypes'
 
 type Props = {
   activityId: number
@@ -9,7 +9,7 @@ type Props = {
 }
 
 export function SessionTypePicker({ activityId, value, onSaved }: Props) {
-  const [types, setTypes] = useState<SessionTypeInfo[]>([])
+  const { types, error: catalogError } = useSessionTypes()
   const [selected, setSelected] = useState(value ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -21,24 +21,8 @@ export function SessionTypePicker({ activityId, value, onSaved }: Props) {
   }, [value])
 
   useEffect(() => {
-    let cancelled = false
-    void fetch('/api/activities/session-types')
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`Types HTTP ${res.status}`)
-        return (await res.json()) as SessionTypeInfo[]
-      })
-      .then((data) => {
-        if (!cancelled) setTypes(data)
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Catalogue types indisponible')
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
+    if (catalogError) setError(catalogError)
+  }, [catalogError])
 
   async function persist(next: string) {
     const id = ++requestId.current
@@ -79,7 +63,11 @@ export function SessionTypePicker({ activityId, value, onSaved }: Props) {
   const tone = sessionToneClass(selected || null)
 
   return (
-    <div className={`session-tag ${tone} ${saving ? 'is-saving' : ''}`}>
+    <div
+      className={`session-tag ${tone} ${saving ? 'is-saving' : ''}`}
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
       <label className="visually-hidden" htmlFor={selectId}>
         Type de séance
       </label>
@@ -89,6 +77,8 @@ export function SessionTypePicker({ activityId, value, onSaved }: Props) {
         value={selected}
         title={current?.description_fr ?? 'Attribuer un type de séance'}
         disabled={saving || types.length === 0}
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
         onChange={(e) => {
           const next = e.target.value
           setSelected(next)

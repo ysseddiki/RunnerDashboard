@@ -195,7 +195,22 @@ export function HomePage() {
           <ul className="activity-list">
             {activities.slice(0, 5).map((activity) => (
               <li key={activity.id}>
-                <ActivityRow activity={activity} />
+                <ActivityRow
+                  activity={activity}
+                  onSessionTypeSaved={(activityId, sessionType, label) => {
+                    setActivities((prev) =>
+                      prev.map((a) =>
+                        a.id === activityId
+                          ? {
+                              ...a,
+                              session_type: sessionType,
+                              session_type_label_fr: label,
+                            }
+                          : a,
+                      ),
+                    )
+                  }}
+                />
               </li>
             ))}
           </ul>

@@ -869,13 +869,12 @@ a {
   padding: 0.95rem 1.05rem;
   display: grid;
   gap: 0.55rem;
-  cursor: pointer;
-  text-decoration: none;
   box-shadow: var(--shadow-sm);
   transition: border-color 0.2s var(--ease), transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
 }
 
-.activity:hover {
+.activity:hover,
+.activity:focus-within {
   border-color: rgba(26, 92, 58, 0.35);
   background: #fff;
   transform: translateY(-1px);
@@ -889,12 +888,38 @@ a {
   gap: 0.55rem;
 }
 
+.activity-title-link {
+  text-decoration: none;
+  color: inherit;
+  min-width: 0;
+  flex: 1;
+}
+
+.activity-title-link:hover strong,
+.activity-title-link:focus-visible strong {
+  color: var(--brand-deep);
+}
+
+.activity-title-link strong,
 .activity-top strong {
   font-family: var(--font-display);
   font-size: 1.02rem;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--ink);
+}
+
+.activity-body-link {
+  display: grid;
+  gap: 0.55rem;
+  text-decoration: none;
+  color: inherit;
+  border-radius: var(--radius-sm);
+  outline: none;
+}
+
+.activity-body-link:focus-visible {
+  box-shadow: 0 0 0 3px var(--brand-glow);
 }
 
 .activity-metrics {
