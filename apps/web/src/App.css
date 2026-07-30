@@ -1372,11 +1372,13 @@ a {
   display: inline-flex;
   align-items: center;
   max-width: 100%;
+  z-index: 4;
 }
 
-.session-tag-select {
+.session-tag-trigger {
   appearance: none;
   margin: 0;
+  position: relative;
   border: 1px solid transparent;
   border-radius: var(--radius-pill);
   padding: 0.28rem 1.55rem 0.28rem 0.7rem;
@@ -1388,15 +1390,22 @@ a {
   line-height: 1.35;
   color: var(--tone-fg);
   background-color: var(--tone-bg);
-  background-image: none;
   cursor: pointer;
   max-width: 14rem;
   outline: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   transition: background-color 0.15s, border-color 0.15s, box-shadow 0.15s, color 0.15s;
 }
 
-.session-tag-control::after {
-  content: "";
+.session-tag-trigger-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-tag-caret {
   position: absolute;
   right: 0.55rem;
   top: 50%;
@@ -1410,26 +1419,161 @@ a {
   opacity: 0.85;
 }
 
-.session-tag-select:hover:not(:disabled) {
+.session-tag-trigger:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--tone-fg) 28%, transparent);
 }
 
-.session-tag-select:focus-visible {
+.session-tag-trigger:focus-visible {
   border-color: var(--tone-fg);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--tone-fg) 22%, transparent);
 }
 
-.session-tag-select:disabled {
+.session-tag-trigger:disabled {
   opacity: 0.7;
   cursor: wait;
 }
 
-.session-tag.is-saving .session-tag-select {
+.session-tag-wrap.is-saving .session-tag-trigger {
   opacity: 0.75;
 }
 
-.session-tag-wrap.is-saving .session-tag-select {
-  opacity: 0.75;
+.session-type-menu {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  z-index: 30;
+  min-width: min(22rem, 88vw);
+  max-width: min(26rem, 92vw);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-raised, #fff);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.session-type-menu-scroll {
+  max-height: min(18rem, 50vh);
+  overflow: auto;
+  padding: 0.3rem;
+}
+
+.session-type-option-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.15rem;
+  align-items: stretch;
+  border-radius: var(--radius-sm);
+}
+
+.session-type-option-row.is-active,
+.session-type-option.is-active {
+  background: rgba(26, 92, 58, 0.08);
+}
+
+.session-type-option {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: inherit;
+  padding: 0.45rem 0.55rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  width: 100%;
+}
+
+.session-type-option:hover {
+  background: rgba(26, 92, 58, 0.1);
+}
+
+.session-type-option-label {
+  display: block;
+  line-height: 1.3;
+}
+
+.session-type-help-btn {
+  appearance: none;
+  border: 1px solid rgba(26, 92, 58, 0.25);
+  background: rgba(26, 92, 58, 0.06);
+  color: #1a5c3a;
+  width: 1.55rem;
+  height: 1.55rem;
+  margin: 0.25rem 0.25rem 0.25rem 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.session-type-help-btn:hover,
+.session-type-help-btn.is-open {
+  background: #1a5c3a;
+  color: #fff;
+  border-color: #1a5c3a;
+}
+
+.session-type-help-panel {
+  border-top: 1px solid var(--line);
+  padding: 0.7rem 0.8rem 0.85rem;
+  background: rgba(26, 92, 58, 0.04);
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+}
+
+.session-type-help-title {
+  margin: 0 0 0.25rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #1a5c3a;
+}
+
+.session-type-help-summary {
+  margin: 0 0 0.55rem;
+  font-size: 0.82rem;
+  color: var(--muted, #5c6f62);
+}
+
+.session-type-help-dl {
+  margin: 0 0 0.55rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.session-type-help-dl div {
+  display: grid;
+  grid-template-columns: 4.8rem minmax(0, 1fr);
+  gap: 0.35rem 0.5rem;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.session-type-help-dl dt {
+  margin: 0;
+  font-weight: 700;
+  color: #1a5c3a;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.session-type-help-dl dd {
+  margin: 0;
+}
+
+.session-type-help-link {
+  font-size: 0.78rem;
+}
+
+.session-suggest-doc-hint {
+  margin: 0 0 0.45rem !important;
+  font-size: 0.78rem;
 }
 
 .session-suggest-btn {
