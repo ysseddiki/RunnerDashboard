@@ -35,7 +35,9 @@ class SessionTypeSuggestRequest(BaseModel):
 class SessionTypeSuggestBatchRequest(BaseModel):
     use_ai: bool = False
     untagged_only: bool = True
-    limit: int = Field(default=20, ge=1, le=50)
+    limit: int = Field(default=50, ge=1, le=100)
+    activity_ids: list[int] | None = None
+    min_confidence: str = Field(default="basse", pattern="^(haute|moyenne|basse)$")
 
 
 class SessionTypeSuggestResponse(BaseModel):
@@ -51,6 +53,22 @@ class SessionTypeSuggestResponse(BaseModel):
 class SessionTypeSuggestBatchResponse(BaseModel):
     count: int
     suggestions: list[dict]
+
+
+class ApplySuggestionsRequest(BaseModel):
+    use_ai: bool = False
+    untagged_only: bool = True
+    limit: int = Field(default=50, ge=1, le=100)
+    activity_ids: list[int] | None = None
+    min_confidence: str = Field(default="basse", pattern="^(haute|moyenne|basse)$")
+
+
+class BulkUpdateRequest(BaseModel):
+    activity_ids: list[int] = Field(..., min_length=1, max_length=200)
+    session_type: str | None = None
+    terrain: str | None = None
+    clear_session_type: bool = False
+    clear_terrain: bool = False
 
 
 class ClearSessionTypesResult(BaseModel):
@@ -110,8 +128,52 @@ def suggest_session_types_batch(
         use_ai=req.use_ai,
         untagged_only=req.untagged_only,
         limit=req.limit,
+        activity_ids=req.activity_ids,
     )
     return SessionTypeSuggestBatchResponse.model_validate(result)
+
+
+@router.post("/apply-session-type-suggestions")
+def apply_session_type_suggestions(
+    body: ApplySuggestionsRequest | None = None,
+    user: User = Depends(auth_service.require_user),
+    db: Session = Depends(get_db),
+    env: Settings = Depends(get_settings),
+) -> dict:
+    req = body or ApplySuggestionsRequest()
+    conf = req.min_confidence
+    if conf not in ("haute", "moyenne", "basse"):
+        conf = "basse"
+    return suggest_service.apply_suggestions(
+        db,
+        user.id,
+        env=env,
+        use_ai=req.use_ai,
+        untagged_only=req.untagged_only,
+        limit=req.limit,
+        min_confidence=conf,  # type: ignore[arg-type]
+        activity_ids=req.activity_ids,
+    )
+
+
+@router.post("/bulk-update")
+def bulk_update_activities(
+    body: BulkUpdateRequest,
+    user: User = Depends(auth_service.require_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    try:
+        return suggest_service.bulk_update(
+            db,
+            user.id,
+            body.activity_ids,
+            session_type=body.session_type,
+            terrain=body.terrain,
+            clear_session_type=body.clear_session_type,
+            clear_terrain=body.clear_terrain,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/recompute-cadence", response_model=CadenceRecomputeResult)

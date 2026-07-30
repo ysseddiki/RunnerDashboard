@@ -8,6 +8,8 @@ import { WeatherIcon } from './WeatherIcon'
 
 type Props = {
   activity: ActivitySummary
+  selected?: boolean
+  onToggleSelect?: (activityId: number) => void
   onSessionTypeSaved?: (
     activityId: number,
     sessionType: string | null,
@@ -29,7 +31,13 @@ function sourceBadge(activity: ActivitySummary): { label: string; className: str
   }
 }
 
-export function ActivityRow({ activity, onSessionTypeSaved, onTerrainSaved }: Props) {
+export function ActivityRow({
+  activity,
+  selected = false,
+  onToggleSelect,
+  onSessionTypeSaved,
+  onTerrainSaved,
+}: Props) {
   const detailTo = `/activities/${activity.id}`
   const badge = sourceBadge(activity)
   const weather = activity.weather_json
@@ -39,7 +47,17 @@ export function ActivityRow({ activity, onSessionTypeSaved, onTerrainSaved }: Pr
     : null
 
   return (
-    <article className="activity">
+    <article className={`activity${selected ? ' is-selected' : ''}`}>
+      {onToggleSelect && (
+        <label className="activity-select">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={() => onToggleSelect(activity.id)}
+            aria-label={`Sélectionner ${activity.name}`}
+          />
+        </label>
+      )}
       <div className="activity-main">
         <div className="activity-top">
           <SessionTypePicker
