@@ -1493,3 +1493,142 @@ a {
 .home-grid + .section {
   margin-top: 1.5rem;
 }
+
+/* ——— Docs ——— */
+
+.docs-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0 0 1rem;
+  padding: 0.3rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.docs-tab {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.9rem;
+  padding: 0.5rem 0.9rem;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: color 0.2s var(--ease), background 0.2s var(--ease);
+}
+
+.docs-tab:hover {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.65);
+}
+
+.docs-tab.active {
+  color: var(--brand-deep);
+  background: var(--brand-soft);
+}
+
+.docs-content {
+  animation: rise 0.35s var(--ease) both;
+}
+
+.docs-panel h2 {
+  margin: 0 0 0.65rem;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--brand-deep);
+}
+
+.docs-panel h3 {
+  margin: 1.35rem 0 0.45rem;
+  font-family: var(--font-display);
+  font-size: 1.02rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.docs-panel p {
+  margin: 0 0 0.75rem;
+  color: var(--ink-soft);
+}
+
+.docs-panel .muted {
+  color: var(--muted);
+}
+
+.docs-formula {
+  margin: 0.5rem 0 0.85rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(26, 92, 58, 0.18);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(232, 242, 235, 0.75));
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--brand-deep);
+}
+
+.docs-list {
+  margin: 0 0 0.85rem;
+  padding-left: 1.15rem;
+  color: var(--ink-soft);
+  display: grid;
+  gap: 0.35rem;
+}
+
+.docs-list li::marker {
+  color: var(--brand-bright);
+}
+
+.docs-panel code {
+  font-size: 0.9em;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.3rem;
+  background: var(--brand-soft);
+  color: var(--brand-deep);
+}
+
+.docs-session-list {
+  list-style: none;
+  margin: 0.85rem 0 1rem;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.docs-session-list li {
+  display: grid;
+  gap: 0.35rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.docs-session-list li:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.docs-session-list p {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+@media (max-width: 640px) {
+  .docs-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .docs-tab {
+    flex: 0 0 auto;
+  }
+}
+

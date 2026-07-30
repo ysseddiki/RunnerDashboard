@@ -5,6 +5,7 @@ import { ActivitiesPage } from './pages/ActivitiesPage'
 import { ActivityDetailPage } from './pages/ActivityDetailPage'
 import { AdminPage } from './pages/AdminPage'
 import { PredictionsPage } from './pages/PredictionsPage'
+import { DocsPage } from './pages/DocsPage'
 import './App.css'
 
 export default function App() {
@@ -16,6 +17,7 @@ export default function App() {
           <Route path="activities" element={<ActivitiesPage />} />
           <Route path="activities/:id" element={<ActivityDetailPage />} />
           <Route path="predictions" element={<PredictionsPage />} />
+          <Route path="docs" element={<DocsPage />} />
           <Route path="admin" element={<AdminPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
