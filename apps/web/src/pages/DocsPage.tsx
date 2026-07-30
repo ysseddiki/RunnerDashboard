@@ -1,6 +1,9 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { apiFetch } from '../auth'
+import { formatPaceSec } from '../format'
 import { sessionToneClass } from '../sessionTone'
+import type { PredictionsOverview } from '../types'
 
 type DocTab = {
   id: string
@@ -18,73 +21,188 @@ const TABS: DocTab[] = [
   { id: 'coach', label: 'Coach IA' },
 ]
 
-const SESSION_DOCS: Array<{ id: string; label: string; description: string }> = [
+type SessionDoc = {
+  id: string
+  label: string
+  summary: string
+  purpose: string
+  feel: string
+  typical: string
+  zones: string
+  tips: string
+  /** Zones FC typiques (ids profil Z1–Z5) */
+  zoneIds: string[]
+}
+
+const SESSION_DOCS: SessionDoc[] = [
   {
     id: 'ef',
     label: 'EF — Endurance fondamentale',
-    description: 'Allure facile, conversationnelle (zone basse).',
+    summary: 'Base aérobie, conversationnelle, zone basse.',
+    purpose:
+      'Développer l’endurance, digérer la charge, construire le volume sans trop de stress.',
+    feel: 'Vous devez pouvoir parler en phrases. Respiration calme, jambes légères.',
+    typical: '30–90 min, 1–3× / semaine selon volume. Souvent la majorité du km hebdo.',
+    zones: 'Principalement Z1–Z2. Peu ou pas de Z4–Z5.',
+    tips: 'Si la FC dérive trop (chaleur, dénivelé), ralentissez plutôt que de « forcer l’allure ».',
+    zoneIds: ['Z1', 'Z2'],
   },
   {
     id: 'recuperation',
     label: 'Récupération',
-    description: 'Footing très léger après effort ou jour de récup.',
+    summary: 'Footing très léger après effort ou jour de récup active.',
+    purpose: 'Accélérer la récupération sans ajouter de fatigue utile.',
+    feel: 'Plus lent et plus court que l’EF. Sensation de « dérouillage ».',
+    typical: '20–45 min, le lendemain d’une qualité / course / grosse sortie.',
+    zones: 'Z1, bas de Z2 au maximum.',
+    tips: 'Mieux vaut trop facile que trop dur. Si ça devient un vrai footing soutenu, taguez EF.',
+    zoneIds: ['Z1'],
   },
   {
     id: 'endurance_active',
     label: 'Endurance active',
-    description: 'Allure un peu plus soutenue que l’EF, encore contrôlée.',
+    summary: 'Un cran au-dessus de l’EF, encore contrôlé.',
+    purpose: 'Travailler l’efficacité aérobie et l’allure « marathon / semi confortable ».',
+    feel: 'Parler encore possible, mais en phrases plus courtes. Effort soutenu sans forcer.',
+    typical: '40–80 min en continu, ou fin de sortie longue progressive.',
+    zones: 'Haut Z2 / Z3.',
+    tips: 'Ne doit pas devenir un seuil déguisé : si vous grincez des dents, c’est trop.',
+    zoneIds: ['Z2', 'Z3'],
   },
   {
     id: 'sortie_longue',
     label: 'Sortie longue',
-    description: 'Volume long, souvent en EF ou progressif.',
+    summary: 'Volume long, souvent en EF avec éventuellement une fin plus soutenue.',
+    purpose: 'Endurance spécifique, résistance mentale, assimilation du volume.',
+    typical: '≥ ~75–90 min ou distance nettement au-dessus de vos sorties habituelles.',
+    feel: 'Majoritairement facile ; fatigue progressive normale en fin de séance.',
+    zones: 'Z1–Z2 la plupart du temps ; un peu de Z3 si progressif.',
+    tips: 'Le tag « longue » porte sur le volume, pas sur l’intensité. Terrain trail ≠ type longue.',
+    zoneIds: ['Z1', 'Z2'],
   },
   {
     id: 'tempo',
     label: 'Tempo / allure spécifique',
-    description: 'Effort continu à allure course ou semi.',
+    summary: 'Effort continu à allure course (10 km / semi) ou « confortablement dur ».',
+    purpose: 'Habituer le corps à tenir une allure cible longtemps.',
+    feel: 'Difficile de parler plus que quelques mots. Contrôlé, pas un sprint prolongé.',
+    typical: '15–40 min en continu, ou 2–3 blocs avec récup courte.',
+    zones: 'Haut Z3 / bas Z4 selon profil.',
+    tips: 'Régularité d’allure importante. Si la FC explose dès le début, l’allure est trop ambitieuse.',
+    zoneIds: ['Z3', 'Z4'],
   },
   {
     id: 'seuil',
     label: 'Seuil',
-    description: 'Travail au seuil lactique (blocs ou continu).',
+    summary: 'Travail au seuil lactique (continu ou blocs).',
+    purpose: 'Repousser le point où l’acide lactique s’accumule ; améliorer le 10 km / semi.',
+    feel: 'Dur mais tenable ~20–40 min. Respiration soutenue, concentration.',
+    typical: 'ex. 20–30 min continu, ou 3×8–12 min avec récup 2–3 min.',
+    zones: 'Z4 (parfois haut Z3 en début de bloc).',
+    tips: 'Ce n’est pas de la VMA : si vous devez marcher entre les blocs, c’était trop vite.',
+    zoneIds: ['Z4'],
   },
   {
     id: 'fractionne',
     label: 'Fractionné',
-    description: 'Intervalles (ex. 400 m, 1000 m) avec récupérations.',
+    summary: 'Intervalles (400 m, 1000 m…) avec récupérations marquées.',
+    purpose: 'Puissance aérobie, vitesse, économie à allure élevée.',
+    feel: 'Blocs durs, récup active ou marche selon le protocole. Sensation de séries.',
+    typical: 'ex. 8×400 m, 5×1000 m, pyramides — échauffement + retour au calme inclus.',
+    zones: 'Z4–Z5 sur les efforts ; Z1–Z2 en récup.',
+    tips: 'Le tag fractionné convient dès qu’il y a des répétitions claires, même sans piste.',
+    zoneIds: ['Z4', 'Z5'],
   },
   {
     id: 'vma',
     label: 'VMA',
-    description: 'Intervalles courts / moyens autour de la VMA.',
+    summary: 'Intervalles courts / moyens autour de la VMA.',
+    purpose: 'Améliorer la VO2max et la vitesse maximale aérobie.',
+    feel: 'Très intense, respiratoire. Récups souvent égales ou un peu plus longues que l’effort.',
+    typical: 'ex. 30/30, 200–400 m, 8–12× (effort 30 s–2 min).',
+    zones: 'Z5 (et pics FC élevés).',
+    tips: 'Séance courte en volume total d’effort. Ne pas la confondre avec un tempo.',
+    zoneIds: ['Z5'],
   },
   {
     id: 'cotes',
     label: 'Côtes',
-    description: 'Répétitions en montée.',
+    summary: 'Répétitions en montée (force, technique, puissance).',
+    purpose: 'Renforcement spécifique, économie en côte, sans forcément viser une allure plate.',
+    feel: 'Effort en montée, récup en descente ou retour marche. FC monte vite.',
+    typical: '6–12 côtes de 30 s–3 min selon pente.',
+    zones: 'Souvent Z4–Z5 pendant les montées.',
+    tips: 'Le D+ élevé sur une sortie continue n’est pas forcément « côtes » : réservez le tag aux séries.',
+    zoneIds: ['Z4', 'Z5'],
   },
   {
     id: 'fartlek',
     label: 'Fartlek',
-    description: 'Variations d’allure libres / ludiques.',
+    summary: 'Variations d’allure libres / ludiques.',
+    purpose: 'Jouer avec les accélérations sans protocole rigide.',
+    feel: 'Alternance spontanée facile / plus vite (relief, sensations, jeux).',
+    typical: '40–70 min avec plusieurs accélérations irrégulières.',
+    zones: 'Mixte Z2–Z4 selon les pics.',
+    tips: 'Utile quand ce n’est ni un vrai fractionné ni une EF pure.',
+    zoneIds: ['Z2', 'Z3', 'Z4'],
   },
   {
     id: 'competition',
     label: 'Compétition',
-    description: 'Course officielle ou simulation compétition.',
+    summary: 'Course officielle ou simulation compétition.',
+    purpose: 'Performance du jour ; sert aussi d’ancre forte pour les prévisions d’allure.',
+    feel: 'Effort max contrôlé selon la distance. Peu de place pour « garder sous le pied » inutilement.',
+    typical: '5 km, 10 km, semi, marathon, cross…',
+    zones: 'Souvent Z4–Z5 selon distance et tactique.',
+    tips: 'Taguez aussi les « tests course » officiels. Terrain route/piste préférable pour l’ancre chronos.',
+    zoneIds: ['Z4', 'Z5'],
   },
   {
     id: 'test',
     label: 'Test',
-    description: 'Évaluation (VMA, Cooper, tempo, etc.).',
+    summary: 'Évaluation (VMA, Cooper, chrono contrôlé, etc.).',
+    purpose: 'Mesurer le niveau pour recalibrer allures / zones.',
+    feel: 'Protocole clair, effort maximal ou submaximal selon le test.',
+    typical: 'Cooper 12 min, test VMA piste, 3 km / 5 km chrono, etc.',
+    zones: 'Souvent proche Z5 en fin de test.',
+    tips: 'Un test récent améliore beaucoup la qualité des suggestions et des prévisions.',
+    zoneIds: ['Z5'],
   },
   {
     id: 'autre',
     label: 'Autre',
-    description: 'Séance hors catégories ci-dessus.',
+    summary: 'Séance hors catégories ci-dessus.',
+    purpose: 'Ne pas forcer un label faux (renfo + footing, marche active, protocole hybride…).',
+    feel: 'Variable.',
+    typical: 'Quand aucun type ne décrit correctement l’intention.',
+    zones: 'Selon le contenu.',
+    tips: 'Préférez un type proche si possible : le coach et les stats y gagnent.',
+    zoneIds: [],
   },
 ]
+
+type HrZone = { id: string; label_fr: string; hr_low: number; hr_high: number }
+
+type ProfileDoc = {
+  age: number | null
+  max_hr: number | null
+  resting_hr: number | null
+  goal_text: string | null
+  zones: {
+    available: boolean
+    method: string | null
+    zones: HrZone[]
+  }
+}
+
+function zoneRangeLabel(zones: HrZone[], ids: string[]): string | null {
+  const matched = zones.filter((z) => ids.includes(z.id))
+  if (!matched.length) return null
+  const lo = Math.min(...matched.map((z) => z.hr_low))
+  const hi = Math.max(...matched.map((z) => z.hr_high))
+  const names = matched.map((z) => z.id).join('–')
+  return `${names} · ${lo}–${hi} bpm`
+}
 
 function Formula({ children }: { children: string }) {
   return <p className="docs-formula">{children}</p>
@@ -347,32 +465,164 @@ function FormeTab() {
 }
 
 function SeancesTab() {
+  const [profile, setProfile] = useState<ProfileDoc | null>(null)
+  const [pred, setPred] = useState<PredictionsOverview | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    void Promise.all([
+      apiFetch('/api/profile'),
+      apiFetch('/api/predictions/overview'),
+    ])
+      .then(async ([pRes, predRes]) => {
+        const p = pRes.ok ? ((await pRes.json()) as ProfileDoc) : null
+        const pr = predRes.ok ? ((await predRes.json()) as PredictionsOverview) : null
+        if (!cancelled) {
+          setProfile(p)
+          setPred(pr)
+        }
+      })
+      .catch(() => {
+        /* doc reste générique */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const paceByType = useMemo(() => {
+    const map = new Map<string, { pace: number; source: string; sample: number }>()
+    for (const tp of pred?.training_paces ?? []) {
+      map.set(tp.session_type, {
+        pace: tp.pace_sec_per_km,
+        source: tp.source,
+        sample: tp.sample_size,
+      })
+    }
+    return map
+  }, [pred])
+
+  const pace10k = useMemo(() => {
+    const est = pred?.estimates?.find((e) => e.id === '10k')
+    return est?.pace_sec_per_km ?? null
+  }, [pred])
+
+  const zones = profile?.zones?.available ? profile.zones.zones : []
+
   return (
     <div className="docs-panel">
       <h2>Types de séance</h2>
       <p>
-        Attribution manuelle (tag) sur chaque sortie, depuis la liste ou le détail. Ces tags
-        améliorent les prévisions (ancres, allures observées) et le coach IA. Un bouton{' '}
-        <strong>Suggérer</strong> propose un type (allure vs 10 km estimé, distance, D+, titre) —
-        à confirmer avant enregistrement.
+        Chaque sortie peut porter un <strong>type</strong> (intention d’entraînement) et un{' '}
+        <strong>terrain</strong> (Route, Trail, Piste…). Les deux sont indépendants : une EF peut
+        être en trail. Les tags améliorent prévisions, suggestions auto et coach.
       </p>
       <p>
-        En parallèle, le <strong>terrain</strong> (Route, Trail, Piste, Indoor, Mixte) est un
-        contexte orthogonal : il n’écrase pas le type de séance. Les trails sont dépriorisés pour
-        les chronos route ; Strava <em>TrailRun</em> / D+ élevé / titre peuvent pré-remplir le
-        terrain à l’import.
+        Sur <Link to="/activities">Activités</Link> : classement manuel, multi-sélection, ou
+        auto-suggestion (allure, FC/zones, features, profil).
       </p>
-      <ul className="docs-session-list">
-        {SESSION_DOCS.map((s) => (
-          <li key={s.id}>
-            <span className={`chip ${sessionToneClass(s.id)}`}>{s.label}</span>
-            <p className="muted">{s.description}</p>
-          </li>
-        ))}
+
+      {(profile || pred?.available) && (
+        <div className="docs-personal-banner">
+          <h3>Pour votre profil</h3>
+          <ul className="docs-list">
+            {profile?.age != null && (
+              <li>
+                Âge dérivé : <strong>{profile.age} ans</strong>
+                {profile.max_hr != null ? ` · FC max ${profile.max_hr} bpm` : ''}
+                {profile.resting_hr != null ? ` · repos ${profile.resting_hr} bpm` : ''}
+              </li>
+            )}
+            {profile?.zones?.available && (
+              <li>
+                Zones FC ({profile.zones.method === 'karvonen' ? 'Karvonen' : '% FC max'})
+                disponibles — affichées sous chaque type.
+              </li>
+            )}
+            {!profile?.zones?.available && (
+              <li>
+                Complétez FC max / repos (ou date de naissance) dans le{' '}
+                <Link to="/profile">profil</Link> pour personnaliser les zones.
+              </li>
+            )}
+            {pace10k != null && (
+              <li>
+                Allure 10 km estimée : <strong>{formatPaceSec(pace10k)}</strong>
+                {pred?.anchor ? ' (sert de référence aux allures d’entraînement).' : '.'}
+              </li>
+            )}
+            {profile?.goal_text && (
+              <li>
+                Objectif noté : <em>{profile.goal_text}</em>
+              </li>
+            )}
+          </ul>
+        </div>
+      )}
+
+      <ul className="docs-session-list docs-session-list-rich">
+        {SESSION_DOCS.map((s) => {
+          const paceInfo = paceByType.get(s.id)
+          const hrLabel = zoneRangeLabel(zones, s.zoneIds)
+          return (
+            <li key={s.id}>
+              <div className="docs-session-head">
+                <span className={`chip ${sessionToneClass(s.id)}`}>{s.label}</span>
+                {(paceInfo || hrLabel) && (
+                  <div className="docs-session-personal">
+                    {hrLabel && <span className="docs-pill">FC {hrLabel}</span>}
+                    {paceInfo && (
+                      <span className="docs-pill">
+                        Allure ~{formatPaceSec(paceInfo.pace)}
+                        {paceInfo.source === 'observe'
+                          ? ` (obs. ×${paceInfo.sample})`
+                          : ' (dérivée 10k)'}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+              <p className="docs-session-summary">{s.summary}</p>
+              <dl className="docs-session-dl">
+                <div>
+                  <dt>Pourquoi</dt>
+                  <dd>{s.purpose}</dd>
+                </div>
+                <div>
+                  <dt>Sensation</dt>
+                  <dd>{s.feel}</dd>
+                </div>
+                <div>
+                  <dt>Typique</dt>
+                  <dd>{s.typical}</dd>
+                </div>
+                <div>
+                  <dt>Zones</dt>
+                  <dd>
+                    {s.zones}
+                    {hrLabel ? ` → chez vous ${hrLabel}.` : ''}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Conseil</dt>
+                  <dd>{s.tips}</dd>
+                </div>
+              </dl>
+            </li>
+          )
+        })}
       </ul>
       <p>
         <Link to="/activities" className="inline-link">
-          Voir les activités
+          Classer mes activités
+        </Link>
+        {' · '}
+        <Link to="/profile" className="inline-link">
+          Affiner mon profil
+        </Link>
+        {' · '}
+        <Link to="/predictions" className="inline-link">
+          Voir allures estimées
         </Link>
       </p>
     </div>

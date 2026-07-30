@@ -2121,6 +2121,86 @@ label.btn.is-disabled {
   font-size: 0.92rem;
 }
 
+.docs-session-list-rich li {
+  gap: 0.45rem;
+  padding-bottom: 1.15rem;
+}
+
+.docs-session-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  justify-content: space-between;
+}
+
+.docs-session-personal {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.docs-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: rgba(26, 92, 58, 0.1);
+  color: #1a5c3a;
+}
+
+.docs-session-summary {
+  color: var(--muted, #5c6f62);
+  font-size: 0.95rem;
+}
+
+.docs-session-dl {
+  margin: 0.15rem 0 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.docs-session-dl div {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  gap: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+}
+
+.docs-session-dl dt {
+  margin: 0;
+  font-weight: 700;
+  color: #1a5c3a;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.docs-session-dl dd {
+  margin: 0;
+  color: inherit;
+  line-height: 1.45;
+}
+
+.docs-personal-banner {
+  margin: 1rem 0 1.25rem;
+  padding: 0.9rem 1rem;
+  border-radius: var(--radius);
+  border: 1px solid rgba(26, 92, 58, 0.18);
+  background: rgba(26, 92, 58, 0.05);
+}
+
+.docs-personal-banner h3 {
+  margin: 0 0 0.45rem;
+  font-size: 1rem;
+}
+
+.docs-personal-banner .docs-list {
+  margin-bottom: 0;
+}
+
 @media (max-width: 640px) {
   .docs-tabs {
     flex-wrap: nowrap;
@@ -2130,6 +2210,11 @@ label.btn.is-disabled {
 
   .docs-tab {
     flex: 0 0 auto;
+  }
+
+  .docs-session-dl div {
+    grid-template-columns: 1fr;
+    gap: 0.15rem;
   }
 }
 
