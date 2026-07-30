@@ -10,6 +10,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.config import Settings
+from app.services import knowledge
 from app.services import settings as settings_service
 from app.services.coach_context import build_coach_context
 from app.services.ollama_client import OllamaClient, OllamaError
@@ -18,33 +19,22 @@ from app.services.session_types import SESSION_TYPE_IDS, label_for
 logger = logging.getLogger("coach")
 
 SYSTEM_PROMPT = """Tu es un coach running francophone, précis et prudent.
-Tu travailles UNIQUEMENT avec le JSON de contexte fourni (prévisions d'allure, analytics, sorties).
+Tu travailles UNIQUEMENT avec le JSON de contexte fourni et le pack knowledge.
 
 Règles strictes :
 - N'invente AUCUN chrono, allure, FC ou cadence absent du contexte.
-- Corréle explicitement : prévisions (5/10/semi/marathon, allures d'entraînement) avec les sorties récentes.
-- Signale les trous de données (cadence manquante, peu de tags, confiance basse).
-- Réponds UNIQUEMENT avec un objet JSON valide UTF-8 (aucun texte avant/après, aucun ```).
-- Échappe correctement les guillemets et utilise \\n pour les retours à la ligne dans les strings.
+- Corréle prévisions et sorties récentes.
+- Signale les trous de données.
+- Réponds UNIQUEMENT avec un objet JSON valide UTF-8 (aucun texte avant/après).
 - Le champ "markdown" est du markdown lisible (titres ##, listes), PAS du JSON.
+- Le plan calendrier est géré ailleurs : mets "plan": [] sauf si l'athlète demande explicitement des séances dans sa question.
 
-Schéma JSON imposé :
+Schéma JSON :
 {
   "summary": "synthèse 2–4 phrases en français",
-  "plan": [
-    {
-      "date": "YYYY-MM-DD",
-      "session_type": "ef|recuperation|endurance_active|sortie_longue|tempo|seuil|fractionne|vma|cotes|fartlek|competition|test|autre",
-      "title": "titre court",
-      "details": "consigne concrète",
-      "target_pace": "5:20/km",
-      "duration_or_distance": "45 min"
-    }
-  ],
+  "plan": [],
   "markdown": "## Corrélations\\n- ...\\n## Points d'attention\\n- ...\\n## Nuances\\n- ..."
 }
-
-Le plan couvre 7 à 14 jours (3 à 7 séances max). Dates cohérentes à partir d'aujourd'hui.
 """
 
 
@@ -326,18 +316,19 @@ def advise(db: Session, env: Settings, *, question: str | None = None) -> dict[s
         )
 
     context = build_coach_context(db, recent_limit=8)
+    pack = knowledge.load_pack(max_chars=6000)
     question_text = (question or "").strip() or (
         "Analyse ma forme et mes prévisions d'allure. "
         "Corréle HR, types de séance et min/km avec les estimations. "
-        "Propose un plan de séances pour les 10 prochains jours."
+        "Ne génère pas de plan calendrier (plan déjà géré séparément)."
     )
     user_message = (
+        f"Pack knowledge :\n{pack}\n\n"
         "Question athlète :\n"
         f"{question_text}\n\n"
         "Contexte JSON (source de vérité) :\n"
         f"{json.dumps(context, ensure_ascii=False, separators=(',', ':'))}\n\n"
-        "Rappel : réponds UNIQUEMENT avec le JSON {summary, plan, markdown}. "
-        "Le champ markdown doit être du vrai markdown FR, pas du JSON."
+        "Rappel : réponds UNIQUEMENT avec le JSON {summary, plan, markdown}."
     )
 
     num_predict = max(env.ollama_num_predict, 1200)
@@ -347,6 +338,7 @@ def advise(db: Session, env: Settings, *, question: str | None = None) -> dict[s
         user=user_message,
         timeout_s=env.ollama_chat_timeout_s,
         num_predict=num_predict,
+        keep_alive=env.ollama_keep_alive,
     )
     parsed = parse_coach_answer(raw)
     logger.info(

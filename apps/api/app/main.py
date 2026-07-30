@@ -14,6 +14,8 @@ from app.logging_config import setup_logging
 from app.routers import activities, analytics, apple_health, strava
 from app.routers import coach as coach_router
 from app.routers import predictions as predictions_router
+from app.routers import profile as profile_router
+from app.routers import projections as projections_router
 from app.routers import settings as settings_router
 
 logger = logging.getLogger("api")
@@ -68,6 +70,8 @@ def create_app() -> FastAPI:
     application.include_router(predictions_router.router)
     application.include_router(coach_router.router)
     application.include_router(settings_router.router)
+    application.include_router(profile_router.router)
+    application.include_router(projections_router.router)
     return application
 
 

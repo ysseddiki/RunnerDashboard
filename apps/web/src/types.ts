@@ -67,6 +67,14 @@ export type ActivityDetail = ActivitySummary & {
   activity_type: string | null
   streams_json: Record<string, StreamPayload> | null
   synced_at: string | null
+  coach_analysis_json?: {
+    model?: string
+    summary?: string
+    markdown?: string
+    hints?: Array<{ title: string; text: string }>
+    session_type?: string | null
+  } | null
+  coach_analyzed_at?: string | null
 }
 
 export type AnalyticsOverview = {

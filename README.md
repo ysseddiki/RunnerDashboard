@@ -51,8 +51,8 @@ Les logs API : `/var/log/running-dashboards/host-logs/`.
 5. Ouvrir **Coach** → **Lancer l’analyse** (synthèse + plan calendrier + markdown)
 
 **Timeouts / CPU** : le premier appel charge le modèle en RAM (souvent plusieurs minutes sur CPU).
-Timeout par défaut `OLLAMA_CHAT_TIMEOUT_S=600`. Si ça timeout encore, passez à `qwen2.5:7b`
-(Admin) ou augmentez le timeout dans `.env`. Les appels suivants sont plus rapides (`keep_alive`).
+Timeout par défaut `OLLAMA_CHAT_TIMEOUT_S=600`. `OLLAMA_KEEP_ALIVE=-1` garde le modèle chargé
+en permanence (recommandé sur VM 32 Go). Si timeout, passez à `qwen2.5:7b` (Admin).
 
 Le coach reçoit un contexte déterministe : prévisions d’allure, analytics, sorties récentes (min/km, FC, type de séance, cadence si dispo, météo). Aucun cloud IA.
 Sur les activités, **Suggérer** propose un type de séance (règles ; confirmation humaine).

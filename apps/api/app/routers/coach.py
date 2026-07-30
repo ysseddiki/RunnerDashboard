@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
 from app.db import get_db
+from app.services import activity_coach as activity_coach_service
 from app.services import coach as coach_service
+from app.services import coach_jobs
+from app.services import coach_plan as coach_plan_service
 from app.services.ollama_client import OllamaError
 
 router = APIRouter(prefix="/api/coach", tags=["coach"])
@@ -98,3 +101,44 @@ def advise(
             status = 400
         raise HTTPException(status_code=status, detail=str(exc)) from exc
     return CoachAdviseResponse.model_validate(result)
+
+
+@router.get("/plan")
+def get_plan(db: Session = Depends(get_db)) -> dict:
+    return coach_plan_service.get_plan(db)
+
+
+@router.post("/plan/refresh")
+def refresh_plan(
+    db: Session = Depends(get_db),
+    env: Settings = Depends(get_settings),
+    background: bool = Query(default=True),
+) -> dict:
+    if background:
+        started = coach_jobs.schedule_plan_refresh(reason="api")
+        return {
+            "scheduled": started,
+            "message": "Refresh plan démarré en arrière-plan."
+            if started
+            else "Refresh déjà en cours.",
+            "plan": coach_plan_service.get_plan(db),
+        }
+    try:
+        plan = coach_plan_service.refresh_plan(db, env, reason="api-sync")
+    except OllamaError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return {"scheduled": False, "message": "Plan rafraîchi.", "plan": plan}
+
+
+@router.post("/activities/{activity_id}/analyze")
+def analyze_one(
+    activity_id: int,
+    db: Session = Depends(get_db),
+    env: Settings = Depends(get_settings),
+) -> dict:
+    try:
+        return activity_coach_service.analyze_activity(db, env, activity_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except OllamaError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc

@@ -57,6 +57,12 @@ export function Layout() {
             Coach
           </NavLink>
           <NavLink
+            to="/profile"
+            className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
+          >
+            Profil
+          </NavLink>
+          <NavLink
             to="/docs"
             className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
           >

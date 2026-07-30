@@ -1874,6 +1874,74 @@ label.btn.is-disabled {
   resize: vertical;
 }
 
+.profile-form h3 {
+  margin-top: 0;
+}
+
+.profile-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  margin-bottom: 0.85rem;
+}
+
+.profile-field {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.profile-field input,
+.profile-field select,
+.profile-field textarea {
+  font: inherit;
+  font-weight: 500;
+  color: var(--ink);
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+
+.profile-field-full {
+  margin-bottom: 0.85rem;
+}
+
+.insight-hints {
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  margin: 0.65rem 0 0.85rem;
+}
+
+.insight-hint {
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.insight-hint strong {
+  display: block;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--brand-deep);
+  margin-bottom: 0.25rem;
+}
+
+.insight-hint p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+}
+
+.detail-coach-analysis {
+  margin-bottom: 1.15rem;
+}
+
 .coach-summary-text {
   margin: 0.5rem 0 0;
   font-size: 1.05rem;

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import type { ActivityDetail, AppleWorkout } from '../types'
 import { formatDate, formatDuration, formatKm, formatPace } from '../format'
 import { buildStreamPoints } from '../streams'
@@ -27,6 +29,7 @@ export function ActivityDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [appleLink, setAppleLink] = useState<AppleLinkInfo | null>(null)
   const [appleBusy, setAppleBusy] = useState(false)
+  const [analyzeBusy, setAnalyzeBusy] = useState(false)
 
   function loadAppleLink(activityId: number) {
     return fetch(`/api/apple-health/activities/${activityId}/link`)
@@ -183,6 +186,78 @@ export function ActivityDetailPage() {
               </strong>
             </div>
           </div>
+
+          <section className="panel-block detail-coach-analysis">
+            <div className="section-head">
+              <h3 style={{ margin: 0 }}>Analyse coach</h3>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                disabled={analyzeBusy}
+                onClick={() => {
+                  void (async () => {
+                    setAnalyzeBusy(true)
+                    setError(null)
+                    try {
+                      const res = await fetch(`/api/coach/activities/${activityId}/analyze`, {
+                        method: 'POST',
+                      })
+                      const body = await res.json().catch(() => ({}))
+                      if (!res.ok) {
+                        throw new Error(
+                          typeof body.detail === 'string'
+                            ? body.detail
+                            : `Analyse HTTP ${res.status}`,
+                        )
+                      }
+                      setDetail((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              coach_analysis_json: body,
+                              coach_analyzed_at: new Date().toISOString(),
+                            }
+                          : prev,
+                      )
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : 'Analyse impossible')
+                    } finally {
+                      setAnalyzeBusy(false)
+                    }
+                  })()
+                }}
+              >
+                {analyzeBusy ? 'Analyse…' : detail.coach_analysis_json ? 'Relancer' : 'Analyser'}
+              </button>
+            </div>
+            {detail.coach_analysis_json?.hints && detail.coach_analysis_json.hints.length > 0 && (
+              <div className="insight-hints">
+                {detail.coach_analysis_json.hints.map((h) => (
+                  <div key={h.title} className="insight-hint">
+                    <strong>{h.title}</strong>
+                    <p>{h.text}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {detail.coach_analysis_json?.summary ? (
+              <>
+                <p className="coach-summary-text">{detail.coach_analysis_json.summary}</p>
+                {detail.coach_analysis_json.markdown && (
+                  <div className="coach-markdown">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {detail.coach_analysis_json.markdown}
+                    </ReactMarkdown>
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="muted">
+                Pas encore d’analyse. Elle se lance aussi après Sync (nouvelles sorties), ou via le
+                bouton.
+              </p>
+            )}
+          </section>
 
           <div className="detail-block">
             <h3>Trace GPS</h3>

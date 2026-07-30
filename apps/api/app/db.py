@@ -73,3 +73,14 @@ def init_db() -> None:
                 "CREATE INDEX IF NOT EXISTS ix_activities_source ON activities (source)"
             )
         )
+        conn.execute(
+            text(
+                "ALTER TABLE activities ADD COLUMN IF NOT EXISTS coach_analysis_json JSONB"
+            )
+        )
+        conn.execute(
+            text(
+                "ALTER TABLE activities ADD COLUMN IF NOT EXISTS coach_analyzed_at "
+                "TIMESTAMPTZ"
+            )
+        )

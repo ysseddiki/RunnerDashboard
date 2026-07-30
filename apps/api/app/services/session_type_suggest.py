@@ -178,6 +178,7 @@ def _ai_refine(
             user=json.dumps(payload, ensure_ascii=False),
             timeout_s=min(120.0, env.ollama_chat_timeout_s),
             num_predict=min(256, env.ollama_num_predict),
+            keep_alive=env.ollama_keep_alive,
         )
     except OllamaError as exc:
         logger.warning("Suggestion IA échouée | detail=%s", exc)

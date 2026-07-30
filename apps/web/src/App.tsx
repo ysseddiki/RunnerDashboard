@@ -7,6 +7,7 @@ import { AdminPage } from './pages/AdminPage'
 import { PredictionsPage } from './pages/PredictionsPage'
 import { CoachPage } from './pages/CoachPage'
 import { DocsPage } from './pages/DocsPage'
+import { ProfilePage } from './pages/ProfilePage'
 import './App.css'
 
 export default function App() {
@@ -19,6 +20,7 @@ export default function App() {
           <Route path="activities/:id" element={<ActivityDetailPage />} />
           <Route path="predictions" element={<PredictionsPage />} />
           <Route path="coach" element={<CoachPage />} />
+          <Route path="profile" element={<ProfilePage />} />
           <Route path="docs" element={<DocsPage />} />
           <Route path="admin" element={<AdminPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

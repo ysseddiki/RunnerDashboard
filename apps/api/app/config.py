@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     # CPU 14B : 1er appel (chargement modèle) peut dépasser 3–5 min
     ollama_chat_timeout_s: float = 600.0
     ollama_num_predict: int = 650
+    # -1 = ne jamais décharger le modèle (reste en RAM tant qu’Ollama tourne)
+    ollama_keep_alive: str = "-1"
 
 
 @lru_cache

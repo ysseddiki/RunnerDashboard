@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { sessionToneClass } from '../sessionTone'
@@ -140,14 +139,26 @@ function normalizeAdvise(raw: AdviseResponse): AdviseResponse {
   }
 }
 
+type StoredPlan = {
+  status: string
+  model: string | null
+  summary: string | null
+  plan: PlanItem[]
+  markdown: string | null
+  error: string | null
+  updated_at: string | null
+}
+
 export function CoachPage() {
   const { types } = useSessionTypes()
   const [status, setStatus] = useState<CoachStatus | null>(null)
   const [question, setQuestion] = useState('')
   const [answer, setAnswer] = useState<AdviseResponse | null>(null)
+  const [storedPlan, setStoredPlan] = useState<StoredPlan | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loadingStatus, setLoadingStatus] = useState(true)
   const [busy, setBusy] = useState(false)
+  const [planBusy, setPlanBusy] = useState(false)
 
   const display = useMemo(() => (answer ? normalizeAdvise(answer) : null), [answer])
 
@@ -170,9 +181,40 @@ export function CoachPage() {
       .finally(() => setLoadingStatus(false))
   }
 
+  function loadPlan() {
+    return fetch('/api/coach/plan')
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`Plan HTTP ${res.status}`)
+        return (await res.json()) as StoredPlan
+      })
+      .then((data) => setStoredPlan(data))
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : 'Plan impossible')
+      })
+  }
+
   useEffect(() => {
     void refreshStatus()
+    void loadPlan()
   }, [])
+
+  async function refreshPlan() {
+    setPlanBusy(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/coach/plan/refresh', { method: 'POST' })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(typeof body.detail === 'string' ? body.detail : `Refresh HTTP ${res.status}`)
+      }
+      if (body.plan) setStoredPlan(body.plan as StoredPlan)
+      else await loadPlan()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Refresh plan impossible')
+    } finally {
+      setPlanBusy(false)
+    }
+  }
 
   async function runAdvise() {
     setBusy(true)
@@ -200,13 +242,15 @@ export function CoachPage() {
     }
   }
 
+  const planItems = storedPlan?.plan ?? []
+
   return (
     <>
       <header className="page-hero">
         <h1>Coach IA</h1>
         <p>
-          Analyse locale via Ollama : synthèse, plan de séances, puis détail markdown. Aucune donnée
-          n’est envoyée vers un cloud IA.
+          Plan calendrier généré automatiquement (sync / refresh). La question libre ne régénère
+          plus le plan. Tout reste local via Ollama.
         </p>
       </header>
 
@@ -232,41 +276,74 @@ export function CoachPage() {
             </span>
             <span
               className={`status-pill compact ${status.ready ? '' : 'is-warn'}`}
-              title={status.ready ? 'Prêt à analyser' : 'Pas prêt'}
+              title={status.ready ? 'Prêt' : 'Pas prêt'}
             >
               <span className={`status-dot ${status.ready ? 'on' : ''}`} />
               {status.ready ? 'Prêt' : 'Pas prêt'}
             </span>
-            {status.chat_timeout_s != null && (
-              <span className="status-pill compact muted-pill" title="Timeout chat">
-                {Math.round(status.chat_timeout_s)} s
-              </span>
-            )}
           </>
-        )}
-        {!loadingStatus && !status?.ready && (
-          <p className="muted coach-status-hint">
-            Admin → choisir 7B/14B → « Télécharger le modèle », ou{' '}
-            <Link to="/docs?tab=coach" className="inline-link">
-              Docs
-            </Link>
-            .
-          </p>
         )}
         {status?.ready && (
           <p className="muted coach-status-hint">
-            1er appel CPU : chargement possible (plusieurs minutes). Timeout → réessayez ou profil
-            7B dans Admin.
+            Modèle gardé en RAM (`keep_alive=-1`). 1er chargement CPU peut être long.
           </p>
         )}
       </div>
 
+      <section className="panel-block coach-plan">
+        <div className="section-head">
+          <h3 style={{ margin: 0 }}>Plan calendrier</h3>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => void refreshPlan()}
+            disabled={planBusy || status?.ready === false}
+          >
+            {planBusy ? 'Refresh…' : storedPlan?.status === 'running' ? 'En cours…' : 'Rafraîchir'}
+          </button>
+        </div>
+        {storedPlan?.summary && <p className="coach-summary-text">{storedPlan.summary}</p>}
+        {storedPlan?.error && <p className="banner error">{storedPlan.error}</p>}
+        {planItems.length === 0 ? (
+          <p className="muted">
+            Aucun plan encore. Sync Strava (nouvelles sorties) ou cliquez Rafraîchir.
+          </p>
+        ) : (
+          <div className="coach-plan-grid">
+            {planItems.map((item, idx) => (
+              <article key={`${item.date ?? 'x'}-${idx}`} className="coach-plan-card">
+                <header>
+                  <time>{formatPlanDate(item.date)}</time>
+                  {item.session_type && (
+                    <span className={`chip ${sessionToneClass(item.session_type)}`}>
+                      {labelFor(item.session_type)}
+                    </span>
+                  )}
+                </header>
+                <strong>{item.title}</strong>
+                {item.details && <p>{item.details}</p>}
+                <footer>
+                  {item.duration_or_distance && <span>{item.duration_or_distance}</span>}
+                  {item.target_pace && <span>{item.target_pace}</span>}
+                </footer>
+              </article>
+            ))}
+          </div>
+        )}
+        {storedPlan?.updated_at && (
+          <p className="muted" style={{ marginTop: '0.75rem', marginBottom: 0 }}>
+            Mis à jour : {new Date(storedPlan.updated_at).toLocaleString('fr-FR')}
+            {storedPlan.model ? ` · ${storedPlan.model}` : ''}
+          </p>
+        )}
+      </section>
+
       <section className="panel-block">
-        <h3>Question (optionnel)</h3>
+        <h3>Question libre (optionnel)</h3>
         <textarea
           className="coach-question"
           rows={3}
-          placeholder="Ex. Propose un plan sur 10 jours cohérent avec mon allure 10 km estimée."
+          placeholder="Ex. Comment interpréter ma charge des 28 derniers jours ?"
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           disabled={busy}
@@ -278,9 +355,7 @@ export function CoachPage() {
             onClick={() => void runAdvise()}
             disabled={busy || status?.ready === false}
           >
-            {busy
-              ? 'Analyse en cours (1er appel CPU : jusqu’à plusieurs minutes)…'
-              : 'Lancer l’analyse'}
+            {busy ? 'Analyse en cours…' : 'Lancer l’analyse'}
           </button>
         </div>
       </section>
@@ -296,33 +371,6 @@ export function CoachPage() {
             </p>
             <p className="coach-summary-text">{display.summary}</p>
           </section>
-
-          {display.plan.length > 0 && (
-            <section className="panel-block coach-plan">
-              <h3>Plan calendrier</h3>
-              <div className="coach-plan-grid">
-                {display.plan.map((item, idx) => (
-                  <article key={`${item.date ?? 'x'}-${idx}`} className="coach-plan-card">
-                    <header>
-                      <time>{formatPlanDate(item.date)}</time>
-                      {item.session_type && (
-                        <span className={`chip ${sessionToneClass(item.session_type)}`}>
-                          {labelFor(item.session_type)}
-                        </span>
-                      )}
-                    </header>
-                    <strong>{item.title}</strong>
-                    {item.details && <p>{item.details}</p>}
-                    <footer>
-                      {item.duration_or_distance && <span>{item.duration_or_distance}</span>}
-                      {item.target_pace && <span>{item.target_pace}</span>}
-                    </footer>
-                  </article>
-                ))}
-              </div>
-            </section>
-          )}
-
           <section className="panel-block coach-answer">
             <h3>Analyse détaillée</h3>
             <div className="coach-markdown">

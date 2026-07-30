@@ -337,23 +337,28 @@ function MeteoTab() {
 function CoachTab() {
   return (
     <div className="docs-panel">
-      <h2>Coach IA (P4 → v2)</h2>
+      <h2>Coach IA</h2>
       <p>
-        Le coach tourne en local via Ollama (Qwen2.5 7B ou 14B). Il renvoie une synthèse, un plan
-        calendrier (7–14 j) et une analyse markdown — sans inventer de chronos absents du contexte.
+        Ollama local (7B / 14B). Le <strong>plan calendrier</strong> est persisté et rafraîchi hors
+        question libre (sync ou bouton Rafraîchir). Chaque sortie peut avoir sa propre analyse.
+        Pack knowledge dans <code>apps/api/app/knowledge/</code>.
       </p>
       <ul className="docs-list">
-        <li>Admin → choisir le modèle selon la RAM → Enregistrer</li>
-        <li>Télécharger le modèle (bouton Admin ou <code>ollama pull</code>)</li>
-        <li>Page Coach → Lancer l’analyse (question optionnelle)</li>
+        <li>
+          <code>OLLAMA_KEEP_ALIVE=-1</code> : modèle gardé en RAM
+        </li>
+        <li>Chiffres déterministes ; l’IA commente seulement</li>
+        <li>
+          Page <Link to="/profile">Profil</Link> : zones FC, VO2max estimée, graph de projection
+        </li>
       </ul>
       <p>
         <Link to="/coach" className="inline-link">
           Ouvrir le Coach
         </Link>
         {' · '}
-        <Link to="/admin" className="inline-link">
-          Admin modèle
+        <Link to="/profile" className="inline-link">
+          Profil
         </Link>
       </p>
     </div>

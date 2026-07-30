@@ -75,7 +75,42 @@ class Activity(Base):
     streams_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     weather_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     raw_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    coach_analysis_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    coach_analyzed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     synced_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class AthleteProfile(Base):
+    __tablename__ = "athlete_profile"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    age: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    weight_kg: Mapped[float | None] = mapped_column(Float, nullable=True)
+    height_cm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    sex: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    resting_hr: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    max_hr: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    goal_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class CoachPlan(Base):
+    __tablename__ = "coach_plans"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    model: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    plan_json: Mapped[list[Any] | None] = mapped_column(JSONB, nullable=True)
+    markdown: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(32), default="empty")
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 

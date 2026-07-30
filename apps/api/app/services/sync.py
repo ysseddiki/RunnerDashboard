@@ -438,6 +438,15 @@ def sync_activities(db: Session, settings: Settings, *, max_pages: int = 5) -> d
         fetched,
         weather_enriched,
     )
+    try:
+        from app.services import coach_jobs
+
+        hooks = coach_jobs.after_sync_hooks(created=created)
+        if hooks.get("plan") or hooks.get("analyses"):
+            message += " Coach : plan/analyses planifiés en arrière-plan."
+    except Exception:
+        logger.exception("Hooks coach post-sync échoués | sync_id=%s", sync_id)
+
     return {
         "created": created,
         "updated": updated,
@@ -446,3 +455,4 @@ def sync_activities(db: Session, settings: Settings, *, max_pages: int = 5) -> d
         "weather_enriched": weather_enriched,
         "message": message,
     }
+

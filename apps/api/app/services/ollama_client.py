@@ -86,13 +86,15 @@ class OllamaClient:
         user: str,
         timeout_s: float = 600.0,
         num_predict: int = 650,
+        keep_alive: str | int = -1,
     ) -> str:
         logger.info(
-            "Chat Ollama | model=%s | user_chars=%s | timeout_s=%s | num_predict=%s",
+            "Chat Ollama | model=%s | user_chars=%s | timeout_s=%s | num_predict=%s | keep_alive=%s",
             model,
             len(user),
             timeout_s,
             num_predict,
+            keep_alive,
         )
         timeout = httpx.Timeout(
             connect=30.0,
@@ -100,6 +102,13 @@ class OllamaClient:
             write=60.0,
             pool=30.0,
         )
+        # Ollama accepte int (-1) ou durée string ("10m", "24h")
+        keep_alive_value: str | int
+        if isinstance(keep_alive, int):
+            keep_alive_value = keep_alive
+        else:
+            raw = str(keep_alive).strip()
+            keep_alive_value = int(raw) if raw.lstrip("-").isdigit() else raw
         try:
             with httpx.Client(timeout=timeout) as client:
                 res = client.post(
@@ -107,7 +116,7 @@ class OllamaClient:
                     json={
                         "model": model,
                         "stream": False,
-                        "keep_alive": "10m",
+                        "keep_alive": keep_alive_value,
                         "messages": [
                             {"role": "system", "content": system},
                             {"role": "user", "content": user},
