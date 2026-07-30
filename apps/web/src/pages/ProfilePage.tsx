@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
-import { ProjectionChart } from '../components/ProjectionChart'
 
-type Profile = {
+type HistoryEntry = {
+  id: number
+  recorded_at: string | null
+  birth_date: string | null
   age: number | null
   weight_kg: number | null
   height_cm: number | null
@@ -9,6 +11,18 @@ type Profile = {
   resting_hr: number | null
   max_hr: number | null
   goal_text: string | null
+}
+
+type Profile = {
+  birth_date: string | null
+  age: number | null
+  weight_kg: number | null
+  height_cm: number | null
+  sex: string | null
+  resting_hr: number | null
+  max_hr: number | null
+  goal_text: string | null
+  history: HistoryEntry[]
   zones: {
     available: boolean
     method: string | null
@@ -23,20 +37,35 @@ type Profile = {
   }
 }
 
-type Projection = {
-  available: boolean
-  volume: Array<{ week: string; distance_km?: number; kind: string }>
-  pace_10k: Array<{ week: string; pace_sec_per_km?: number; kind: string }>
-  notes_fr: string[]
+function formatRecordedAt(iso: string | null): string {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toLocaleString('fr-FR', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
+}
+
+function ageFromBirthDate(iso: string): number | null {
+  if (!iso) return null
+  const birth = new Date(`${iso}T00:00:00`)
+  if (Number.isNaN(birth.getTime())) return null
+  const today = new Date()
+  let years = today.getFullYear() - birth.getFullYear()
+  const beforeBirthday =
+    today.getMonth() < birth.getMonth() ||
+    (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())
+  if (beforeBirthday) years -= 1
+  return years >= 0 && years <= 120 ? years : null
 }
 
 export function ProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null)
-  const [projection, setProjection] = useState<Projection | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
-    age: '',
+    birth_date: '',
     weight_kg: '',
     height_cm: '',
     sex: '',
@@ -45,27 +74,28 @@ export function ProfilePage() {
     goal_text: '',
   })
 
+  const computedAge = ageFromBirthDate(form.birth_date)
+
+  function applyProfile(p: Profile) {
+    setProfile(p)
+    setForm({
+      birth_date: p.birth_date ?? '',
+      weight_kg: p.weight_kg != null ? String(p.weight_kg) : '',
+      height_cm: p.height_cm != null ? String(p.height_cm) : '',
+      sex: p.sex ?? '',
+      resting_hr: p.resting_hr != null ? String(p.resting_hr) : '',
+      max_hr: p.max_hr != null ? String(p.max_hr) : '',
+      goal_text: p.goal_text ?? '',
+    })
+  }
+
   function load() {
-    void Promise.all([fetch('/api/profile'), fetch('/api/projections/overview')])
-      .then(async ([pRes, jRes]) => {
+    void fetch('/api/profile')
+      .then(async (pRes) => {
         if (!pRes.ok) throw new Error(`Profil HTTP ${pRes.status}`)
-        if (!jRes.ok) throw new Error(`Projection HTTP ${jRes.status}`)
-        const [p, j] = await Promise.all([
-          pRes.json() as Promise<Profile>,
-          jRes.json() as Promise<Projection>,
-        ])
-        setProfile(p)
-        setProjection(j)
-        setForm({
-          age: p.age != null ? String(p.age) : '',
-          weight_kg: p.weight_kg != null ? String(p.weight_kg) : '',
-          height_cm: p.height_cm != null ? String(p.height_cm) : '',
-          sex: p.sex ?? '',
-          resting_hr: p.resting_hr != null ? String(p.resting_hr) : '',
-          max_hr: p.max_hr != null ? String(p.max_hr) : '',
-          goal_text: p.goal_text ?? '',
-        })
+        return (await pRes.json()) as Profile
       })
+      .then((p) => applyProfile(p))
       .catch((err: unknown) => {
         setError(err instanceof Error ? err.message : 'Chargement impossible')
       })
@@ -81,7 +111,7 @@ export function ProfilePage() {
     setError(null)
     try {
       const body = {
-        age: form.age ? Number(form.age) : null,
+        birth_date: form.birth_date || null,
         weight_kg: form.weight_kg ? Number(form.weight_kg) : null,
         height_cm: form.height_cm ? Number(form.height_cm) : null,
         sex: form.sex || null,
@@ -96,10 +126,17 @@ export function ProfilePage() {
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        throw new Error(typeof data.detail === 'string' ? data.detail : `Profil HTTP ${res.status}`)
+        const detail = data.detail
+        const msg =
+          typeof detail === 'string'
+            ? detail
+            : Array.isArray(detail)
+              ? detail.map((d: { msg?: string }) => d.msg).filter(Boolean).join(' · ')
+              : `Profil HTTP ${res.status}`
+        throw new Error(msg || `Profil HTTP ${res.status}`)
       }
       const p = (await res.json()) as Profile
-      setProfile(p)
+      applyProfile(p)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Enregistrement impossible')
     } finally {
@@ -112,8 +149,8 @@ export function ProfilePage() {
       <header className="page-hero">
         <h1>Profil coureur</h1>
         <p>
-          Données locales pour zones FC et estimation VO2max (calculs déterministes). L’IA s’en sert
-          pour commenter, pas pour inventer les chiffres.
+          Données locales pour zones FC et estimation VO2max (calculs déterministes). Chaque
+          enregistrement est historisé. L’IA commente, elle n’invente pas les chiffres.
         </p>
       </header>
 
@@ -122,9 +159,24 @@ export function ProfilePage() {
       <form className="panel-block profile-form" onSubmit={(e) => void save(e)}>
         <h3>Identité & physiologie</h3>
         <div className="profile-grid">
+          <label className="profile-field">
+            <span>Date de naissance</span>
+            <input
+              type="date"
+              value={form.birth_date}
+              max={new Date().toISOString().slice(0, 10)}
+              onChange={(e) => setForm((f) => ({ ...f, birth_date: e.target.value }))}
+            />
+            {computedAge != null ? (
+              <span className="profile-field-hint">{computedAge} ans</span>
+            ) : profile?.age != null && !form.birth_date ? (
+              <span className="profile-field-hint">
+                Âge actuel {profile.age} ans — saisissez la date de naissance
+              </span>
+            ) : null}
+          </label>
           {(
             [
-              ['age', 'Âge'],
               ['weight_kg', 'Poids (kg)'],
               ['height_cm', 'Taille (cm)'],
               ['resting_hr', 'FC repos'],
@@ -212,19 +264,29 @@ export function ProfilePage() {
 
       <section className="section">
         <div className="section-head">
-          <h2>Projection d’évolution</h2>
+          <h2>Historique du profil</h2>
         </div>
-        {projection?.available ? (
-          <>
-            <ProjectionChart volume={projection.volume} pace10k={projection.pace_10k} />
-            <ul className="docs-list">
-              {projection.notes_fr.map((n) => (
-                <li key={n}>{n}</li>
+        {!profile?.history?.length ? (
+          <p className="muted">Aucun enregistrement encore — sauvegardez le formulaire ci-dessus.</p>
+        ) : (
+          <div className="panel-block profile-history">
+            <ul className="profile-history-list">
+              {profile.history.map((h) => (
+                <li key={h.id}>
+                  <div className="profile-history-when">{formatRecordedAt(h.recorded_at)}</div>
+                  <div className="profile-history-metrics">
+                    {h.age != null && <span>{h.age} ans</span>}
+                    {h.weight_kg != null && <span>{h.weight_kg} kg</span>}
+                    {h.height_cm != null && <span>{h.height_cm} cm</span>}
+                    {h.resting_hr != null && <span>FC repos {h.resting_hr}</span>}
+                    {h.max_hr != null && <span>FC max {h.max_hr}</span>}
+                    {h.sex && <span>{h.sex}</span>}
+                  </div>
+                  {h.goal_text && <p className="profile-history-goal">{h.goal_text}</p>}
+                </li>
               ))}
             </ul>
-          </>
-        ) : (
-          <p className="muted">Pas encore de projection (historique insuffisant).</p>
+          </div>
         )}
       </section>
     </>

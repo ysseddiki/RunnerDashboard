@@ -169,6 +169,59 @@ def build_overview(db: Session) -> dict[str, Any]:
         "donnees_insuffisantes": "Données insuffisantes",
     }
 
+    pace_recent = _pace_sec_per_km(speed_recent) if speed_recent else None
+    pace_previous = _pace_sec_per_km(speed_previous) if speed_previous else None
+    # Positive = gained seconds per km (faster). pace down ⇒ gain.
+    pace_gain_sec = None
+    if pace_recent is not None and pace_previous is not None:
+        pace_gain_sec = round(pace_previous - pace_recent, 1)
+
+    hr_recent = avg_metric(recent, "average_heartrate")
+    hr_previous = avg_metric(previous, "average_heartrate")
+    hr_delta = None
+    if hr_recent is not None and hr_previous is not None:
+        hr_delta = round(hr_recent - hr_previous, 1)
+
+    max_hr_recent = avg_metric(recent, "max_heartrate")
+    cadence_recent = avg_metric(recent, "cadence_ppm")
+    cadence_previous = avg_metric(previous, "cadence_ppm")
+
+    elev_total = sum((a.total_elevation_gain_m or 0.0) for a in rows)
+    elev_28 = sum((a.total_elevation_gain_m or 0.0) for a in recent)
+
+    insight_notes: list[str] = []
+    if pace_gain_sec is not None:
+        if pace_gain_sec >= 2:
+            insight_notes.append(
+                f"Allure moyenne : {pace_gain_sec:.0f} s/km gagnées vs les 28 j précédents."
+            )
+        elif pace_gain_sec <= -2:
+            insight_notes.append(
+                f"Allure moyenne : {abs(pace_gain_sec):.0f} s/km perdues vs les 28 j précédents."
+            )
+        else:
+            insight_notes.append("Allure moyenne stable (±2 s/km) sur 28 j.")
+    if hr_delta is not None and hr_recent is not None:
+        if hr_delta <= -3:
+            insight_notes.append(
+                f"FC moyenne en baisse ({hr_delta:+.0f} bpm) — meilleure économie possible."
+            )
+        elif hr_delta >= 3:
+            insight_notes.append(
+                f"FC moyenne en hausse ({hr_delta:+.0f} bpm) — charge / intensité à surveiller."
+            )
+        else:
+            insight_notes.append(f"FC moyenne stable autour de {hr_recent:.0f} bpm.")
+    if pace_gain_sec is not None and hr_delta is not None:
+        if pace_gain_sec >= 2 and hr_delta <= 0:
+            insight_notes.append(
+                "Plus rapide à FC égale ou plus basse : bon signal de forme."
+            )
+        elif pace_gain_sec <= -2 and hr_delta >= 3:
+            insight_notes.append(
+                "Plus lent avec FC plus haute : fatigue ou charge élevée probable."
+            )
+
     return {
         "category": category,
         "category_label_fr": labels[category],
@@ -177,25 +230,32 @@ def build_overview(db: Session) -> dict[str, Any]:
             "activities": len(rows),
             "distance_km": round(volume_km(rows), 2),
             "moving_time_h": round(sum((a.moving_time_s or 0) for a in rows) / 3600.0, 2),
+            "elevation_gain_m": round(elev_total, 0),
         },
         "window_28d": {
             "activities": len(recent),
             "distance_km": round(vol_recent, 2),
-            "avg_pace_sec_per_km": round(_pace_sec_per_km(speed_recent) or 0, 1)
-            if speed_recent
-            else None,
-            "avg_heartrate": round(avg_metric(recent, "average_heartrate") or 0, 1)
-            if avg_metric(recent, "average_heartrate")
-            else None,
-            "avg_cadence_ppm": round(avg_metric(recent, "cadence_ppm") or 0, 1)
-            if avg_metric(recent, "cadence_ppm")
-            else None,
+            "avg_pace_sec_per_km": round(pace_recent, 1) if pace_recent else None,
+            "avg_heartrate": round(hr_recent, 1) if hr_recent else None,
+            "avg_max_heartrate": round(max_hr_recent, 1) if max_hr_recent else None,
+            "avg_cadence_ppm": round(cadence_recent, 1) if cadence_recent else None,
+            "elevation_gain_m": round(elev_28, 0),
         },
         "previous_28d": {
             "activities": len(previous),
             "distance_km": round(vol_previous, 2),
-            "avg_pace_sec_per_km": round(_pace_sec_per_km(speed_previous) or 0, 1)
-            if speed_previous
+            "avg_pace_sec_per_km": round(pace_previous, 1) if pace_previous else None,
+            "avg_heartrate": round(hr_previous, 1) if hr_previous else None,
+            "avg_cadence_ppm": round(cadence_previous, 1) if cadence_previous else None,
+        },
+        "deltas": {
+            "pace_gain_sec_per_km": pace_gain_sec,
+            "heartrate_bpm": hr_delta,
+            "volume_pct": round(_pct_change(vol_previous if vol_previous > 0 else None, vol_recent) or 0, 1)
+            if vol_previous > 0
+            else None,
+            "speed_pct": round(_pct_change(speed_previous, speed_recent) or 0, 1)
+            if speed_previous and speed_recent
             else None,
         },
         "trends": {
@@ -206,6 +266,7 @@ def build_overview(db: Session) -> dict[str, Any]:
             if speed_previous and speed_recent
             else None,
         },
+        "insight_notes_fr": insight_notes,
         "weekly_volume": weekly_volume,
         "weather": weather_summary,
     }

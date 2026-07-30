@@ -192,6 +192,7 @@ class PredictionsOverview(BaseModel):
     reasons: list[str]
     warnings: list[str]
     activities_considered: int
+    insights: dict | None = None
 
 
 # Alias conservé pour imports existants

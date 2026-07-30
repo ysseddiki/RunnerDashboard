@@ -22,6 +22,7 @@ class CoachStatusResponse(BaseModel):
     ollama_base_url: str
     model: str
     model_installed: bool
+    model_loaded: bool = False
     installed_models: list[str]
     allowed_models: list[str]
     chat_timeout_s: float = 600.0
@@ -32,6 +33,13 @@ class CoachStatusResponse(BaseModel):
 class CoachPullResponse(BaseModel):
     model: str
     model_installed: bool
+    message: str
+
+
+class CoachWarmupResponse(BaseModel):
+    model: str
+    loaded: bool
+    already_loaded: bool = False
     message: str
 
 
@@ -80,6 +88,20 @@ def pull_model(
     except OllamaError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return CoachPullResponse.model_validate(result)
+
+
+@router.post("/warmup", response_model=CoachWarmupResponse)
+def warmup_model(
+    db: Session = Depends(get_db),
+    env: Settings = Depends(get_settings),
+) -> CoachWarmupResponse:
+    try:
+        result = coach_service.warmup_configured_model(db, env)
+    except OllamaError as exc:
+        detail = str(exc).lower()
+        status = 504 if "timeout" in detail else 502
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
+    return CoachWarmupResponse.model_validate(result)
 
 
 @router.post("/advise", response_model=CoachAdviseResponse)

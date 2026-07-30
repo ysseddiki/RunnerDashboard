@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Activity
+from app.services.analytics import build_overview as build_analytics_overview
 from app.services.session_types import label_for
 
 MIN_ACTIVITIES = 5
@@ -402,6 +403,7 @@ def build_predictions_overview(db: Session) -> dict[str, Any]:
             "warnings": warnings
             + ["Impossible de calculer une ancre d’allure."],
             "activities_considered": len(rows),
+            "insights": build_analytics_overview(db),
         }
 
     pace_10 = next((e["pace_sec_per_km"] for e in core["estimates"] if e["id"] == "10k"), None)
@@ -433,6 +435,8 @@ def build_predictions_overview(db: Session) -> dict[str, Any]:
                     f"Allure 10 km estimée {direction} de {abs(delta_pct):.1f} % sur la fenêtre tendance."
                 )
 
+    insights = build_analytics_overview(db)
+
     return {
         "available": True,
         "confidence": conf,
@@ -445,6 +449,7 @@ def build_predictions_overview(db: Session) -> dict[str, Any]:
         "reasons": reasons,
         "warnings": warnings,
         "activities_considered": len(rows),
+        "insights": insights,
     }
 
 

@@ -17,7 +17,7 @@ Si `fc_repos` et `fc_max` connus :
 | Z4 | Seuil | 80–90 % |
 | Z5 | VMA / intensité | 90–100 % |
 
-Si seule `fc_max` (ou âge → fc_max ≈ 220 − âge) : zones en % de fc_max (même découpage 50–100 %).
+Si seule `fc_max` (ou âge dérivé de la date de naissance → fc_max ≈ 220 − âge) : zones en % de fc_max (même découpage 50–100 %).
 
 ## Allures d'entraînement
 

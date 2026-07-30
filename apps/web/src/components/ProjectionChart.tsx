@@ -40,21 +40,28 @@ export function ProjectionChart({ volume, pace10k }: Props) {
     return {
       animation: false,
       legend: {
+        bottom: 0,
+        left: 'center',
+        itemGap: 16,
+        itemWidth: 14,
+        itemHeight: 10,
         data: ['Volume (passé)', 'Volume (projeté)', 'Allure 10k (passé)', 'Allure 10k (projeté)'],
         textStyle: { color: '#5c6f62', fontSize: 11 },
       },
-      grid: { left: 56, right: 56, top: 48, bottom: 36 },
+      grid: { left: 52, right: 56, top: 36, bottom: 64 },
       tooltip: { trigger: 'axis' },
       xAxis: {
         type: 'category',
         data: weeks,
-        axisLabel: { color: '#5c6f62', fontSize: 11 },
+        axisLabel: { color: '#5c6f62', fontSize: 11, hideOverlap: true },
         axisLine: { lineStyle: { color: 'rgba(20,32,24,0.14)' } },
       },
       yAxis: [
         {
           type: 'value',
           name: 'km',
+          nameLocation: 'end',
+          nameGap: 8,
           nameTextStyle: { color: '#1a5c3a', fontWeight: 600 },
           splitLine: { lineStyle: { color: 'rgba(20,32,24,0.08)' } },
           axisLabel: { color: '#5c6f62' },
@@ -62,6 +69,9 @@ export function ProjectionChart({ volume, pace10k }: Props) {
         {
           type: 'value',
           name: 'allure',
+          // Inverse axis: 'start' keeps the name at the visual top (with km).
+          nameLocation: 'start',
+          nameGap: 8,
           inverse: true,
           scale: true,
           nameTextStyle: { color: '#2d6a8f', fontWeight: 600 },
@@ -116,7 +126,7 @@ export function ProjectionChart({ volume, pace10k }: Props) {
       <p className="muted charts-hint">
         Historique plein · projection en pointillés / barres plus claires (déterministe).
       </p>
-      <ReactECharts option={option} style={{ height: 320, width: '100%' }} notMerge lazyUpdate />
+      <ReactECharts option={option} style={{ height: 360, width: '100%' }} notMerge lazyUpdate />
     </div>
   )
 }

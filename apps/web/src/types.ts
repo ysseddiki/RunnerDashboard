@@ -85,23 +85,35 @@ export type AnalyticsOverview = {
     activities: number
     distance_km: number
     moving_time_h: number
+    elevation_gain_m?: number
   }
   window_28d: {
     activities: number
     distance_km: number
     avg_pace_sec_per_km: number | null
     avg_heartrate: number | null
+    avg_max_heartrate?: number | null
     avg_cadence_ppm: number | null
+    elevation_gain_m?: number
   }
   previous_28d: {
     activities: number
     distance_km: number
     avg_pace_sec_per_km: number | null
+    avg_heartrate?: number | null
+    avg_cadence_ppm?: number | null
+  }
+  deltas?: {
+    pace_gain_sec_per_km: number | null
+    heartrate_bpm: number | null
+    volume_pct: number | null
+    speed_pct: number | null
   }
   trends: {
     volume_pct: number | null
     speed_pct: number | null
   }
+  insight_notes_fr?: string[]
   weekly_volume: Array<{ week: string; distance_km: number; runs: number }>
   weather: {
     activities_with_weather: number
@@ -175,6 +187,7 @@ export type PredictionsOverview = {
   reasons: string[]
   warnings: string[]
   activities_considered: number
+  insights?: AnalyticsOverview | null
 }
 
 export type AppleWorkout = {

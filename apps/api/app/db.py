@@ -84,3 +84,8 @@ def init_db() -> None:
                 "TIMESTAMPTZ"
             )
         )
+        conn.execute(
+            text(
+                "ALTER TABLE athlete_profile ADD COLUMN IF NOT EXISTS birth_date DATE"
+            )
+        )

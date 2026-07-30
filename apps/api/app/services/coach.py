@@ -270,12 +270,14 @@ def coach_status(db: Session, env: Settings) -> dict[str, Any]:
     client = OllamaClient(env.ollama_base_url)
     reachable = client.is_reachable()
     installed = False
+    loaded = False
     installed_models: list[str] = []
     error = None
     if reachable:
         try:
             installed_models = client.list_models()
             installed = client.model_installed(model)
+            loaded = client.is_model_loaded(model) if installed else False
         except OllamaError as exc:
             error = str(exc)
             reachable = False
@@ -284,6 +286,7 @@ def coach_status(db: Session, env: Settings) -> dict[str, Any]:
         "ollama_base_url": env.ollama_base_url,
         "model": model,
         "model_installed": installed,
+        "model_loaded": loaded,
         "installed_models": installed_models,
         "allowed_models": list(settings_service.ALLOWED_OLLAMA_MODELS),
         "chat_timeout_s": env.ollama_chat_timeout_s,
@@ -302,6 +305,35 @@ def pull_configured_model(db: Session, env: Settings) -> dict[str, Any]:
         "model": model,
         "model_installed": client.model_installed(model),
         "message": f"Modèle {model} téléchargé (ou déjà présent).",
+    }
+
+
+def warmup_configured_model(db: Session, env: Settings) -> dict[str, Any]:
+    model = settings_service.get_ollama_model(db, env)
+    client = OllamaClient(env.ollama_base_url)
+    if not client.is_reachable():
+        raise OllamaError("Ollama injoignable | action=démarrer_service_ollama")
+    if not client.model_installed(model):
+        raise OllamaError(
+            f"Modèle {model} non installé | action=Admin_télécharger_le_modèle_ou_pull_cli"
+        )
+    if client.is_model_loaded(model):
+        return {
+            "model": model,
+            "loaded": True,
+            "already_loaded": True,
+            "message": f"Modèle {model} déjà en mémoire.",
+        }
+    result = client.warmup_model(
+        model,
+        keep_alive=env.ollama_keep_alive,
+        timeout_s=env.ollama_chat_timeout_s,
+    )
+    return {
+        "model": model,
+        "loaded": bool(result.get("loaded")),
+        "already_loaded": False,
+        "message": str(result.get("message") or f"Modèle {model} chargé."),
     }
 
 

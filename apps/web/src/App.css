@@ -1909,6 +1909,52 @@ label.btn.is-disabled {
   margin-bottom: 0.85rem;
 }
 
+.profile-field-hint {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--brand);
+}
+
+.profile-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.profile-history-list > li {
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.profile-history-list > li:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.profile-history-when {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 0.35rem;
+}
+
+.profile-history-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.85rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.profile-history-goal {
+  margin: 0.4rem 0 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
 .insight-hints {
   display: grid;
   gap: 0.55rem;

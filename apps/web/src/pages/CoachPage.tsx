@@ -8,6 +8,7 @@ type CoachStatus = {
   reachable: boolean
   model: string
   model_installed: boolean
+  model_loaded?: boolean
   ready: boolean
   error: string | null
   installed_models: string[]
@@ -159,6 +160,8 @@ export function CoachPage() {
   const [loadingStatus, setLoadingStatus] = useState(true)
   const [busy, setBusy] = useState(false)
   const [planBusy, setPlanBusy] = useState(false)
+  const [warmupBusy, setWarmupBusy] = useState(false)
+  const [warmupMessage, setWarmupMessage] = useState<string | null>(null)
 
   const display = useMemo(() => (answer ? normalizeAdvise(answer) : null), [answer])
 
@@ -197,6 +200,29 @@ export function CoachPage() {
     void refreshStatus()
     void loadPlan()
   }, [])
+
+  async function warmupModel() {
+    setWarmupBusy(true)
+    setWarmupMessage(null)
+    setError(null)
+    try {
+      const res = await fetch('/api/coach/warmup', { method: 'POST' })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(
+          typeof body.detail === 'string' ? body.detail : `Chargement HTTP ${res.status}`,
+        )
+      }
+      setWarmupMessage(
+        typeof body.message === 'string' ? body.message : 'Modèle chargé en mémoire.',
+      )
+      await refreshStatus()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Chargement du modèle impossible')
+    } finally {
+      setWarmupBusy(false)
+    }
+  }
 
   async function refreshPlan() {
     setPlanBusy(true)
@@ -275,6 +301,13 @@ export function CoachPage() {
               {status.model}
             </span>
             <span
+              className={`status-pill compact ${status.model_loaded ? '' : 'is-warn'}`}
+              title={status.model_loaded ? 'En mémoire' : 'Pas encore en mémoire'}
+            >
+              <span className={`status-dot ${status.model_loaded ? 'on' : ''}`} />
+              {status.model_loaded ? 'En mémoire' : 'Hors mémoire'}
+            </span>
+            <span
               className={`status-pill compact ${status.ready ? '' : 'is-warn'}`}
               title={status.ready ? 'Prêt' : 'Pas prêt'}
             >
@@ -283,12 +316,30 @@ export function CoachPage() {
             </span>
           </>
         )}
-        {status?.ready && (
-          <p className="muted coach-status-hint">
-            Modèle gardé en RAM (`keep_alive=-1`). 1er chargement CPU peut être long.
-          </p>
-        )}
       </div>
+
+      <section className="panel-block coach-warmup">
+        <div className="section-head">
+          <h3 style={{ margin: 0 }}>Modèle local</h3>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => void warmupModel()}
+            disabled={warmupBusy || status?.ready === false}
+          >
+            {warmupBusy
+              ? 'Chargement…'
+              : status?.model_loaded
+                ? 'Recharger le modèle'
+                : 'Charger le modèle'}
+          </button>
+        </div>
+        <p className="muted" style={{ marginBottom: warmupMessage ? '0.5rem' : 0 }}>
+          Charge le modèle en RAM avant l’analyse. Sur CPU le 1er chargement peut prendre plusieurs
+          minutes — ensuite il reste disponible (`keep_alive=-1`).
+        </p>
+        {warmupMessage && <p className="banner ok">{warmupMessage}</p>}
+      </section>
 
       <section className="panel-block coach-plan">
         <div className="section-head">

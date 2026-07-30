@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -13,13 +15,25 @@ router = APIRouter(prefix="/api/profile", tags=["profile"])
 
 
 class ProfileUpdate(BaseModel):
-    age: int | None = Field(default=None, ge=10, le=90)
+    birth_date: date | None = None
     weight_kg: float | None = Field(default=None, gt=30, lt=250)
     height_cm: float | None = Field(default=None, gt=100, lt=250)
     sex: str | None = Field(default=None, max_length=16)
     resting_hr: int | None = Field(default=None, ge=30, le=120)
     max_hr: int | None = Field(default=None, ge=100, le=230)
     goal_text: str | None = Field(default=None, max_length=500)
+
+    @field_validator("birth_date")
+    @classmethod
+    def birth_not_future(cls, v: date | None) -> date | None:
+        if v is None:
+            return v
+        if v > date.today():
+            raise ValueError("La date de naissance ne peut pas être dans le futur")
+        age = profile_service.age_years_from_birth(v)
+        if age is None or age < 10 or age > 90:
+            raise ValueError("Âge dérivé hors plage réaliste (10–90 ans)")
+        return v
 
 
 @router.get("")
