@@ -94,7 +94,7 @@ a {
 .topbar {
   display: flex;
   align-items: center;
-  gap: 1.25rem;
+  gap: 1rem;
   padding: 0.75rem var(--space-page);
   border-bottom: 1px solid var(--line);
   background: rgba(244, 247, 244, 0.72);
@@ -175,6 +175,45 @@ a {
   color: var(--brand-deep);
   background: var(--brand-soft);
   font-weight: 600;
+}
+
+.topbar-aside {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.topbar-status {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.status-pill.compact {
+  padding: 0.28rem 0.65rem;
+  font-size: 0.75rem;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.nav-link.nav-admin {
+  border: 1px solid var(--line-strong);
+  background: rgba(255, 255, 255, 0.55);
+  color: var(--ink-soft);
+  padding: 0.4rem 0.85rem;
+}
+
+.nav-link.nav-admin:hover {
+  border-color: rgba(26, 92, 58, 0.28);
+  background: var(--brand-soft);
+  color: var(--brand-deep);
+}
+
+.nav-link.nav-admin.active {
+  border-color: rgba(26, 92, 58, 0.28);
+  background: var(--brand-soft);
+  color: var(--brand-deep);
 }
 
 .page {
@@ -512,14 +551,6 @@ a {
 }
 
 /* ——— Home: evolution ——— */
-
-.home-status {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.65rem;
-  align-items: center;
-  margin-top: 1rem;
-}
 
 .evolution {
   animation: rise 0.5s var(--ease) both;
@@ -1364,9 +1395,22 @@ a {
   }
 
   .nav {
+    order: 3;
     width: 100%;
     overflow-x: auto;
     padding-bottom: 0.15rem;
+  }
+
+  .topbar-aside {
+    margin-left: auto;
+  }
+
+  .status-pill-text {
+    display: none;
+  }
+
+  .status-pill.compact {
+    padding: 0.35rem;
   }
 
   .kv > div {

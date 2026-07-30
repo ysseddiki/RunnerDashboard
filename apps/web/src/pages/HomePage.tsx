@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import type { ActivitySummary, AnalyticsOverview, HealthResponse, StravaStatus } from '../types'
+import type { ActivitySummary, AnalyticsOverview, StravaStatus } from '../types'
 import { formatPaceSec, formatTrend } from '../format'
 import { ActivityRow } from '../components/ActivityRow'
 import { WeeklyVolumeChart } from '../components/WeeklyVolumeChart'
@@ -11,7 +11,6 @@ function trendClass(value: number | null | undefined): string {
 }
 
 export function HomePage() {
-  const [health, setHealth] = useState<HealthResponse | null>(null)
   const [strava, setStrava] = useState<StravaStatus | null>(null)
   const [activities, setActivities] = useState<ActivitySummary[]>([])
   const [analytics, setAnalytics] = useState<AnalyticsOverview | null>(null)
@@ -20,24 +19,20 @@ export function HomePage() {
   useEffect(() => {
     let cancelled = false
     void Promise.all([
-      fetch('/api/health'),
       fetch('/api/strava/status'),
       fetch('/api/activities?limit=100'),
       fetch('/api/analytics/overview'),
     ])
-      .then(async ([healthRes, statusRes, listRes, analyticsRes]) => {
-        if (!healthRes.ok) throw new Error(`Health HTTP ${healthRes.status}`)
+      .then(async ([statusRes, listRes, analyticsRes]) => {
         if (!statusRes.ok) throw new Error(`Status Strava HTTP ${statusRes.status}`)
         if (!listRes.ok) throw new Error(`Activités HTTP ${listRes.status}`)
         if (!analyticsRes.ok) throw new Error(`Analytics HTTP ${analyticsRes.status}`)
-        const [h, s, a, an] = await Promise.all([
-          healthRes.json() as Promise<HealthResponse>,
+        const [s, a, an] = await Promise.all([
           statusRes.json() as Promise<StravaStatus>,
           listRes.json() as Promise<ActivitySummary[]>,
           analyticsRes.json() as Promise<AnalyticsOverview>,
         ])
         if (cancelled) return
-        setHealth(h)
         setStrava(s)
         setActivities(a)
         setAnalytics(an)
@@ -59,22 +54,8 @@ export function HomePage() {
         <p>
           {strava?.connected
             ? `Bienvenue${strava.athlete_name ? `, ${strava.athlete_name}` : ''}. Vos sorties Strava sont synchronisées.`
-            : 'Connectez Strava pour importer vos sorties et suivre votre évolution.'}
+            : 'Connectez Strava depuis Admin pour importer vos sorties et suivre votre évolution.'}
         </p>
-        <div className="home-status">
-          <span className="status-pill">
-            <span className={`status-dot ${strava?.connected ? 'on' : ''}`} />
-            {strava?.connected ? 'Strava connecté' : 'Strava déconnecté'}
-          </span>
-          {health && (
-            <span className="status-pill">
-              API {health.status} · {health.palier}
-            </span>
-          )}
-          <Link to="/admin" className="inline-link">
-            Ouvrir Admin
-          </Link>
-        </div>
       </header>
 
       {analytics && (
