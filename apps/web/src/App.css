@@ -2429,3 +2429,92 @@ label.btn.is-disabled {
   margin-top: -0.35rem;
 }
 
+
+.form-chart-wrap {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.form-chart-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.form-status {
+  display: inline-flex;
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: rgba(26, 92, 58, 0.12);
+  color: #1a5c3a;
+}
+
+.form-status.form-fatigue {
+  background: rgba(163, 45, 45, 0.12);
+  color: #a32d2d;
+}
+
+.form-status.form-productif {
+  background: rgba(138, 90, 18, 0.14);
+  color: #8a5a12;
+}
+
+.form-status.form-neutre {
+  background: rgba(92, 111, 98, 0.12);
+  color: #5c6f62;
+}
+
+.form-metrics {
+  font-size: 0.85rem;
+}
+
+.form-warmup {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.adherence-summary {
+  margin: 0 0 0.85rem;
+  font-size: 0.95rem;
+}
+
+.adherence-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+}
+
+.adherence-badge.status-matched {
+  background: rgba(26, 92, 58, 0.14);
+  color: #1a5c3a;
+}
+
+.adherence-badge.status-missed {
+  background: rgba(163, 45, 45, 0.12);
+  color: #a32d2d;
+}
+
+.adherence-badge.status-upcoming {
+  background: rgba(45, 106, 143, 0.12);
+  color: #2d6a8f;
+}
+
+.coach-plan-card.adherence-matched {
+  border-color: rgba(26, 92, 58, 0.35);
+}
+
+.coach-plan-card.adherence-missed {
+  border-color: rgba(163, 45, 45, 0.35);
+  opacity: 0.92;
+}
+
+.coach-plan-card.adherence-upcoming {
+  border-style: dashed;
+}
+

@@ -1,9 +1,15 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import type { ActivitySummary, AnalyticsOverview, StravaStatus } from '../types'
+import type {
+  ActivitySummary,
+  AnalyticsOverview,
+  LoadSeriesResponse,
+  StravaStatus,
+} from '../types'
 import { formatPaceSec, formatTrend } from '../format'
 import { ActivityRow } from '../components/ActivityRow'
 import { WeeklyVolumeChart } from '../components/WeeklyVolumeChart'
+import { FormChart } from '../components/FormChart'
 
 function trendClass(value: number | null | undefined): string {
   if (value == null || value === 0) return ''
@@ -14,6 +20,7 @@ export function HomePage() {
   const [strava, setStrava] = useState<StravaStatus | null>(null)
   const [activities, setActivities] = useState<ActivitySummary[]>([])
   const [analytics, setAnalytics] = useState<AnalyticsOverview | null>(null)
+  const [loadSeries, setLoadSeries] = useState<LoadSeriesResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -22,8 +29,9 @@ export function HomePage() {
       fetch('/api/strava/status'),
       fetch('/api/activities?limit=100'),
       fetch('/api/analytics/overview'),
+      fetch('/api/analytics/load-series?days=84'),
     ])
-      .then(async ([statusRes, listRes, analyticsRes]) => {
+      .then(async ([statusRes, listRes, analyticsRes, seriesRes]) => {
         if (!statusRes.ok) throw new Error(`Status Strava HTTP ${statusRes.status}`)
         if (!listRes.ok) throw new Error(`Activités HTTP ${listRes.status}`)
         if (!analyticsRes.ok) throw new Error(`Analytics HTTP ${analyticsRes.status}`)
@@ -32,10 +40,15 @@ export function HomePage() {
           listRes.json() as Promise<ActivitySummary[]>,
           analyticsRes.json() as Promise<AnalyticsOverview>,
         ])
+        let series: LoadSeriesResponse | null = null
+        if (seriesRes.ok) {
+          series = (await seriesRes.json()) as LoadSeriesResponse
+        }
         if (cancelled) return
         setStrava(s)
         setActivities(a)
         setAnalytics(an)
+        setLoadSeries(series)
       })
       .catch((err: unknown) => {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Chargement impossible')
@@ -156,6 +169,18 @@ export function HomePage() {
           </div>
 
           <div className="home-grid">
+            <div className="panel-block">
+              <h3>Forme (ATL / CTL / TSB)</h3>
+              <FormChart
+                series={loadSeries?.available ? loadSeries.series : []}
+                form={loadSeries?.form ?? analytics.form}
+                emptyReason={
+                  loadSeries?.reason_fr ||
+                  analytics.form?.reason_fr ||
+                  'Pas assez de sorties avec TRIMP (FC + zones).'
+                }
+              />
+            </div>
             {analytics.weekly_volume.length > 0 && (
               <div className="panel-block">
                 <h3>Volume hebdomadaire</h3>

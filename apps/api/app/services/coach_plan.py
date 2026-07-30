@@ -37,9 +37,9 @@ def _get_row(db: Session) -> CoachPlan:
     return row
 
 
-def get_plan(db: Session) -> dict[str, Any]:
+def get_plan(db: Session, *, with_adherence: bool = True) -> dict[str, Any]:
     row = _get_row(db)
-    return {
+    payload = {
         "status": row.status,
         "model": row.model,
         "summary": row.summary,
@@ -48,6 +48,18 @@ def get_plan(db: Session) -> dict[str, Any]:
         "error": row.error,
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
     }
+    if with_adherence:
+        try:
+            from app.services.plan_adherence import build_adherence
+
+            payload["adherence"] = build_adherence(db)
+        except Exception:
+            logger.exception("Adhérence plan indisponible")
+            payload["adherence"] = {
+                "available": False,
+                "reason_fr": "Impossible de calculer l’adhérence pour le moment.",
+            }
+    return payload
 
 
 def refresh_plan(db: Session, env: Settings, *, reason: str = "manual") -> dict[str, Any]:

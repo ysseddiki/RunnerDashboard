@@ -81,7 +81,8 @@ docker compose -f infra/docker-compose.yml --env-file .env down
 | **P4** | Fait | Coach IA local (Ollama) + choix / pull modèle |
 | **Apple** | Fait | Import ZIP Santé, matching Strava, enrichissement sans écrasement |
 | **Features** | Fait | KPIs par séance (zones, TRIMP, intervalles), charge ACR, UI détail |
+| **Forme** | Fait | ATL / CTL / TSB + courbe Home ; adhérence plan coach vs sorties |
 
-Après Sync (ou **Admin → Recalculer les features**), chaque activité running dérive des métriques déterministes depuis les streams. L’accueil affiche la charge TRIMP/ACR et le volume facile vs qualité. Le détail adapte graphes et tableaux au type de séance.
+Après Sync (ou **Admin → Recalculer les features**), chaque activité running dérive des métriques déterministes depuis les streams. L’accueil affiche la charge TRIMP/ACR, la **forme** (ATL/CTL/TSB) et le volume facile vs qualité. Le détail adapte graphes et tableaux au type de séance. La page **Coach** montre le plan avec statut fait / manqué / à venir.
 
 Suivi produit : dossier `openspec/`.

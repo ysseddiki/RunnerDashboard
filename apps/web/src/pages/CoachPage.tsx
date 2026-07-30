@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { sessionToneClass } from '../sessionTone'
 import { useSessionTypes } from '../useSessionTypes'
+import type { PlanAdherence } from '../types'
 
 type CoachStatus = {
   reachable: boolean
@@ -148,6 +149,7 @@ type StoredPlan = {
   markdown: string | null
   error: string | null
   updated_at: string | null
+  adherence?: PlanAdherence | null
 }
 
 export function CoachPage() {
@@ -269,6 +271,8 @@ export function CoachPage() {
   }
 
   const planItems = storedPlan?.plan ?? []
+  const adherence = storedPlan?.adherence
+  const adherenceItems = adherence?.available ? adherence.items : null
 
   return (
     <>
@@ -355,27 +359,63 @@ export function CoachPage() {
         </div>
         {storedPlan?.summary && <p className="coach-summary-text">{storedPlan.summary}</p>}
         {storedPlan?.error && <p className="banner error">{storedPlan.error}</p>}
-        {planItems.length === 0 ? (
+        {adherence?.available && adherence.adherence_pct != null && (
+          <p className="adherence-summary">
+            Adhérence : <strong>{adherence.adherence_pct} %</strong>
+            {' · '}
+            {adherence.matched} faite(s) · {adherence.missed} manquée(s)
+            {adherence.upcoming > 0 ? ` · ${adherence.upcoming} à venir` : ''}
+          </p>
+        )}
+        {adherence && !adherence.available && adherence.reason_fr && (
+          <p className="muted">{adherence.reason_fr}</p>
+        )}
+        {planItems.length === 0 && !adherenceItems?.length ? (
           <p className="muted">
             Aucun plan encore. Sync Strava (nouvelles sorties) ou cliquez Rafraîchir.
           </p>
         ) : (
           <div className="coach-plan-grid">
-            {planItems.map((item, idx) => (
-              <article key={`${item.date ?? 'x'}-${idx}`} className="coach-plan-card">
+            {(adherenceItems ?? planItems.map((item) => ({
+              ...item,
+              status: 'upcoming' as const,
+              date: item.date ?? '',
+              session_type_label_fr: null,
+              activity_id: null,
+              confidence: null,
+              type_match: null,
+            }))).map((item, idx) => (
+              <article
+                key={`${item.date ?? 'x'}-${idx}`}
+                className={`coach-plan-card adherence-${item.status}`}
+              >
                 <header>
                   <time>{formatPlanDate(item.date)}</time>
+                  <span className={`adherence-badge status-${item.status}`}>
+                    {item.status === 'matched'
+                      ? 'Fait'
+                      : item.status === 'missed'
+                        ? 'Manqué'
+                        : 'À venir'}
+                  </span>
                   {item.session_type && (
                     <span className={`chip ${sessionToneClass(item.session_type)}`}>
-                      {labelFor(item.session_type)}
+                      {'session_type_label_fr' in item && item.session_type_label_fr
+                        ? item.session_type_label_fr
+                        : labelFor(item.session_type)}
                     </span>
                   )}
                 </header>
                 <strong>{item.title}</strong>
-                {item.details && <p>{item.details}</p>}
+                {'details' in item && item.details ? <p>{item.details}</p> : null}
                 <footer>
-                  {item.duration_or_distance && <span>{item.duration_or_distance}</span>}
-                  {item.target_pace && <span>{item.target_pace}</span>}
+                  {'duration_or_distance' in item && item.duration_or_distance && (
+                    <span>{item.duration_or_distance}</span>
+                  )}
+                  {'target_pace' in item && item.target_pace && <span>{item.target_pace}</span>}
+                  {'activity_name' in item && item.activity_name && (
+                    <span className="muted">→ {item.activity_name}</span>
+                  )}
                 </footer>
               </article>
             ))}

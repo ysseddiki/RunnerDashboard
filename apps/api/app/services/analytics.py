@@ -494,11 +494,16 @@ def build_overview(db: Session) -> dict[str, Any]:
 
     volume_buckets = _volume_buckets_28d(recent)
 
+    from app.services.training_load import build_form_snapshot
+
+    form = build_form_snapshot(db, now=now)
+
     return {
         "category": category,
         "category_label_fr": labels[category],
         "reasons": reasons,
         "running_eligible_count": len(rows),
+        "form": form,
         "totals": {
             "activities": len(rows),
             "distance_km": round(volume_km(rows), 2),

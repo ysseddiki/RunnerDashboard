@@ -143,6 +143,67 @@ export type ActivityDetail = ActivitySummary & {
   coach_analyzed_at?: string | null
 }
 
+export type FormSnapshot = {
+  available: boolean
+  atl?: number | null
+  ctl?: number | null
+  tsb?: number | null
+  status?: string | null
+  status_label_fr?: string | null
+  warmup?: boolean
+  warmup_note_fr?: string | null
+  as_of?: string | null
+  reason_fr?: string | null
+}
+
+export type LoadSeriesPoint = {
+  date: string
+  daily_trimp: number
+  atl: number
+  ctl: number
+  tsb: number
+}
+
+export type LoadSeriesResponse = {
+  available: boolean
+  days: number
+  series: LoadSeriesPoint[]
+  form: FormSnapshot | null
+  trimp_day_count?: number
+  warmup?: boolean
+  reason_fr?: string | null
+}
+
+export type AdherenceItem = {
+  date: string
+  session_type: string | null
+  session_type_label_fr?: string | null
+  title: string | null
+  details?: string | null
+  target_pace?: string | null
+  duration_or_distance?: string | null
+  status: 'matched' | 'missed' | 'upcoming' | string
+  activity_id?: number | null
+  activity_name?: string | null
+  confidence?: string | null
+  type_match?: boolean | null
+}
+
+export type PlanAdherence = {
+  available: boolean
+  adherence_pct: number | null
+  matched: number
+  missed: number
+  upcoming: number
+  planned_past: number
+  type_mismatch?: number
+  items: AdherenceItem[]
+  missed_titles?: string[]
+  warnings_fr?: string[]
+  reason_fr?: string | null
+  plan_updated_at?: string | null
+}
+
 export type AnalyticsOverview = {
   category: string
   category_label_fr: string
@@ -194,6 +255,7 @@ export type AnalyticsOverview = {
     reason_fr?: string | null
     sample_with_trimp?: number
   }
+  form?: FormSnapshot
   weather: {
     activities_with_weather: number
     avg_temperature_c: number | null

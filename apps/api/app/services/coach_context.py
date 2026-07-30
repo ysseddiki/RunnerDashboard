@@ -139,11 +139,38 @@ def build_coach_context(db: Session, *, recent_limit: int = 12) -> dict[str, Any
         },
         "trends": analytics.get("trends"),
         "weather": analytics.get("weather"),
+        "form": analytics.get("form"),
+        "load": analytics.get("load"),
     }
+
+    form_compact = analytics.get("form") or {
+        "available": False,
+        "reason_fr": "Forme indisponible.",
+    }
+    try:
+        from app.services.plan_adherence import build_adherence
+
+        adherence_raw = build_adherence(db)
+        adherence_compact = {
+            "available": adherence_raw.get("available"),
+            "adherence_pct": adherence_raw.get("adherence_pct"),
+            "matched": adherence_raw.get("matched"),
+            "missed": adherence_raw.get("missed"),
+            "upcoming": adherence_raw.get("upcoming"),
+            "missed_titles": adherence_raw.get("missed_titles") or [],
+            "reason_fr": adherence_raw.get("reason_fr"),
+        }
+    except Exception:
+        adherence_compact = {
+            "available": False,
+            "reason_fr": "Adhérence indisponible.",
+        }
 
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "predictions": pred_compact,
         "analytics": analytics_compact,
+        "form": form_compact,
+        "adherence": adherence_compact,
         "recent_activities": recent,
     }
