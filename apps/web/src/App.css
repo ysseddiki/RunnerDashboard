@@ -32,7 +32,7 @@
   --font-display: "Syne", "Segoe UI", sans-serif;
   --font-body: "Manrope", "Segoe UI", sans-serif;
   --space-page: clamp(1.25rem, 3vw, 2rem);
-  --page-max: 68rem;
+  --page-max: 76rem;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --bg:
     radial-gradient(ellipse 90% 55% at 8% -10%, #cfe3d4 0%, transparent 55%),
@@ -984,20 +984,20 @@ a {
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 0.65rem;
+  gap: 0.75rem;
 }
 
 .activity {
   width: 100%;
   text-align: left;
-  background: var(--surface-raised);
+  background: #fff;
   color: inherit;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 0.95rem 1.05rem;
+  padding: 1rem 1.15rem;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 0.85rem 0.85rem;
+  gap: 0.85rem 1rem;
   align-items: stretch;
   box-shadow: var(--shadow-sm);
   transition: border-color 0.2s var(--ease), transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
@@ -1005,13 +1005,13 @@ a {
 
 .activity.is-selected {
   border-color: rgba(26, 92, 58, 0.45);
-  background: rgba(26, 92, 58, 0.06);
+  background: #f4faf6;
 }
 
 .activity-select {
   display: flex;
   align-items: flex-start;
-  padding-top: 0.35rem;
+  padding-top: 0.4rem;
   cursor: pointer;
 }
 
@@ -1066,7 +1066,34 @@ a {
 
 @media (max-width: 720px) {
   .activity {
-    grid-template-columns: auto 1fr;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .activity-weather {
+    grid-column: 1 / -1;
+    flex-direction: row !important;
+    justify-content: flex-start !important;
+    text-align: left !important;
+    min-height: 0;
+    padding: 0.7rem 0.85rem;
+  }
+
+  .activity-weather .activity-weather-text {
+    justify-items: start;
+  }
+
+  .activity-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .activity-metric {
+    border-left: none !important;
+    padding: 0.45rem 0.35rem 0.45rem 0 !important;
+    border-top: 1px solid var(--line);
+  }
+
+  .activity-metric:nth-child(-n + 2) {
+    border-top: none;
   }
 }
 
@@ -1080,8 +1107,9 @@ a {
 
 .activity-main {
   display: grid;
-  gap: 0.55rem;
+  gap: 0.7rem;
   min-width: 0;
+  align-content: start;
 }
 
 .activity-top {
@@ -1121,7 +1149,7 @@ a {
 .activity-title-link strong,
 .activity-top strong {
   font-family: var(--font-display);
-  font-size: 1.05rem;
+  font-size: 1.08rem;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--ink);
@@ -1130,7 +1158,7 @@ a {
 
 .activity-body-link {
   display: grid;
-  gap: 0.55rem;
+  gap: 0.65rem;
   text-decoration: none;
   color: inherit;
   border-radius: var(--radius-sm);
@@ -1142,29 +1170,41 @@ a {
 }
 
 .activity-metrics {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.55rem 1.25rem;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0;
+  align-items: start;
+  min-width: 0;
 }
 
 .activity-metric {
   display: grid;
-  gap: 0.08rem;
+  gap: 0.2rem;
+  min-width: 0;
+  padding: 0.1rem 0.85rem;
+  border-left: 1px solid var(--line);
+}
+
+.activity-metric:first-child {
+  border-left: 0;
+  padding-left: 0;
 }
 
 .activity-metric span {
-  font-size: 0.68rem;
+  font-size: 0.66rem;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   color: var(--muted);
   font-weight: 600;
 }
 
 .activity-metric strong {
-  font-size: 0.95rem;
+  font-family: var(--font-display);
+  font-size: 1.02rem;
   font-weight: 700;
   color: var(--ink-soft);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
 }
 
 .activity-date {
@@ -1175,21 +1215,25 @@ a {
 
 .activity-weather {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 0.65rem;
-  align-self: center;
-  min-width: 7.5rem;
-  padding: 0.65rem 0.8rem;
+  justify-content: center;
+  gap: 0.45rem;
+  align-self: stretch;
+  min-width: 6.75rem;
+  width: 7.25rem;
+  padding: 0.85rem 0.7rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.65);
+  background: #fff7eb;
+  text-align: center;
 }
 
 .activity-weather-icon {
   display: grid;
   place-items: center;
-  width: 2.4rem;
-  height: 2.4rem;
+  width: 2.5rem;
+  height: 2.5rem;
   border-radius: 50%;
   flex-shrink: 0;
 }
@@ -1201,13 +1245,14 @@ a {
 
 .activity-weather-text {
   display: grid;
-  gap: 0.05rem;
+  gap: 0.12rem;
   min-width: 0;
+  justify-items: center;
 }
 
 .activity-weather-text strong {
   font-family: var(--font-display);
-  font-size: 1.05rem;
+  font-size: 1.15rem;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--ink);
@@ -1218,10 +1263,11 @@ a {
   font-size: 0.72rem;
   font-weight: 600;
   color: var(--muted);
-  white-space: nowrap;
+  white-space: normal;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 8rem;
+  max-width: 6.5rem;
+  line-height: 1.25;
 }
 
 .weather-clear {
