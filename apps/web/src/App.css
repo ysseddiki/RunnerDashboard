@@ -1446,7 +1446,7 @@ a {
   max-width: min(26rem, 92vw);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: var(--surface-raised, #fff);
+  background: #fff;
   box-shadow: var(--shadow);
   overflow: hidden;
   display: flex;
@@ -1486,7 +1486,7 @@ a {
   overflow: auto;
   border-top: none;
   padding: 0.7rem 0.8rem 0.85rem;
-  background: rgba(26, 92, 58, 0.04);
+  background: #f2f7f4;
   text-transform: none;
   letter-spacing: normal;
   font-weight: 400;

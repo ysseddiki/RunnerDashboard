@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import type { ActivitySummary } from '../types'
-import { formatDate, formatKm, formatPace } from '../format'
+import { formatDate, formatDuration, formatKm, formatPace } from '../format'
 import { weatherVisual } from '../weatherVisual'
 import { SessionTypePicker } from './SessionTypePicker'
 import { TerrainPicker } from './TerrainPicker'
@@ -86,6 +86,10 @@ export function ActivityRow({
             <div className="activity-metric">
               <span>Distance</span>
               <strong>{formatKm(activity.distance_m)}</strong>
+            </div>
+            <div className="activity-metric">
+              <span>Temps</span>
+              <strong>{formatDuration(activity.moving_time_s)}</strong>
             </div>
             <div className="activity-metric">
               <span>Allure</span>
