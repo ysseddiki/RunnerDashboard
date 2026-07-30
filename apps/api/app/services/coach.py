@@ -21,7 +21,7 @@ Règles strictes :
 - Ne invente AUCUN chrono, allure, FC ou cadence absent du contexte.
 - Corréle explicitement : prévisions (5/10/semi/marathon, allures d'entraînement) avec les sorties récentes (min/km, FC moy/max, type de séance, volume, météo).
 - Signale les trous de données (cadence manquante, peu de tags, confiance basse).
-- Réponds en français, structuré, concis (environ 250–450 mots).
+- Réponds en français, structuré, concis (environ 200–350 mots).
 Structure imposée :
 1) Synthèse (2–4 phrases)
 2) Corrélations prévisions ↔ terrain (FC, types d'allure, min/km)
@@ -51,6 +51,7 @@ def coach_status(db: Session, env: Settings) -> dict[str, Any]:
         "model_installed": installed,
         "installed_models": installed_models,
         "allowed_models": list(settings_service.ALLOWED_OLLAMA_MODELS),
+        "chat_timeout_s": env.ollama_chat_timeout_s,
         "error": error,
         "ready": reachable and installed,
     }
@@ -79,23 +80,25 @@ def advise(db: Session, env: Settings, *, question: str | None = None) -> dict[s
             f"Modèle {model} non installé | action=Admin_télécharger_le_modèle_ou_pull_cli"
         )
 
-    context = build_coach_context(db)
+    context = build_coach_context(db, recent_limit=8)
     question_text = (question or "").strip() or (
         "Analyse ma forme et mes prévisions d'allure. "
         "Corréle HR, types de séance et min/km avec les estimations."
     )
-    user_payload = {
-        "question": question_text,
-        "contexte": context,
-    }
     user_message = (
         "Question athlète :\n"
         f"{question_text}\n\n"
         "Contexte JSON (source de vérité) :\n"
-        f"{json.dumps(user_payload['contexte'], ensure_ascii=False, separators=(',', ':'))}"
+        f"{json.dumps(context, ensure_ascii=False, separators=(',', ':'))}"
     )
 
-    answer = client.chat(model=model, system=SYSTEM_PROMPT, user=user_message)
+    answer = client.chat(
+        model=model,
+        system=SYSTEM_PROMPT,
+        user=user_message,
+        timeout_s=env.ollama_chat_timeout_s,
+        num_predict=env.ollama_num_predict,
+    )
     logger.info(
         "Conseil coach généré | model=%s | activities=%s | answer_chars=%s",
         model,

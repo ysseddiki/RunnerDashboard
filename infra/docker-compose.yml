@@ -34,6 +34,8 @@ services:
       STRAVA_SCOPES: ${STRAVA_SCOPES:-read,activity:read_all,profile:read_all}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:14b}
+      OLLAMA_CHAT_TIMEOUT_S: ${OLLAMA_CHAT_TIMEOUT_S:-600}
+      OLLAMA_NUM_PREDICT: ${OLLAMA_NUM_PREDICT:-650}
     volumes:
       - ${HOST_LOG_DIR:-/var/log/running-dashboards/host-logs}:${LOG_DIR:-/var/log/running-dashboards/host-logs}
     depends_on:

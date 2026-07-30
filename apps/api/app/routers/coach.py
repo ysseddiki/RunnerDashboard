@@ -21,6 +21,7 @@ class CoachStatusResponse(BaseModel):
     model_installed: bool
     installed_models: list[str]
     allowed_models: list[str]
+    chat_timeout_s: float = 600.0
     error: str | None = None
     ready: bool
 
@@ -75,6 +76,12 @@ def advise(
     try:
         result = coach_service.advise(db, env, question=question)
     except OllamaError as exc:
-        status = 503 if "injoignable" in str(exc).lower() else 400
+        detail = str(exc).lower()
+        if "timeout" in detail:
+            status = 504
+        elif "injoignable" in detail:
+            status = 503
+        else:
+            status = 400
         raise HTTPException(status_code=status, detail=str(exc)) from exc
     return CoachAdviseResponse.model_validate(result)

@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     strava_scopes: str = "read,activity:read_all,profile:read_all"
     ollama_model: str = "qwen2.5:14b"
     ollama_base_url: str = "http://ollama:11434"
+    # CPU 14B : 1er appel (chargement modèle) peut dépasser 3–5 min
+    ollama_chat_timeout_s: float = 600.0
+    ollama_num_predict: int = 650
 
 
 @lru_cache

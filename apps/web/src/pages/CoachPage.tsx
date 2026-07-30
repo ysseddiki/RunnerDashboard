@@ -8,6 +8,7 @@ type CoachStatus = {
   ready: boolean
   error: string | null
   installed_models: string[]
+  chat_timeout_s?: number
 }
 
 type AdviseResponse = {
@@ -107,6 +108,10 @@ export function CoachPage() {
               <dt>Prêt</dt>
               <dd>{status.ready ? 'Oui' : 'Non'}</dd>
             </div>
+            <div>
+              <dt>Timeout chat</dt>
+              <dd>{status.chat_timeout_s != null ? `${Math.round(status.chat_timeout_s)} s` : '—'}</dd>
+            </div>
           </dl>
         )}
         {!status?.ready && (
@@ -116,6 +121,12 @@ export function CoachPage() {
               Docs
             </Link>{' '}
             / README.
+          </p>
+        )}
+        {status?.ready && (
+          <p className="muted">
+            Sur CPU, le 1er appel charge le modèle (peut prendre plusieurs minutes). Si timeout :
+            réessayez, ou passez au profil 7B dans Admin.
           </p>
         )}
       </section>
@@ -137,7 +148,9 @@ export function CoachPage() {
             onClick={() => void runAdvise()}
             disabled={busy || status?.ready === false}
           >
-            {busy ? 'Analyse en cours (peut prendre 1–2 min)…' : 'Lancer l’analyse'}
+            {busy
+              ? 'Analyse en cours (1er appel CPU : jusqu’à plusieurs minutes)…'
+              : 'Lancer l’analyse'}
           </button>
         </div>
       </section>

@@ -78,22 +78,43 @@ class OllamaClient:
         except httpx.HTTPError as exc:
             raise OllamaError(f"Échec pull Ollama | detail={exc}") from exc
 
-    def chat(self, *, model: str, system: str, user: str) -> str:
-        logger.info("Chat Ollama | model=%s | user_chars=%s", model, len(user))
+    def chat(
+        self,
+        *,
+        model: str,
+        system: str,
+        user: str,
+        timeout_s: float = 600.0,
+        num_predict: int = 650,
+    ) -> str:
+        logger.info(
+            "Chat Ollama | model=%s | user_chars=%s | timeout_s=%s | num_predict=%s",
+            model,
+            len(user),
+            timeout_s,
+            num_predict,
+        )
+        timeout = httpx.Timeout(
+            connect=30.0,
+            read=timeout_s,
+            write=60.0,
+            pool=30.0,
+        )
         try:
-            with httpx.Client(timeout=180.0) as client:
+            with httpx.Client(timeout=timeout) as client:
                 res = client.post(
                     f"{self.base_url}/api/chat",
                     json={
                         "model": model,
                         "stream": False,
+                        "keep_alive": "10m",
                         "messages": [
                             {"role": "system", "content": system},
                             {"role": "user", "content": user},
                         ],
                         "options": {
-                            "temperature": 0.35,
-                            "num_predict": 1200,
+                            "temperature": 0.3,
+                            "num_predict": num_predict,
                         },
                     },
                 )
@@ -115,5 +136,17 @@ class OllamaClient:
             if not isinstance(content, str) or not content.strip():
                 raise OllamaError("Réponse Ollama vide")
             return content.strip()
+        except httpx.TimeoutException as exc:
+            logger.error(
+                "Timeout chat Ollama | model=%s | timeout_s=%s | detail=%s",
+                model,
+                timeout_s,
+                str(exc),
+            )
+            raise OllamaError(
+                f"Ollama chat timeout après {int(timeout_s)}s "
+                f"(modèle={model}). Sur CPU le 1er appel charge le modèle en RAM — "
+                "réessayez, ou passez à qwen2.5:7b dans Admin si la VM a ~16 Go."
+            ) from exc
         except httpx.HTTPError as exc:
             raise OllamaError(f"Ollama chat injoignable | detail={exc}") from exc
