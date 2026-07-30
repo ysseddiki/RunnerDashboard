@@ -29,6 +29,7 @@ export function AdminPage() {
   const [busy, setBusy] = useState(false)
   const [savingSettings, setSavingSettings] = useState(false)
   const [cadenceBusy, setCadenceBusy] = useState(false)
+  const [clearTypesBusy, setClearTypesBusy] = useState(false)
   const [pullBusy, setPullBusy] = useState(false)
   const [appleBusy, setAppleBusy] = useState(false)
   const [appleMessage, setAppleMessage] = useState<string | null>(null)
@@ -180,6 +181,35 @@ export function AdminPage() {
       setError(err instanceof Error ? err.message : 'Recalcul cadence impossible')
     } finally {
       setCadenceBusy(false)
+    }
+  }
+
+  async function clearSessionTypes() {
+    if (
+      !window.confirm(
+        'Effacer tous les types de séance attribués ? Les activités repasseront en « Non classé ».',
+      )
+    ) {
+      return
+    }
+    setClearTypesBusy(true)
+    setSyncMessage(null)
+    setError(null)
+    try {
+      const res = await fetch('/api/activities/clear-session-types', { method: 'POST' })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(
+          typeof body.detail === 'string' ? body.detail : `Types HTTP ${res.status}`,
+        )
+      }
+      setSyncMessage(
+        typeof body.message === 'string' ? body.message : 'Types de séance effacés.',
+      )
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Effacement des types impossible')
+    } finally {
+      setClearTypesBusy(false)
     }
   }
 
@@ -374,6 +404,24 @@ export function AdminPage() {
               disabled={cadenceBusy}
             >
               {cadenceBusy ? 'Recalcul…' : 'Recalculer les cadences'}
+            </button>
+          </div>
+        </section>
+
+        <section className="admin-card">
+          <h2>Types de séance</h2>
+          <p className="muted">
+            Remet toutes les activités en « Non classé ». Utile avant une nouvelle classification
+            manuelle ou via suggestion.
+          </p>
+          <div className="admin-actions">
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => void clearSessionTypes()}
+              disabled={clearTypesBusy}
+            >
+              {clearTypesBusy ? 'Effacement…' : 'Effacer tous les types'}
             </button>
           </div>
         </section>

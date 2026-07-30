@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
@@ -50,9 +50,31 @@ class SessionTypeSuggestBatchResponse(BaseModel):
     suggestions: list[dict]
 
 
+class ClearSessionTypesResult(BaseModel):
+    cleared: int
+    message: str
+
+
 @router.get("/session-types", response_model=list[SessionTypeInfo])
 def list_session_types() -> list[SessionTypeInfo]:
     return [SessionTypeInfo(**item) for item in SESSION_TYPES]
+
+
+@router.post("/clear-session-types", response_model=ClearSessionTypesResult)
+def clear_session_types(db: Session = Depends(get_db)) -> ClearSessionTypesResult:
+    result = db.execute(
+        update(Activity)
+        .where(Activity.session_type.is_not(None))
+        .values(session_type=None)
+    )
+    cleared = result.rowcount or 0
+    db.commit()
+    message = (
+        f"Types de séance effacés : {cleared} activité(s) repassée(s) en non classé."
+        if cleared
+        else "Aucun type de séance à effacer."
+    )
+    return ClearSessionTypesResult(cleared=cleared, message=message)
 
 
 @router.post("/suggest-session-types", response_model=SessionTypeSuggestBatchResponse)
