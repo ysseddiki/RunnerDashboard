@@ -10,6 +10,7 @@ type DocTab = {
 const TABS: DocTab[] = [
   { id: 'allure', label: 'Allure' },
   { id: 'evolution', label: 'Évolution' },
+  { id: 'forme', label: 'Forme' },
   { id: 'seances', label: 'Types de séance' },
   { id: 'cadence', label: 'Cadence' },
   { id: 'apple', label: 'Apple Santé' },
@@ -211,9 +212,134 @@ function EvolutionTab() {
           <strong>Plateau</strong> — sinon
         </li>
       </ul>
+
+      <h3>Forme (ATL / CTL / TSB)</h3>
+      <p>
+        L’accueil affiche aussi une courbe de forme basée sur la charge TRIMP. Détail des formules
+        et des seuils dans l’onglet{' '}
+        <Link to="/docs?tab=forme" className="inline-link">
+          Forme
+        </Link>
+        .
+      </p>
       <p>
         <Link to="/" className="inline-link">
           Retour à l’Accueil
+        </Link>
+      </p>
+    </div>
+  )
+}
+
+function FormeTab() {
+  return (
+    <div className="docs-panel">
+      <h2>Forme — ATL, CTL, TSB</h2>
+      <p>
+        Ces indicateurs mesurent la <strong>charge d’entraînement</strong> dans le temps, à partir
+        du <strong>TRIMP</strong> (Training Impulse) de chaque sortie running. Ils s’affichent sur
+        l’Accueil (courbe + statut du jour). Ce n’est pas une prédiction d’allure : c’est un
+        thermomètre de fatigue / fraîcheur.
+      </p>
+
+      <h3>TRIMP (entrée)</h3>
+      <p>
+        Pour chaque activité, le TRIMP Edwards est calculé à partir du temps passé dans les zones
+        FC (profil : FC max / repos ou date de naissance). Sans FC et sans zones profil, la journée
+        compte 0 — la forme reste indisponible tant qu’il n’y a pas assez de jours avec TRIMP.
+      </p>
+      <ul className="docs-list">
+        <li>Les TRIMP du même jour UTC sont additionnés</li>
+        <li>
+          Minimum conseillé : <strong>14 jours</strong> avec TRIMP pour afficher la forme
+        </li>
+        <li>
+          Le CTL se stabilise mieux après ~<strong>42 jours</strong> de charge (sinon note
+          « en stabilisation »)
+        </li>
+      </ul>
+
+      <h3>ATL — Acute Training Load</h3>
+      <p>
+        Charge <strong>aiguë</strong> : moyenne exponentielle du TRIMP journalier sur une fenêtre
+        courte (~<strong>7 jours</strong>). Elle monte vite après un gros bloc ou une semaine
+        dense, et redescend en quelques jours de repos relatif.
+      </p>
+      <ul className="docs-list">
+        <li>
+          <strong>ATL haute</strong> : fatigue récente / charge courte élevée
+        </li>
+        <li>
+          <strong>ATL basse</strong> : peu de charge récente
+        </li>
+      </ul>
+
+      <h3>CTL — Chronic Training Load</h3>
+      <p>
+        Charge <strong>chronique</strong> : même principe, mais sur ~<strong>42 jours</strong>. Elle
+        évolue lentement et reflète plutôt le « niveau de forme / fitness » construit sur plusieurs
+        semaines.
+      </p>
+      <ul className="docs-list">
+        <li>
+          <strong>CTL qui monte</strong> : volume / intensité soutenus dans le temps
+        </li>
+        <li>
+          <strong>CTL qui baisse</strong> : désentraînement relatif ou période légère prolongée
+        </li>
+      </ul>
+
+      <h3>TSB — Training Stress Balance</h3>
+      <Formula>TSB = CTL − ATL</Formula>
+      <p>
+        Solde entre fitness (CTL) et fatigue récente (ATL). Un TSB <strong>négatif</strong> signifie
+        que la charge aiguë dépasse la charge chronique (plus fatigué que « en forme »). Un TSB{' '}
+        <strong>positif</strong> indique plutôt de la fraîcheur.
+      </p>
+
+      <h3>Statuts affichés dans l’app</h3>
+      <ul className="docs-list">
+        <li>
+          <strong>Fatigue</strong> — TSB ≤ −20
+        </li>
+        <li>
+          <strong>Productif</strong> — −20 &lt; TSB ≤ −5 (charge utile, encore un peu fatigué)
+        </li>
+        <li>
+          <strong>Neutre</strong> — −5 &lt; TSB &lt; 10
+        </li>
+        <li>
+          <strong>Frais</strong> — TSB ≥ 10 (souvent recherché avant une compétition)
+        </li>
+      </ul>
+
+      <h3>Calcul (EMA)</h3>
+      <p>
+        Chaque jour, avec le TRIMP du jour (<code>trimp</code>) :
+      </p>
+      <Formula>ATL ← ATL + (trimp − ATL) ÷ 7</Formula>
+      <Formula>CTL ← CTL + (trimp − CTL) ÷ 42</Formula>
+      <Formula>TSB ← CTL − ATL</Formula>
+      <p>
+        Les jours sans sortie (TRIMP = 0) font aussi évoluer les moyennes : la fatigue aiguë
+        diminue au repos, la CTL baisse plus lentement.
+      </p>
+
+      <h3>Comment l’utiliser</h3>
+      <ul className="docs-list">
+        <li>Suivre la tendance sur plusieurs semaines, pas un seul jour isolé</li>
+        <li>
+          Renseigner le <Link to="/profile">profil</Link> (FC) et synchroniser des sorties avec FC
+          pour alimenter le TRIMP
+        </li>
+        <li>
+          Le coach et l’adhérence au plan s’appuient aussi sur ce contexte de charge, sans inventer
+          de chronos
+        </li>
+      </ul>
+      <p>
+        <Link to="/" className="inline-link">
+          Voir la courbe sur l’Accueil
         </Link>
       </p>
     </div>
@@ -377,6 +503,8 @@ function TabContent({ id }: { id: string }) {
   switch (id) {
     case 'evolution':
       return <EvolutionTab />
+    case 'forme':
+      return <FormeTab />
     case 'seances':
       return <SeancesTab />
     case 'cadence':
