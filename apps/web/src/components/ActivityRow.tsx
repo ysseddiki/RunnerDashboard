@@ -38,11 +38,12 @@ export function ActivityRow({ activity, onSessionTypeSaved }: Props) {
           onSaved={(sessionType, label) => {
             onSessionTypeSaved?.(activity.id, sessionType, label)
           }}
-        />
-        <span className={badge.className}>{badge.label}</span>
-        <Link to={detailTo} className="activity-title-link">
-          <strong>{activity.name}</strong>
-        </Link>
+        >
+          <span className={badge.className}>{badge.label}</span>
+          <Link to={detailTo} className="activity-title-link">
+            <strong>{activity.name}</strong>
+          </Link>
+        </SessionTypePicker>
       </div>
       <Link to={detailTo} className="activity-body-link">
         <p className="activity-date">{formatDate(activity.start_date)}</p>

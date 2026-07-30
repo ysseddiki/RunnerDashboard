@@ -913,17 +913,32 @@ a {
 }
 
 .activity-top {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.activity-top-line {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.55rem;
+  min-width: 0;
+}
+
+.session-tag-wrap {
+  position: relative;
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+  width: 100%;
 }
 
 .activity-title-link {
   text-decoration: none;
   color: inherit;
   min-width: 0;
-  flex: 1;
+  flex: 1 1 10rem;
 }
 
 .activity-title-link:hover strong,
@@ -938,6 +953,7 @@ a {
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--ink);
+  overflow-wrap: anywhere;
 }
 
 .activity-body-link {
@@ -1064,9 +1080,10 @@ a {
 .session-tag {
   position: relative;
   display: inline-flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 0.35rem;
+  flex: 0 0 auto;
   max-width: 100%;
   --tone-fg: var(--brand-deep);
   --tone-bg: var(--brand-soft);
@@ -1138,6 +1155,10 @@ a {
   opacity: 0.75;
 }
 
+.session-tag-wrap.is-saving .session-tag-select {
+  opacity: 0.75;
+}
+
 .session-suggest-btn {
   font: inherit;
   font-size: 0.68rem;
@@ -1162,8 +1183,8 @@ a {
 }
 
 .session-suggest-panel {
-  flex: 1 1 100%;
-  margin-top: 0.15rem;
+  width: 100%;
+  margin: 0;
   padding: 0.55rem 0.65rem;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
@@ -1174,6 +1195,7 @@ a {
   letter-spacing: normal;
   font-weight: 400;
   color: var(--ink);
+  box-sizing: border-box;
 }
 
 .session-suggest-panel p {

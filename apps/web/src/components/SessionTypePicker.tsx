@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { sessionToneClass } from '../sessionTone'
 import { useSessionTypes } from '../useSessionTypes'
 
@@ -14,9 +14,11 @@ type Props = {
   activityId: number
   value: string | null | undefined
   onSaved: (sessionType: string | null, label: string | null) => void
+  /** Contenu sur la même ligne (badge, titre…). Le panneau suggestion passe en dessous. */
+  children?: ReactNode
 }
 
-export function SessionTypePicker({ activityId, value, onSaved }: Props) {
+export function SessionTypePicker({ activityId, value, onSaved, children }: Props) {
   const { types, error: catalogError } = useSessionTypes()
   const [selected, setSelected] = useState(value ?? '')
   const [saving, setSaving] = useState(false)
@@ -105,48 +107,53 @@ export function SessionTypePicker({ activityId, value, onSaved }: Props) {
 
   return (
     <div
-      className={`session-tag ${tone} ${saving ? 'is-saving' : ''}`}
+      className={`session-tag-wrap ${saving ? 'is-saving' : ''}`}
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
     >
-      <label className="visually-hidden" htmlFor={selectId}>
-        Type de séance
-      </label>
-      <div className="session-tag-control">
-        <select
-          id={selectId}
-          className="session-tag-select"
-          value={selected}
-          title={current?.description_fr ?? 'Attribuer un type de séance'}
-          disabled={saving || types.length === 0}
-          onClick={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
-          onChange={(e) => {
-            const next = e.target.value
-            setSelected(next)
-            void persist(next)
-          }}
-        >
-          <option value="">Non classé</option>
-          {types.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.label_fr}
-            </option>
-          ))}
-        </select>
+      <div className="activity-top-line">
+        <div className={`session-tag ${tone}`}>
+          <label className="visually-hidden" htmlFor={selectId}>
+            Type de séance
+          </label>
+          <div className="session-tag-control">
+            <select
+              id={selectId}
+              className="session-tag-select"
+              value={selected}
+              title={current?.description_fr ?? 'Attribuer un type de séance'}
+              disabled={saving || types.length === 0}
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onChange={(e) => {
+                const next = e.target.value
+                setSelected(next)
+                void persist(next)
+              }}
+            >
+              <option value="">Non classé</option>
+              {types.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.label_fr}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            type="button"
+            className="session-suggest-btn"
+            disabled={saving || suggesting}
+            title="Suggérer un type à partir de l’allure, distance et titre"
+            onClick={(e) => {
+              e.stopPropagation()
+              void suggest()
+            }}
+          >
+            {suggesting ? '…' : 'Suggérer'}
+          </button>
+        </div>
+        {children}
       </div>
-      <button
-        type="button"
-        className="session-suggest-btn"
-        disabled={saving || suggesting}
-        title="Suggérer un type à partir de l’allure, distance et titre"
-        onClick={(e) => {
-          e.stopPropagation()
-          void suggest()
-        }}
-      >
-        {suggesting ? '…' : 'Suggérer'}
-      </button>
       {suggestion && (
         <div className="session-suggest-panel">
           <p>
