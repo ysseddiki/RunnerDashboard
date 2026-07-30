@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { useTerrains } from '../useTerrains'
+import { apiFetch } from '../auth'
 
 type Props = {
   activityId: number
@@ -28,7 +29,7 @@ export function TerrainPicker({ activityId, value, onSaved }: Props) {
     setSaving(true)
     setError(null)
     try {
-      const res = await fetch(`/api/activities/${activityId}`, {
+      const res = await apiFetch(`/api/activities/${activityId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ terrain: next || null }),

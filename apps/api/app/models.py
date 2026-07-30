@@ -5,7 +5,19 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import BigInteger, Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, func
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -19,10 +31,29 @@ class AppSetting(Base):
     value: Mapped[str] = mapped_column(Text)
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    strava_athlete_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
+    firstname: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    lastname: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    role: Mapped[str] = mapped_column(String(16), default="user", server_default="user", index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    last_login_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
 class StravaToken(Base):
     __tablename__ = "strava_tokens"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True
+    )
     athlete_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
     athlete_firstname: Mapped[str | None] = mapped_column(String(120), nullable=True)
     athlete_lastname: Mapped[str | None] = mapped_column(String(120), nullable=True)
@@ -37,17 +68,21 @@ class StravaToken(Base):
 
 class Activity(Base):
     __tablename__ = "activities"
+    __table_args__ = (
+        UniqueConstraint("user_id", "strava_id", name="uq_activities_user_strava"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    strava_id: Mapped[int | None] = mapped_column(
-        BigInteger, unique=True, index=True, nullable=True
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
     )
+    strava_id: Mapped[int | None] = mapped_column(BigInteger, index=True, nullable=True)
     athlete_id: Mapped[int] = mapped_column(BigInteger, index=True, default=0)
     source: Mapped[str] = mapped_column(
         String(16), nullable=False, default="strava", server_default="strava", index=True
     )
     apple_uuid: Mapped[str | None] = mapped_column(
-        String(64), unique=True, nullable=True, index=True
+        String(64), nullable=True, index=True
     )
     name: Mapped[str] = mapped_column(String(255))
     sport_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -87,11 +122,12 @@ class Activity(Base):
 
 
 class AthleteProfile(Base):
-    __tablename__ = "athlete_profile"
+    __tablename__ = "athlete_profiles"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
     birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    # Legacy: kept for DB compat; age is derived from birth_date when present.
     age: Mapped[int | None] = mapped_column(Integer, nullable=True)
     weight_kg: Mapped[float | None] = mapped_column(Float, nullable=True)
     height_cm: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -110,6 +146,9 @@ class AthleteProfileHistory(Base):
     __tablename__ = "athlete_profile_history"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
     recorded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), index=True
     )
@@ -126,7 +165,9 @@ class AthleteProfileHistory(Base):
 class CoachPlan(Base):
     __tablename__ = "coach_plans"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
     model: Mapped[str | None] = mapped_column(String(64), nullable=True)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     plan_json: Mapped[list[Any] | None] = mapped_column(JSONB, nullable=True)
@@ -142,7 +183,10 @@ class AppleWorkout(Base):
     __tablename__ = "apple_workouts"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    apple_uuid: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    apple_uuid: Mapped[str] = mapped_column(String(64), index=True)
     workout_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
     start_date: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, index=True

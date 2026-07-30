@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { apiFetch } from '../auth'
+import { useAuth } from '../authContext'
 import { sessionToneClass } from '../sessionTone'
 import { useSessionTypes } from '../useSessionTypes'
 import type { PlanAdherence } from '../types'
@@ -153,7 +155,9 @@ type StoredPlan = {
 }
 
 export function CoachPage() {
+  const { user } = useAuth()
   const { types } = useSessionTypes()
+  const isAdmin = user?.role === 'admin'
   const [status, setStatus] = useState<CoachStatus | null>(null)
   const [question, setQuestion] = useState('')
   const [answer, setAnswer] = useState<AdviseResponse | null>(null)
@@ -174,7 +178,7 @@ export function CoachPage() {
 
   function refreshStatus() {
     setLoadingStatus(true)
-    return fetch('/api/coach/status')
+    return apiFetch('/api/coach/status')
       .then(async (res) => {
         if (!res.ok) throw new Error(`Statut coach HTTP ${res.status}`)
         return (await res.json()) as CoachStatus
@@ -187,7 +191,7 @@ export function CoachPage() {
   }
 
   function loadPlan() {
-    return fetch('/api/coach/plan')
+    return apiFetch('/api/coach/plan')
       .then(async (res) => {
         if (!res.ok) throw new Error(`Plan HTTP ${res.status}`)
         return (await res.json()) as StoredPlan
@@ -208,7 +212,7 @@ export function CoachPage() {
     setWarmupMessage(null)
     setError(null)
     try {
-      const res = await fetch('/api/coach/warmup', { method: 'POST' })
+      const res = await apiFetch('/api/coach/warmup', { method: 'POST' })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
         throw new Error(
@@ -230,7 +234,7 @@ export function CoachPage() {
     setPlanBusy(true)
     setError(null)
     try {
-      const res = await fetch('/api/coach/plan/refresh', { method: 'POST' })
+      const res = await apiFetch('/api/coach/plan/refresh', { method: 'POST' })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
         throw new Error(typeof body.detail === 'string' ? body.detail : `Refresh HTTP ${res.status}`)
@@ -249,7 +253,7 @@ export function CoachPage() {
     setError(null)
     setAnswer(null)
     try {
-      const res = await fetch('/api/coach/advise', {
+      const res = await apiFetch('/api/coach/advise', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -322,6 +326,7 @@ export function CoachPage() {
         )}
       </div>
 
+      {isAdmin && (
       <section className="panel-block coach-warmup">
         <div className="section-head">
           <h3 style={{ margin: 0 }}>Modèle local</h3>
@@ -344,6 +349,7 @@ export function CoachPage() {
         </p>
         {warmupMessage && <p className="banner ok">{warmupMessage}</p>}
       </section>
+      )}
 
       <section className="panel-block coach-plan">
         <div className="section-head">

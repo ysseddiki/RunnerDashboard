@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.db import init_db
 from app.logging_config import setup_logging
-from app.routers import activities, analytics, apple_health, strava
+from app.routers import activities, admin, analytics, apple_health, auth, strava
 from app.routers import coach as coach_router
 from app.routers import predictions as predictions_router
 from app.routers import profile as profile_router
@@ -63,6 +63,8 @@ def create_app() -> FastAPI:
             "palier": "P4",
         }
 
+    application.include_router(auth.router)
+    application.include_router(admin.router)
     application.include_router(strava.router)
     application.include_router(activities.router)
     application.include_router(apple_health.router)

@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useCallback, useEffect, useState } from 'react'
+import type { AuthUser } from '../auth'
+import { apiFetch } from '../auth'
+import { useAuth } from '../authContext'
 import type { AppSettings, AppleImportResult, HealthResponse, StravaStatus } from '../types'
 
 type CoachStatus = {
@@ -17,11 +19,12 @@ const MODEL_LABELS: Record<string, string> = {
 }
 
 export function AdminPage() {
-  const [searchParams] = useSearchParams()
+  const { user: me } = useAuth()
   const [health, setHealth] = useState<HealthResponse | null>(null)
   const [strava, setStrava] = useState<StravaStatus | null>(null)
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [coachStatus, setCoachStatus] = useState<CoachStatus | null>(null)
+  const [users, setUsers] = useState<AuthUser[]>([])
   const [selectedModel, setSelectedModel] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [syncMessage, setSyncMessage] = useState<string | null>(null)
@@ -32,38 +35,35 @@ export function AdminPage() {
   const [featuresBusy, setFeaturesBusy] = useState(false)
   const [clearTypesBusy, setClearTypesBusy] = useState(false)
   const [pullBusy, setPullBusy] = useState(false)
+  const [usersBusy, setUsersBusy] = useState(false)
   const [appleBusy, setAppleBusy] = useState(false)
   const [appleMessage, setAppleMessage] = useState<string | null>(null)
   const [appleImport, setAppleImport] = useState<AppleImportResult | null>(null)
 
-  const queryMessage = useMemo(() => {
-    if (searchParams.get('strava') === 'connected') return 'Compte Strava connecté.'
-    if (searchParams.get('strava') === 'error') {
-      return `Connexion Strava échouée (${searchParams.get('reason') ?? 'inconnu'}).`
-    }
-    return null
-  }, [searchParams])
-
   const refresh = useCallback(async () => {
     setError(null)
-    const [healthRes, statusRes, settingsRes, coachRes] = await Promise.all([
-      fetch('/api/health'),
-      fetch('/api/strava/status'),
-      fetch('/api/settings'),
-      fetch('/api/coach/status'),
+    const [healthRes, statusRes, settingsRes, coachRes, usersRes] = await Promise.all([
+      apiFetch('/api/health'),
+      apiFetch('/api/strava/status'),
+      apiFetch('/api/admin/settings'),
+      apiFetch('/api/coach/status'),
+      apiFetch('/api/admin/users'),
     ])
     if (!healthRes.ok) throw new Error(`Health HTTP ${healthRes.status}`)
     if (!statusRes.ok) throw new Error(`Status Strava HTTP ${statusRes.status}`)
     if (!settingsRes.ok) throw new Error(`Settings HTTP ${settingsRes.status}`)
-    const [h, s, st] = await Promise.all([
+    if (!usersRes.ok) throw new Error(`Users HTTP ${usersRes.status}`)
+    const [h, s, st, u] = await Promise.all([
       healthRes.json() as Promise<HealthResponse>,
       statusRes.json() as Promise<StravaStatus>,
       settingsRes.json() as Promise<AppSettings>,
+      usersRes.json() as Promise<AuthUser[]>,
     ])
     setHealth(h)
     setStrava(s)
     setSettings(st)
     setSelectedModel(st.ollama_model)
+    setUsers(u)
     if (coachRes.ok) {
       setCoachStatus((await coachRes.json()) as CoachStatus)
     } else {
@@ -77,29 +77,12 @@ export function AdminPage() {
     })
   }, [refresh])
 
-  async function connectStrava() {
-    setBusy(true)
-    setError(null)
-    try {
-      const res = await fetch('/api/strava/auth-url')
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { detail?: string } | null
-        throw new Error(body?.detail ?? `Auth URL HTTP ${res.status}`)
-      }
-      const data = (await res.json()) as { url: string }
-      window.location.href = data.url
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Connexion impossible')
-      setBusy(false)
-    }
-  }
-
   async function runSync() {
     setBusy(true)
     setSyncMessage(null)
     setError(null)
     try {
-      const res = await fetch('/api/strava/sync', { method: 'POST' })
+      const res = await apiFetch('/api/strava/sync', { method: 'POST' })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
         throw new Error(
@@ -120,7 +103,7 @@ export function AdminPage() {
     setSettingsMessage(null)
     setError(null)
     try {
-      const res = await fetch('/api/settings', {
+      const res = await apiFetch('/api/admin/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ollama_model: selectedModel }),
@@ -147,7 +130,7 @@ export function AdminPage() {
     setSettingsMessage(null)
     setError(null)
     try {
-      const res = await fetch('/api/coach/pull-model', { method: 'POST' })
+      const res = await apiFetch('/api/coach/pull-model', { method: 'POST' })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
         throw new Error(
@@ -165,12 +148,36 @@ export function AdminPage() {
     }
   }
 
+  async function toggleAdmin(target: AuthUser) {
+    const nextRole = target.role === 'admin' ? 'user' : 'admin'
+    setUsersBusy(true)
+    setError(null)
+    try {
+      const res = await apiFetch(`/api/admin/users/${target.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: nextRole }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(
+          typeof body.detail === 'string' ? body.detail : `Rôle HTTP ${res.status}`,
+        )
+      }
+      setUsers((prev) => prev.map((u) => (u.id === target.id ? (body as AuthUser) : u)))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Changement de rôle impossible')
+    } finally {
+      setUsersBusy(false)
+    }
+  }
+
   async function recomputeCadence() {
     setCadenceBusy(true)
     setSyncMessage(null)
     setError(null)
     try {
-      const res = await fetch('/api/activities/recompute-cadence', { method: 'POST' })
+      const res = await apiFetch('/api/activities/recompute-cadence', { method: 'POST' })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
         throw new Error(
@@ -190,7 +197,7 @@ export function AdminPage() {
     setSyncMessage(null)
     setError(null)
     try {
-      const res = await fetch('/api/activities/recompute-features?force=true', {
+      const res = await apiFetch('/api/activities/recompute-features?force=true', {
         method: 'POST',
       })
       const body = await res.json().catch(() => ({}))
@@ -210,7 +217,7 @@ export function AdminPage() {
   async function clearSessionTypes() {
     if (
       !window.confirm(
-        'Effacer tous les types de séance attribués ? Les activités repasseront en « Non classé ».',
+        'Effacer vos types de séance ? Vos activités repasseront en « Non classé ».',
       )
     ) {
       return
@@ -219,7 +226,7 @@ export function AdminPage() {
     setSyncMessage(null)
     setError(null)
     try {
-      const res = await fetch('/api/activities/clear-session-types', { method: 'POST' })
+      const res = await apiFetch('/api/admin/me/clear-session-types', { method: 'POST' })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
         throw new Error(
@@ -243,7 +250,7 @@ export function AdminPage() {
     try {
       const form = new FormData()
       form.append('file', file)
-      const res = await fetch('/api/apple-health/import?auto_link=true&auto_promote=true', {
+      const res = await apiFetch('/api/apple-health/import?auto_link=true&auto_promote=true', {
         method: 'POST',
         body: form,
       })
@@ -267,7 +274,7 @@ export function AdminPage() {
     setAppleBusy(true)
     setError(null)
     try {
-      const res = await fetch(`/api/apple-health/workouts/${workoutId}/link`, {
+      const res = await apiFetch(`/api/apple-health/workouts/${workoutId}/link`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ activity_id: activityId }),
@@ -310,7 +317,7 @@ export function AdminPage() {
     setAppleBusy(true)
     setError(null)
     try {
-      const res = await fetch(`/api/apple-health/workouts/${workoutId}/promote`, {
+      const res = await apiFetch(`/api/apple-health/workouts/${workoutId}/promote`, {
         method: 'POST',
       })
       const body = await res.json().catch(() => ({}))
@@ -346,20 +353,74 @@ export function AdminPage() {
     <>
       <header className="page-hero">
         <h1>Admin</h1>
-        <p>Connexion Strava, synchronisation et paramètres du coach IA.</p>
+        <p>Utilisateurs, modèles Ollama, sync de vos données et resets.</p>
       </header>
 
       {error && <p className="banner error">{error}</p>}
-      {queryMessage && <p className="banner ok">{queryMessage}</p>}
       {syncMessage && <p className="banner ok">{syncMessage}</p>}
       {settingsMessage && <p className="banner ok">{settingsMessage}</p>}
       {appleMessage && <p className="banner ok">{appleMessage}</p>}
 
       <div className="admin-grid">
-        <section className="admin-card">
-          <h2>Strava</h2>
+        <section className="admin-card admin-span">
+          <h2>Utilisateurs</h2>
           <p className="muted">
-            Importe les activités, streams GPS et enrichit la météo (quota limité par passage).
+            Comptes arrivés via Strava. Le premier compte devient admin ; vous pouvez ensuite
+            promouvoir d’autres utilisateurs.
+          </p>
+          <div className="admin-users-table-wrap">
+            <table className="admin-users-table">
+              <thead>
+                <tr>
+                  <th>Nom</th>
+                  <th>Athlete ID</th>
+                  <th>Rôle</th>
+                  <th>Dernière connexion</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {users.map((u) => {
+                  const name =
+                    u.display_name ||
+                    [u.firstname, u.lastname].filter(Boolean).join(' ') ||
+                    `User #${u.id}`
+                  const isSelf = me?.id === u.id
+                  return (
+                    <tr key={u.id}>
+                      <td>
+                        {name}
+                        {isSelf ? ' (vous)' : ''}
+                      </td>
+                      <td>{u.strava_athlete_id}</td>
+                      <td>{u.role}</td>
+                      <td>
+                        {u.last_login_at
+                          ? new Date(u.last_login_at).toLocaleString('fr-FR')
+                          : '—'}
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="btn btn-small btn-ghost"
+                          disabled={usersBusy || (isSelf && u.role === 'admin')}
+                          onClick={() => void toggleAdmin(u)}
+                        >
+                          {u.role === 'admin' ? 'Retirer admin' : 'Promouvoir admin'}
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="admin-card">
+          <h2>Strava (vos données)</h2>
+          <p className="muted">
+            Sync de votre compte uniquement. La connexion Strava se fait via la page Login.
           </p>
           <dl className="kv">
             <div>
@@ -375,26 +436,16 @@ export function AdminPage() {
               <dt>Athlète</dt>
               <dd>{strava?.athlete_name ?? '—'}</dd>
             </div>
-            <div>
-              <dt>Athlete ID</dt>
-              <dd>{strava?.athlete_id ?? '—'}</dd>
-            </div>
           </dl>
           <div className="admin-actions">
-            {strava?.connected ? (
-              <button type="button" className="btn" onClick={() => void runSync()} disabled={busy}>
-                {busy ? 'Sync…' : 'Synchroniser'}
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="btn"
-                onClick={() => void connectStrava()}
-                disabled={busy}
-              >
-                Connecter Strava
-              </button>
-            )}
+            <button
+              type="button"
+              className="btn"
+              onClick={() => void runSync()}
+              disabled={busy || !strava?.connected}
+            >
+              {busy ? 'Sync…' : 'Synchroniser'}
+            </button>
           </div>
         </section>
 
@@ -415,10 +466,7 @@ export function AdminPage() {
 
         <section className="admin-card">
           <h2>Cadence</h2>
-          <p className="muted">
-            Strava envoie la cadence en RPM (un pied). Conversion en PPM (×2) ; si la moyenne
-            manque, le stream est utilisé. Recalcul local — pas besoin de resync.
-          </p>
+          <p className="muted">Recalcul local de vos cadences — pas besoin de resync.</p>
           <div className="admin-actions">
             <button
               type="button"
@@ -434,8 +482,7 @@ export function AdminPage() {
         <section className="admin-card">
           <h2>Features séance</h2>
           <p className="muted">
-            Recalcule splits, zones FC, TRIMP, dérive et intervalles à partir des streams et du
-            profil. Déjà lancé après Sync ; utile après import historique ou changement de zones.
+            Recalcule splits, zones FC, TRIMP pour vos activités.
           </p>
           <div className="admin-actions">
             <button
@@ -451,10 +498,7 @@ export function AdminPage() {
 
         <section className="admin-card">
           <h2>Types de séance</h2>
-          <p className="muted">
-            Remet toutes les activités en « Non classé ». Utile avant une nouvelle classification
-            manuelle ou via suggestion.
-          </p>
+          <p className="muted">Remet vos activités en « Non classé ».</p>
           <div className="admin-actions">
             <button
               type="button"
@@ -462,7 +506,7 @@ export function AdminPage() {
               onClick={() => void clearSessionTypes()}
               disabled={clearTypesBusy}
             >
-              {clearTypesBusy ? 'Effacement…' : 'Effacer tous les types'}
+              {clearTypesBusy ? 'Effacement…' : 'Effacer vos types'}
             </button>
           </div>
         </section>
@@ -470,10 +514,7 @@ export function AdminPage() {
         <section className="admin-card admin-span">
           <h2>Import Apple Santé</h2>
           <p className="muted">
-            iPhone → Santé → profil → Exporter les données Santé → uploader le ZIP ici. Les
-            workouts course/marche sont matchés à Strava (candidats). Lien haute confiance
-            automatique ; sinon enrichissement des trous seulement, ou création d’une activité
-            Apple.
+            Export ZIP iPhone → matching Strava sur vos données uniquement.
           </p>
           <div className="admin-actions">
             <label className={`btn ${appleBusy ? 'is-disabled' : ''}`}>
@@ -562,8 +603,7 @@ export function AdminPage() {
         <section className="admin-card admin-span">
           <h2>Modèle IA (coach)</h2>
           <p className="muted">
-            Choisissez 7B (VM ~16 Go) ou 14B (recommandé, ~32 Go), enregistrez, puis téléchargez
-            le modèle. Ensuite ouvrez la page Coach.
+            Réglage instance : 7B (~16 Go) ou 14B (~32 Go). Réservé admin.
           </p>
           {coachStatus && (
             <dl className="kv">

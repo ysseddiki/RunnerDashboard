@@ -30,8 +30,10 @@ services:
       PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost}
       STRAVA_CLIENT_ID: ${STRAVA_CLIENT_ID:-}
       STRAVA_CLIENT_SECRET: ${STRAVA_CLIENT_SECRET:-}
-      STRAVA_REDIRECT_URI: ${STRAVA_REDIRECT_URI:-http://localhost/api/strava/callback}
+      STRAVA_REDIRECT_URI: ${STRAVA_REDIRECT_URI:-http://localhost/api/auth/strava/callback}
       STRAVA_SCOPES: ${STRAVA_SCOPES:-read,activity:read_all,profile:read_all}
+      SESSION_SECRET: ${SESSION_SECRET:-dev-change-me-runningdashboard-session}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:14b}
       OLLAMA_CHAT_TIMEOUT_S: ${OLLAMA_CHAT_TIMEOUT_S:-600}

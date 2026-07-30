@@ -27,18 +27,18 @@ Réponds UNIQUEMENT avec JSON :
 """
 
 
-def _get_row(db: Session) -> CoachPlan:
-    row = db.get(CoachPlan, 1)
+def _get_row(db: Session, user_id: int) -> CoachPlan:
+    row = db.get(CoachPlan, user_id)
     if row is None:
-        row = CoachPlan(id=1, status="empty", plan_json=[])
+        row = CoachPlan(user_id=user_id, status="empty", plan_json=[])
         db.add(row)
         db.commit()
         db.refresh(row)
     return row
 
 
-def get_plan(db: Session, *, with_adherence: bool = True) -> dict[str, Any]:
-    row = _get_row(db)
+def get_plan(db: Session, user_id: int, *, with_adherence: bool = True) -> dict[str, Any]:
+    row = _get_row(db, user_id)
     payload = {
         "status": row.status,
         "model": row.model,
@@ -52,7 +52,7 @@ def get_plan(db: Session, *, with_adherence: bool = True) -> dict[str, Any]:
         try:
             from app.services.plan_adherence import build_adherence
 
-            payload["adherence"] = build_adherence(db)
+            payload["adherence"] = build_adherence(db, user_id)
         except Exception:
             logger.exception("Adhérence plan indisponible")
             payload["adherence"] = {
@@ -62,8 +62,10 @@ def get_plan(db: Session, *, with_adherence: bool = True) -> dict[str, Any]:
     return payload
 
 
-def refresh_plan(db: Session, env: Settings, *, reason: str = "manual") -> dict[str, Any]:
-    row = _get_row(db)
+def refresh_plan(
+    db: Session, env: Settings, user_id: int, *, reason: str = "manual"
+) -> dict[str, Any]:
+    row = _get_row(db, user_id)
     row.status = "running"
     row.error = None
     db.commit()
@@ -76,8 +78,8 @@ def refresh_plan(db: Session, env: Settings, *, reason: str = "manual") -> dict[
         if not client.model_installed(model):
             raise OllamaError(f"Modèle {model} non installé")
 
-        context = build_coach_context(db, recent_limit=10)
-        profile = profile_service.profile_payload(db)
+        context = build_coach_context(db, user_id, recent_limit=10)
+        profile = profile_service.profile_payload(db, user_id)
         pack = knowledge.load_pack()
         user_message = (
             f"Raison refresh : {reason}\n\n"
@@ -103,7 +105,8 @@ def refresh_plan(db: Session, env: Settings, *, reason: str = "manual") -> dict[
         row.error = None
         db.commit()
         logger.info(
-            "Plan coach rafraîchi | reason=%s | model=%s | items=%s",
+            "Plan coach rafraîchi | user_id=%s | reason=%s | model=%s | items=%s",
+            user_id,
             reason,
             model,
             len(parsed["plan"]),
@@ -112,7 +115,7 @@ def refresh_plan(db: Session, env: Settings, *, reason: str = "manual") -> dict[
         row.status = "error"
         row.error = str(exc)
         db.commit()
-        logger.exception("Échec refresh plan | reason=%s", reason)
+        logger.exception("Échec refresh plan | user_id=%s | reason=%s", user_id, reason)
         raise
 
-    return get_plan(db)
+    return get_plan(db, user_id)

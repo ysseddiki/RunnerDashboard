@@ -295,10 +295,11 @@ def build_hr_weather_at_pace(rows: list[Activity]) -> dict[str, Any]:
     }
 
 
-def build_overview(db: Session) -> dict[str, Any]:
+def build_overview(db: Session, user_id: int) -> dict[str, Any]:
     all_rows = list(
         db.scalars(
             select(Activity)
+            .where(Activity.user_id == user_id)
             .where(Activity.start_date.is_not(None))
             .order_by(Activity.start_date.asc())
         ).all()
@@ -496,7 +497,7 @@ def build_overview(db: Session) -> dict[str, Any]:
 
     from app.services.training_load import build_form_snapshot
 
-    form = build_form_snapshot(db, now=now)
+    form = build_form_snapshot(db, user_id, now=now)
 
     return {
         "category": category,

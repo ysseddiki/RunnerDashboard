@@ -32,13 +32,16 @@ def _fmt_pace(sec: float | None) -> str | None:
     return f"{mm}:{ss:02d}/km"
 
 
-def build_coach_context(db: Session, *, recent_limit: int = 12) -> dict[str, Any]:
-    predictions = build_predictions_overview(db)
-    analytics = build_overview(db)
+def build_coach_context(
+    db: Session, user_id: int, *, recent_limit: int = 12
+) -> dict[str, Any]:
+    predictions = build_predictions_overview(db, user_id)
+    analytics = build_overview(db, user_id)
 
     rows = list(
         db.scalars(
             select(Activity)
+            .where(Activity.user_id == user_id)
             .where(Activity.start_date.is_not(None))
             .order_by(Activity.start_date.desc())
             .limit(recent_limit)
@@ -150,7 +153,7 @@ def build_coach_context(db: Session, *, recent_limit: int = 12) -> dict[str, Any
     try:
         from app.services.plan_adherence import build_adherence
 
-        adherence_raw = build_adherence(db)
+        adherence_raw = build_adherence(db, user_id)
         adherence_compact = {
             "available": adherence_raw.get("available"),
             "adherence_pct": adherence_raw.get("adherence_pct"),

@@ -80,10 +80,11 @@ def _finish_seconds(activity: Activity) -> float | None:
     return pace * km
 
 
-def _load_activities(db: Session) -> list[Activity]:
+def _load_activities(db: Session, user_id: int) -> list[Activity]:
     return list(
         db.scalars(
             select(Activity)
+            .where(Activity.user_id == user_id)
             .where(Activity.start_date.is_not(None))
             .order_by(Activity.start_date.asc())
         ).all()
@@ -374,8 +375,8 @@ def _trend_10k(rows: list[Activity], *, weeks: int = 12) -> list[dict[str, Any]]
     return points
 
 
-def build_predictions_overview(db: Session) -> dict[str, Any]:
-    rows = _load_activities(db)
+def build_predictions_overview(db: Session, user_id: int) -> dict[str, Any]:
+    rows = _load_activities(db, user_id)
     warnings: list[str] = []
     now = datetime.now(timezone.utc)
 
@@ -412,7 +413,7 @@ def build_predictions_overview(db: Session) -> dict[str, Any]:
             "warnings": warnings
             + ["Impossible de calculer une ancre d’allure."],
             "activities_considered": len(rows),
-            "insights": build_analytics_overview(db),
+            "insights": build_analytics_overview(db, user_id),
         }
 
     pace_10 = next((e["pace_sec_per_km"] for e in core["estimates"] if e["id"] == "10k"), None)
@@ -444,7 +445,7 @@ def build_predictions_overview(db: Session) -> dict[str, Any]:
                     f"Allure 10 km estimée {direction} de {abs(delta_pct):.1f} % sur la fenêtre tendance."
                 )
 
-    insights = build_analytics_overview(db)
+    insights = build_analytics_overview(db, user_id)
 
     return {
         "available": True,

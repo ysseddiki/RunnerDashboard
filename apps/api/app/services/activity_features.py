@@ -580,7 +580,7 @@ def apply_features(
     from app.services import athlete_profile as profile_service
 
     if zones is None:
-        profile = profile_service.get_or_create_profile(db)
+        profile = profile_service.get_or_create_profile(db, activity.user_id)
         zones = profile_service.compute_zones(profile)
 
     profile_fp = profile_fingerprint(zones)
@@ -600,6 +600,7 @@ def apply_features(
 
 def recompute_features_batch(
     db: Session,
+    user_id: int,
     *,
     force: bool = False,
     limit: int | None = None,
@@ -608,10 +609,14 @@ def recompute_features_batch(
     from app.models import Activity
     from app.services import athlete_profile as profile_service
 
-    profile = profile_service.get_or_create_profile(db)
+    profile = profile_service.get_or_create_profile(db, user_id)
     zones = profile_service.compute_zones(profile)
 
-    stmt = select(Activity).order_by(Activity.start_date.desc().nullslast())
+    stmt = (
+        select(Activity)
+        .where(Activity.user_id == user_id)
+        .order_by(Activity.start_date.desc().nullslast())
+    )
     if limit is not None:
         stmt = stmt.limit(limit)
     rows = list(db.scalars(stmt).all())

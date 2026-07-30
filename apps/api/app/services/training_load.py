@@ -78,6 +78,7 @@ def _day_key(dt: datetime) -> date:
 
 def build_series(
     db: Session,
+    user_id: int,
     *,
     days: int = DEFAULT_SERIES_DAYS,
     now: datetime | None = None,
@@ -97,6 +98,7 @@ def build_series(
     rows = list(
         db.scalars(
             select(Activity)
+            .where(Activity.user_id == user_id)
             .where(Activity.start_date.is_not(None))
             .where(Activity.start_date >= datetime.combine(calc_start, datetime.min.time(), tzinfo=timezone.utc))
             .order_by(Activity.start_date.asc())
@@ -187,9 +189,11 @@ def build_series(
     }
 
 
-def build_form_snapshot(db: Session, *, now: datetime | None = None) -> dict[str, Any]:
+def build_form_snapshot(
+    db: Session, user_id: int, *, now: datetime | None = None
+) -> dict[str, Any]:
     """Snapshot forme pour overview (sans série complète)."""
-    payload = build_series(db, days=DEFAULT_SERIES_DAYS, now=now)
+    payload = build_series(db, user_id, days=DEFAULT_SERIES_DAYS, now=now)
     if not payload["available"] or not payload.get("form"):
         return {
             "available": False,

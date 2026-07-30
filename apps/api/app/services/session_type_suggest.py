@@ -210,12 +210,13 @@ def _ai_refine(
 
 def suggest_for_activity(
     db: Session,
+    user_id: int,
     activity: Activity,
     *,
     env: Settings | None = None,
     use_ai: bool = False,
 ) -> dict[str, Any]:
-    overview = build_predictions_overview(db)
+    overview = build_predictions_overview(db, user_id)
     pace_10k = None
     if overview.get("available"):
         pace_10k = _pace_10k_from_overview(overview)
@@ -236,20 +237,26 @@ def suggest_for_activity(
 
 def suggest_batch(
     db: Session,
+    user_id: int,
     *,
     env: Settings | None = None,
     use_ai: bool = False,
     untagged_only: bool = True,
     limit: int = 20,
 ) -> dict[str, Any]:
-    stmt = select(Activity).order_by(Activity.start_date.desc().nullslast()).limit(200)
+    stmt = (
+        select(Activity)
+        .where(Activity.user_id == user_id)
+        .order_by(Activity.start_date.desc().nullslast())
+        .limit(200)
+    )
     rows = list(db.scalars(stmt).all())
     if untagged_only:
         rows = [a for a in rows if not a.session_type]
     rows = rows[: max(1, min(limit, 50))]
 
     # Précharger overview une fois
-    overview = build_predictions_overview(db)
+    overview = build_predictions_overview(db, user_id)
     pace_10k = _pace_10k_from_overview(overview) if overview.get("available") else None
 
     suggestions = []

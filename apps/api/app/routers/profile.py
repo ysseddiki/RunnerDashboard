@@ -8,7 +8,9 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
+from app import auth as auth_service
 from app.db import get_db
+from app.models import User
 from app.services import athlete_profile as profile_service
 
 router = APIRouter(prefix="/api/profile", tags=["profile"])
@@ -37,11 +39,18 @@ class ProfileUpdate(BaseModel):
 
 
 @router.get("")
-def get_profile(db: Session = Depends(get_db)) -> dict:
-    return profile_service.profile_payload(db)
+def get_profile(
+    user: User = Depends(auth_service.require_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    return profile_service.profile_payload(db, user.id)
 
 
 @router.put("")
-def put_profile(body: ProfileUpdate, db: Session = Depends(get_db)) -> dict:
+def put_profile(
+    body: ProfileUpdate,
+    user: User = Depends(auth_service.require_user),
+    db: Session = Depends(get_db),
+) -> dict:
     data = body.model_dump(exclude_unset=True)
-    return profile_service.update_profile(db, data)
+    return profile_service.update_profile(db, user.id, data)

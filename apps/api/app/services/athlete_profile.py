@@ -30,10 +30,10 @@ PROFILE_FIELDS = (
 )
 
 
-def get_or_create_profile(db: Session) -> AthleteProfile:
-    row = db.get(AthleteProfile, 1)
+def get_or_create_profile(db: Session, user_id: int) -> AthleteProfile:
+    row = db.get(AthleteProfile, user_id)
     if row is None:
-        row = AthleteProfile(id=1)
+        row = AthleteProfile(user_id=user_id)
         db.add(row)
         db.commit()
         db.refresh(row)
@@ -168,6 +168,7 @@ def _values_equal(a: Any, b: Any) -> bool:
 
 def _append_history(db: Session, row: AthleteProfile) -> None:
     snap = AthleteProfileHistory(
+        user_id=row.user_id,
         recorded_at=datetime.now(timezone.utc),
         birth_date=row.birth_date,
         age_years=_profile_age(row),
@@ -181,9 +182,10 @@ def _append_history(db: Session, row: AthleteProfile) -> None:
     db.add(snap)
 
 
-def list_history(db: Session, *, limit: int = 50) -> list[dict[str, Any]]:
+def list_history(db: Session, user_id: int, *, limit: int = 50) -> list[dict[str, Any]]:
     rows = db.scalars(
         select(AthleteProfileHistory)
+        .where(AthleteProfileHistory.user_id == user_id)
         .order_by(AthleteProfileHistory.recorded_at.desc())
         .limit(limit)
     ).all()
@@ -206,8 +208,8 @@ def list_history(db: Session, *, limit: int = 50) -> list[dict[str, Any]]:
     return out
 
 
-def profile_payload(db: Session) -> dict[str, Any]:
-    row = get_or_create_profile(db)
+def profile_payload(db: Session, user_id: int) -> dict[str, Any]:
+    row = get_or_create_profile(db, user_id)
     zones = compute_zones(row)
     vo2 = estimate_vo2max(row)
     return {
@@ -215,17 +217,16 @@ def profile_payload(db: Session) -> dict[str, Any]:
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
         "zones": zones,
         "vo2max": vo2,
-        "history": list_history(db),
+        "history": list_history(db, user_id),
     }
 
 
-def update_profile(db: Session, data: dict[str, Any]) -> dict[str, Any]:
-    row = get_or_create_profile(db)
+def update_profile(db: Session, user_id: int, data: dict[str, Any]) -> dict[str, Any]:
+    row = get_or_create_profile(db, user_id)
     before = {k: getattr(row, k) for k in PROFILE_FIELDS}
 
     if "birth_date" in data:
         row.birth_date = _parse_birth_date(data["birth_date"])
-        # Keep legacy age column in sync when DOB is set.
         row.age = _profile_age(row)
 
     for key in ("weight_kg", "height_cm", "sex", "resting_hr", "max_hr", "goal_text"):
@@ -239,10 +240,9 @@ def update_profile(db: Session, data: dict[str, Any]) -> dict[str, Any]:
     db.commit()
     db.refresh(row)
 
-    # Recalcul features si zones FC impactées
     from app.services import activity_features as features_service
 
     if features_service.zones_fields_changed(before, row):
-        features_service.recompute_features_batch(db, force=True)
+        features_service.recompute_features_batch(db, user_id, force=True)
 
-    return profile_payload(db)
+    return profile_payload(db, user_id)

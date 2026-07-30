@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { apiFetch } from '../auth'
 
 type HistoryEntry = {
   id: number
@@ -90,7 +91,7 @@ export function ProfilePage() {
   }
 
   function load() {
-    void fetch('/api/profile')
+    void apiFetch('/api/profile')
       .then(async (pRes) => {
         if (!pRes.ok) throw new Error(`Profil HTTP ${pRes.status}`)
         return (await pRes.json()) as Profile
@@ -119,7 +120,7 @@ export function ProfilePage() {
         max_hr: form.max_hr ? Number(form.max_hr) : null,
         goal_text: form.goal_text || null,
       }
-      const res = await fetch('/api/profile', {
+      const res = await apiFetch('/api/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),

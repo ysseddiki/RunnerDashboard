@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { sessionToneClass } from '../sessionTone'
 import { useSessionTypes } from '../useSessionTypes'
+import { apiFetch } from '../auth'
 
 type Suggestion = {
   suggested_session_type: string
@@ -42,7 +43,7 @@ export function SessionTypePicker({ activityId, value, onSaved, children }: Prop
     setSaving(true)
     setError(null)
     try {
-      const res = await fetch(`/api/activities/${activityId}`, {
+      const res = await apiFetch(`/api/activities/${activityId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ session_type: next || null }),
@@ -77,7 +78,7 @@ export function SessionTypePicker({ activityId, value, onSaved, children }: Prop
     setSuggesting(true)
     setError(null)
     try {
-      const res = await fetch(`/api/activities/${activityId}/suggest-session-type`, {
+      const res = await apiFetch(`/api/activities/${activityId}/suggest-session-type`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ use_ai: false }),

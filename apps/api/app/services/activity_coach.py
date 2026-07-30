@@ -107,9 +107,13 @@ def insight_hints(session_type: str | None) -> list[dict[str, str]]:
     ]
 
 
-def analyze_activity(db: Session, env: Settings, activity_id: int) -> dict[str, Any]:
+def analyze_activity(
+    db: Session, env: Settings, user_id: int, activity_id: int
+) -> dict[str, Any]:
     activity = db.get(Activity, activity_id)
     if activity is None:
+        raise ValueError(f"Activité {activity_id} introuvable")
+    if activity.user_id != user_id:
         raise ValueError(f"Activité {activity_id} introuvable")
 
     model = settings_service.get_ollama_model(db, env)
@@ -149,10 +153,13 @@ def analyze_activity(db: Session, env: Settings, activity_id: int) -> dict[str, 
     return payload
 
 
-def analyze_missing(db: Session, env: Settings, *, limit: int = 3) -> int:
+def analyze_missing(
+    db: Session, env: Settings, user_id: int, *, limit: int = 3
+) -> int:
     rows = list(
         db.scalars(
             select(Activity)
+            .where(Activity.user_id == user_id)
             .where(Activity.coach_analysis_json.is_(None))
             .order_by(Activity.start_date.desc())
             .limit(limit)
@@ -161,7 +168,7 @@ def analyze_missing(db: Session, env: Settings, *, limit: int = 3) -> int:
     done = 0
     for activity in rows:
         try:
-            analyze_activity(db, env, activity.id)
+            analyze_activity(db, env, user_id, activity.id)
             done += 1
         except Exception:
             logger.exception("Échec analyse activité | id=%s", activity.id)

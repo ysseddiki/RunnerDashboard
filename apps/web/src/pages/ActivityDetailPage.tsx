@@ -10,6 +10,7 @@ import { StreamCharts } from '../components/StreamCharts'
 import { SessionInsights, FeatureTables } from '../components/SessionInsights'
 import { SessionTypePicker } from '../components/SessionTypePicker'
 import { TerrainPicker } from '../components/TerrainPicker'
+import { apiFetch } from '../auth'
 
 type AppleLinkInfo = {
   activity_id: number
@@ -34,7 +35,7 @@ export function ActivityDetailPage() {
   const [analyzeBusy, setAnalyzeBusy] = useState(false)
 
   function loadAppleLink(activityId: number) {
-    return fetch(`/api/apple-health/activities/${activityId}/link`)
+    return apiFetch(`/api/apple-health/activities/${activityId}/link`)
       .then(async (res) => {
         if (!res.ok) return null
         return (await res.json()) as AppleLinkInfo
@@ -48,7 +49,7 @@ export function ActivityDetailPage() {
     let cancelled = false
     setLoading(true)
     setError(null)
-    void fetch(`/api/activities/${id}`)
+    void apiFetch(`/api/activities/${id}`)
       .then(async (res) => {
         if (!res.ok) throw new Error(`Détail HTTP ${res.status}`)
         return (await res.json()) as ActivityDetail
@@ -78,7 +79,7 @@ export function ActivityDetailPage() {
     setAppleBusy(true)
     setError(null)
     try {
-      const res = await fetch(`/api/apple-health/workouts/${workoutId}/link`, {
+      const res = await apiFetch(`/api/apple-health/workouts/${workoutId}/link`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ activity_id: activityId }),
@@ -87,7 +88,7 @@ export function ActivityDetailPage() {
       if (!res.ok) {
         throw new Error(typeof body.detail === 'string' ? body.detail : `Lien HTTP ${res.status}`)
       }
-      const refreshed = await fetch(`/api/activities/${activityId}`)
+      const refreshed = await apiFetch(`/api/activities/${activityId}`)
       if (refreshed.ok) setDetail((await refreshed.json()) as ActivityDetail)
       await loadAppleLink(activityId)
     } catch (err) {
@@ -102,14 +103,14 @@ export function ActivityDetailPage() {
     setAppleBusy(true)
     setError(null)
     try {
-      const res = await fetch(`/api/apple-health/workouts/${workoutId}/unlink`, {
+      const res = await apiFetch(`/api/apple-health/workouts/${workoutId}/unlink`, {
         method: 'POST',
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         throw new Error(typeof body.detail === 'string' ? body.detail : `Unlink HTTP ${res.status}`)
       }
-      const refreshed = await fetch(`/api/activities/${activityId}`)
+      const refreshed = await apiFetch(`/api/activities/${activityId}`)
       if (refreshed.ok) setDetail((await refreshed.json()) as ActivityDetail)
       await loadAppleLink(activityId)
     } catch (err) {
@@ -216,7 +217,7 @@ export function ActivityDetailPage() {
                     setAnalyzeBusy(true)
                     setError(null)
                     try {
-                      const res = await fetch(`/api/coach/activities/${activityId}/analyze`, {
+                      const res = await apiFetch(`/api/coach/activities/${activityId}/analyze`, {
                         method: 'POST',
                       })
                       const body = await res.json().catch(() => ({}))

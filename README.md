@@ -30,11 +30,33 @@ Accès :
 
 Les logs API : `/var/log/running-dashboards/host-logs/`.
 
+### Auth Strava + multi-profils
+
+Login obligatoire via Strava. Chaque compte a ses activités / profil / plan isolés.
+Rôles : `user` (défaut) et `admin`. **Le premier compte** qui se connecte devient admin ; les admins
+peuvent ensuite promouvoir d’autres utilisateurs (page Admin → Utilisateurs).
+
+Variables `.env` importantes :
+- `SESSION_SECRET` — secret de signature du cookie de session (changez en production)
+- `STRAVA_REDIRECT_URI` — doit pointer vers `/api/auth/strava/callback`
+- `SESSION_COOKIE_SECURE=true` si l’app n’est servie qu’en HTTPS
+
+### Reset base neuve (recommandé après passage multi-user)
+
+L’auth multi-user part d’un schéma neuf (pas de migration du singleton `id=1`). Pour repartir à zéro :
+
+```bash
+docker compose -f infra/docker-compose.yml --env-file .env down -v
+docker compose -f infra/docker-compose.yml --env-file .env up --build -d
+```
+
+`-v` supprime les volumes Postgres (données perdues). Puis reconnectez-vous via Strava (page Login).
+
 ### Strava
 
 1. Créer une app sur [Strava API](https://www.strava.com/settings/api)
 2. **Authorization Callback Domain** = hôte sans `http://` (ex. `localhost` ou votre IP)
-3. Renseigner dans `.env` : `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_REDIRECT_URI` (`http://VOTRE_IP/api/strava/callback`), `PUBLIC_APP_URL`
+3. Renseigner dans `.env` : `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_REDIRECT_URI` (`http://VOTRE_IP/api/auth/strava/callback`), `PUBLIC_APP_URL`, `SESSION_SECRET`
 
 ### Intégration du modèle IA (P4)
 
@@ -60,9 +82,10 @@ Sur les activités, **Suggérer** propose un type de séance (règles ; confirma
 ## Usage
 
 1. Démarrer la stack.
-2. **Admin** → Connecter Strava → Synchroniser.
-3. (Optionnel) **Admin** → Import Apple Santé : uploader le ZIP d’export iPhone (Santé → profil → Exporter). Matching Strava + enrichissement des trous (pas d’écrasement) ; sans match → activité Apple.
-4. Consulter Activités / Prévisions / Coach.
+2. Ouvrir l’app → **Continuer avec Strava** (premier compte = admin).
+3. Accueil → **Synchroniser Strava**.
+4. (Optionnel, admin) **Admin** → Import Apple Santé / modèles Ollama / promotion d’admins.
+5. Consulter Activités / Prévisions / Coach / Profil.
 
 Arrêt :
 

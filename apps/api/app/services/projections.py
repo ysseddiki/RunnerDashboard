@@ -11,9 +11,9 @@ from app.services import analytics as analytics_service
 from app.services import predictions as predictions_service
 
 
-def build_projection(db: Session) -> dict[str, Any]:
-    overview = analytics_service.build_overview(db)
-    pred = predictions_service.build_predictions_overview(db)
+def build_projection(db: Session, user_id: int) -> dict[str, Any]:
+    overview = analytics_service.build_overview(db, user_id)
+    pred = predictions_service.build_predictions_overview(db, user_id)
     weekly = overview.get("weekly_volume") or []
     trend = pred.get("trend_10k") or []
 

@@ -338,7 +338,9 @@ def warmup_configured_model(db: Session, env: Settings) -> dict[str, Any]:
     }
 
 
-def advise(db: Session, env: Settings, *, question: str | None = None) -> dict[str, Any]:
+def advise(
+    db: Session, env: Settings, user_id: int, *, question: str | None = None
+) -> dict[str, Any]:
     model = settings_service.get_ollama_model(db, env)
     client = OllamaClient(env.ollama_base_url)
     if not client.is_reachable():
@@ -348,7 +350,7 @@ def advise(db: Session, env: Settings, *, question: str | None = None) -> dict[s
             f"Modèle {model} non installé | action=Admin_télécharger_le_modèle_ou_pull_cli"
         )
 
-    context = build_coach_context(db, recent_limit=8)
+    context = build_coach_context(db, user_id, recent_limit=8)
     pack = knowledge.load_pack(max_chars=6000)
     question_text = (question or "").strip() or (
         "Analyse ma forme et mes prévisions d'allure. "

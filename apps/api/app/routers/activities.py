@@ -7,9 +7,10 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
+from app import auth as auth_service
 from app.config import Settings, get_settings
 from app.db import get_db
-from app.models import Activity
+from app.models import Activity, User
 from app.services import session_type_suggest as suggest_service
 from app.services import sync as sync_service
 from app.services.session_types import SESSION_TYPES
@@ -57,6 +58,13 @@ class ClearSessionTypesResult(BaseModel):
     message: str
 
 
+def _owned_activity(db: Session, user_id: int, activity_id: int) -> Activity:
+    row = db.get(Activity, activity_id)
+    if row is None or row.user_id != user_id:
+        raise HTTPException(status_code=404, detail="Activité introuvable")
+    return row
+
+
 @router.get("/session-types", response_model=list[SessionTypeInfo])
 def list_session_types() -> list[SessionTypeInfo]:
     return [SessionTypeInfo(**item) for item in SESSION_TYPES]
@@ -68,10 +76,13 @@ def list_terrains() -> list[TerrainInfo]:
 
 
 @router.post("/clear-session-types", response_model=ClearSessionTypesResult)
-def clear_session_types(db: Session = Depends(get_db)) -> ClearSessionTypesResult:
+def clear_session_types(
+    user: User = Depends(auth_service.require_user),
+    db: Session = Depends(get_db),
+) -> ClearSessionTypesResult:
     result = db.execute(
         update(Activity)
-        .where(Activity.session_type.is_not(None))
+        .where(Activity.user_id == user.id, Activity.session_type.is_not(None))
         .values(session_type=None)
     )
     cleared = result.rowcount or 0
@@ -87,12 +98,14 @@ def clear_session_types(db: Session = Depends(get_db)) -> ClearSessionTypesResul
 @router.post("/suggest-session-types", response_model=SessionTypeSuggestBatchResponse)
 def suggest_session_types_batch(
     body: SessionTypeSuggestBatchRequest | None = None,
+    user: User = Depends(auth_service.require_user),
     db: Session = Depends(get_db),
     env: Settings = Depends(get_settings),
 ) -> SessionTypeSuggestBatchResponse:
     req = body or SessionTypeSuggestBatchRequest()
     result = suggest_service.suggest_batch(
         db,
+        user.id,
         env=env,
         use_ai=req.use_ai,
         untagged_only=req.untagged_only,
@@ -102,8 +115,11 @@ def suggest_session_types_batch(
 
 
 @router.post("/recompute-cadence", response_model=CadenceRecomputeResult)
-def recompute_cadence(db: Session = Depends(get_db)) -> CadenceRecomputeResult:
-    stats = sync_service.recompute_cadence_from_local(db)
+def recompute_cadence(
+    user: User = Depends(auth_service.require_user),
+    db: Session = Depends(get_db),
+) -> CadenceRecomputeResult:
+    stats = sync_service.recompute_cadence_from_local(db, user.id)
     message = (
         f"Cadence locale : {stats['updated']} mise(s) à jour, "
         f"{stats['unchanged']} inchangée(s), {stats['still_missing']} sans cadence. "
@@ -117,13 +133,14 @@ def recompute_cadence(db: Session = Depends(get_db)) -> CadenceRecomputeResult:
 
 @router.post("/refresh-cadence-strava", response_model=CadenceRecomputeResult)
 def refresh_cadence_strava(
+    user: User = Depends(auth_service.require_user),
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
     max_activities: int = Query(25, ge=1, le=50),
 ) -> CadenceRecomputeResult:
     try:
         stats = sync_service.refresh_cadence_from_strava(
-            db, settings, max_activities=max_activities
+            db, settings, user.id, max_activities=max_activities
         )
     except StravaError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -147,11 +164,12 @@ def refresh_cadence_strava(
 @router.post("/recompute-features")
 def recompute_features(
     force: bool = Query(False),
+    user: User = Depends(auth_service.require_user),
     db: Session = Depends(get_db),
 ) -> dict:
     from app.services import activity_features as features_service
 
-    stats = features_service.recompute_features_batch(db, force=force)
+    stats = features_service.recompute_features_batch(db, user.id, force=force)
     message = (
         f"Features recalculées : {stats['updated']} mise(s) à jour, "
         f"{stats['skipped']} inchangée(s), {stats['errors']} erreur(s) "
@@ -163,10 +181,12 @@ def recompute_features(
 @router.get("", response_model=list[ActivitySummary])
 def list_activities(
     limit: int = Query(50, ge=1, le=200),
+    user: User = Depends(auth_service.require_user),
     db: Session = Depends(get_db),
 ) -> list[Activity]:
     stmt = (
         select(Activity)
+        .where(Activity.user_id == user.id)
         .order_by(Activity.start_date.desc().nullslast())
         .limit(limit)
     )
@@ -174,11 +194,12 @@ def list_activities(
 
 
 @router.get("/{activity_id}", response_model=ActivityDetail)
-def get_activity(activity_id: int, db: Session = Depends(get_db)) -> Activity:
-    row = db.get(Activity, activity_id)
-    if row is None:
-        raise HTTPException(status_code=404, detail="Activité introuvable")
-    return row
+def get_activity(
+    activity_id: int,
+    user: User = Depends(auth_service.require_user),
+    db: Session = Depends(get_db),
+) -> Activity:
+    return _owned_activity(db, user.id, activity_id)
 
 
 @router.post(
@@ -188,14 +209,15 @@ def get_activity(activity_id: int, db: Session = Depends(get_db)) -> Activity:
 def suggest_session_type(
     activity_id: int,
     body: SessionTypeSuggestRequest | None = None,
+    user: User = Depends(auth_service.require_user),
     db: Session = Depends(get_db),
     env: Settings = Depends(get_settings),
 ) -> SessionTypeSuggestResponse:
-    row = db.get(Activity, activity_id)
-    if row is None:
-        raise HTTPException(status_code=404, detail="Activité introuvable")
+    row = _owned_activity(db, user.id, activity_id)
     use_ai = body.use_ai if body else False
-    result = suggest_service.suggest_for_activity(db, row, env=env, use_ai=use_ai)
+    result = suggest_service.suggest_for_activity(
+        db, user.id, row, env=env, use_ai=use_ai
+    )
     return SessionTypeSuggestResponse.model_validate(result)
 
 
@@ -203,11 +225,10 @@ def suggest_session_type(
 def patch_activity(
     activity_id: int,
     body: ActivityUpdate,
+    user: User = Depends(auth_service.require_user),
     db: Session = Depends(get_db),
 ) -> Activity:
-    row = db.get(Activity, activity_id)
-    if row is None:
-        raise HTTPException(status_code=404, detail="Activité introuvable")
+    row = _owned_activity(db, user.id, activity_id)
 
     payload = body.model_dump(exclude_unset=True)
     session_changed = False

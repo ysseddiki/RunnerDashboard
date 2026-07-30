@@ -55,7 +55,7 @@ class TestBuildAdherence(unittest.TestCase):
     def test_empty_plan(self, mock_plan):
         mock_plan.return_value = {"plan": [], "updated_at": None}
         db = SimpleNamespace()
-        out = build_adherence(db, now=datetime(2026, 7, 25, tzinfo=timezone.utc))
+        out = build_adherence(db, 1, now=datetime(2026, 7, 25, tzinfo=timezone.utc))
         self.assertFalse(out["available"])
 
     @patch("app.services.plan_adherence._raw_plan")
@@ -88,6 +88,7 @@ class TestBuildAdherence(unittest.TestCase):
         act = _act(id=42)
         out = build_adherence(
             SimpleNamespace(),
+            1,
             now=datetime(2026, 7, 25, tzinfo=timezone.utc),
             activities=[act],
         )

@@ -1,23 +1,22 @@
 import { useEffect, useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
-import type { HealthResponse, StravaStatus } from '../types'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { apiFetch, logout } from '../auth'
+import { useAuth } from '../authContext'
+import type { HealthResponse } from '../types'
 
 export function Layout() {
+  const { user, setUser } = useAuth()
+  const navigate = useNavigate()
   const [health, setHealth] = useState<HealthResponse | null>(null)
-  const [strava, setStrava] = useState<StravaStatus | null>(null)
+  const [loggingOut, setLoggingOut] = useState(false)
 
   useEffect(() => {
     let cancelled = false
-    void Promise.all([fetch('/api/health'), fetch('/api/strava/status')])
-      .then(async ([healthRes, statusRes]) => {
-        if (!healthRes.ok || !statusRes.ok) return
-        const [h, s] = await Promise.all([
-          healthRes.json() as Promise<HealthResponse>,
-          statusRes.json() as Promise<StravaStatus>,
-        ])
-        if (cancelled) return
-        setHealth(h)
-        setStrava(s)
+    void apiFetch('/api/health')
+      .then(async (healthRes) => {
+        if (!healthRes.ok) return
+        const h = (await healthRes.json()) as HealthResponse
+        if (!cancelled) setHealth(h)
       })
       .catch(() => {
         /* statut non bloquant */
@@ -26,6 +25,22 @@ export function Layout() {
       cancelled = true
     }
   }, [])
+
+  async function onLogout() {
+    setLoggingOut(true)
+    try {
+      await logout()
+      setUser(null)
+      navigate('/login', { replace: true })
+    } finally {
+      setLoggingOut(false)
+    }
+  }
+
+  const displayName =
+    user?.display_name ||
+    [user?.firstname, user?.lastname].filter(Boolean).join(' ') ||
+    'Athlète'
 
   return (
     <div className="shell">
@@ -72,18 +87,9 @@ export function Layout() {
 
         <div className="topbar-aside">
           <div className="topbar-status" aria-label="État système">
-            <span
-              className="status-pill compact"
-              title={
-                strava?.connected
-                  ? `Strava connecté${strava.athlete_name ? ` — ${strava.athlete_name}` : ''}`
-                  : 'Strava déconnecté'
-              }
-            >
-              <span className={`status-dot ${strava?.connected ? 'on' : ''}`} />
-              <span className="status-pill-text">
-                {strava?.connected ? 'Strava' : 'Strava off'}
-              </span>
+            <span className="status-pill compact" title={displayName}>
+              <span className="status-dot on" />
+              <span className="status-pill-text">{displayName}</span>
             </span>
             {health && (
               <span
@@ -91,20 +97,28 @@ export function Layout() {
                 title={`API ${health.status} · ${health.palier} · ${health.version}`}
               >
                 <span className={`status-dot ${health.status === 'ok' ? 'on' : ''}`} />
-                <span className="status-pill-text">
-                  API · {health.palier}
-                </span>
+                <span className="status-pill-text">API · {health.palier}</span>
               </span>
             )}
           </div>
-          <NavLink
-            to="/admin"
-            className={({ isActive }) =>
-              isActive ? 'nav-link nav-admin active' : 'nav-link nav-admin'
-            }
+          {user?.role === 'admin' && (
+            <NavLink
+              to="/admin"
+              className={({ isActive }) =>
+                isActive ? 'nav-link nav-admin active' : 'nav-link nav-admin'
+              }
+            >
+              Admin
+            </NavLink>
+          )}
+          <button
+            type="button"
+            className="btn ghost compact"
+            onClick={() => void onLogout()}
+            disabled={loggingOut}
           >
-            Admin
-          </NavLink>
+            {loggingOut ? '…' : 'Logout'}
+          </button>
         </div>
       </header>
       <main className="page">

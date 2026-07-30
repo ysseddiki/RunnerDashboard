@@ -84,9 +84,12 @@ def link_workout(
         raise ValueError(
             "Impossible de lier vers une activité Apple-only ; choisissez une sortie Strava"
         )
+    if workout.user_id != activity.user_id:
+        raise ValueError("Activité et workout Apple appartiennent à des utilisateurs différents")
 
     other = db.scalar(
         select(AppleWorkout).where(
+            AppleWorkout.user_id == workout.user_id,
             AppleWorkout.activity_id == activity.id,
             AppleWorkout.id != workout.id,
         )
@@ -122,12 +125,18 @@ def unlink_workout(db: Session, workout: AppleWorkout) -> dict[str, Any]:
 
 def promote_to_activity(
     db: Session,
+    user_id: int,
     workout: AppleWorkout,
     *,
     commit: bool = True,
 ) -> Activity:
     """Crée une Activity source=apple si absente."""
-    existing = db.scalar(select(Activity).where(Activity.apple_uuid == workout.apple_uuid))
+    existing = db.scalar(
+        select(Activity).where(
+            Activity.user_id == user_id,
+            Activity.apple_uuid == workout.apple_uuid,
+        )
+    )
     if existing is not None:
         workout.activity_id = existing.id
         if commit:
@@ -142,7 +151,7 @@ def promote_to_activity(
             return linked
 
     athlete_id = 0
-    token = db.scalar(select(StravaToken).limit(1))
+    token = db.scalar(select(StravaToken).where(StravaToken.user_id == user_id).limit(1))
     if token is not None:
         athlete_id = token.athlete_id
 
@@ -158,6 +167,7 @@ def promote_to_activity(
         avg_speed = workout.distance_m / workout.duration_s
 
     activity = Activity(
+        user_id=user_id,
         strava_id=None,
         athlete_id=athlete_id,
         source="apple",
@@ -193,13 +203,16 @@ def promote_to_activity(
     return activity
 
 
-def upsert_workout(db: Session, payload: dict[str, Any]) -> tuple[AppleWorkout, bool]:
+def upsert_workout(db: Session, user_id: int, payload: dict[str, Any]) -> tuple[AppleWorkout, bool]:
     """Retourne (workout, created)."""
     existing = db.scalar(
-        select(AppleWorkout).where(AppleWorkout.apple_uuid == payload["apple_uuid"])
+        select(AppleWorkout).where(
+            AppleWorkout.user_id == user_id,
+            AppleWorkout.apple_uuid == payload["apple_uuid"],
+        )
     )
     if existing is None:
-        row = AppleWorkout(**payload)
+        row = AppleWorkout(user_id=user_id, **payload)
         db.add(row)
         db.flush()
         return row, True
@@ -224,6 +237,7 @@ def upsert_workout(db: Session, payload: dict[str, Any]) -> tuple[AppleWorkout, 
 
 def import_zip(
     db: Session,
+    user_id: int,
     data: bytes,
     *,
     auto_link: bool = True,
@@ -238,27 +252,27 @@ def import_zip(
     items: list[dict[str, Any]] = []
 
     for payload in parsed:
-        workout, created = upsert_workout(db, payload)
+        workout, created = upsert_workout(db, user_id, payload)
         if created:
             imported += 1
         else:
             updated += 1
 
         action = "none"
-        candidates = find_candidates(db, workout)
+        candidates = find_candidates(db, user_id, workout)
         enriched: list[str] = []
 
         if workout.activity_id:
             action = "already_linked"
         elif auto_link and len(candidates) == 1 and candidates[0]["confidence"] == "haute":
             activity = db.get(Activity, candidates[0]["activity_id"])
-            if activity is not None:
+            if activity is not None and activity.user_id == user_id:
                 result = link_workout(db, workout, activity, commit=False)
                 enriched = result["enriched_fields"]
                 action = "auto_linked"
                 auto_linked += 1
         elif auto_promote and not candidates:
-            promote_to_activity(db, workout, commit=False)
+            promote_to_activity(db, user_id, workout, commit=False)
             action = "promoted"
             promoted += 1
 
@@ -290,11 +304,16 @@ def import_zip(
 
 def list_workouts(
     db: Session,
+    user_id: int,
     *,
     unlinked_only: bool = False,
     limit: int = 50,
 ) -> list[AppleWorkout]:
-    stmt = select(AppleWorkout).order_by(AppleWorkout.start_date.desc().nullslast())
+    stmt = (
+        select(AppleWorkout)
+        .where(AppleWorkout.user_id == user_id)
+        .order_by(AppleWorkout.start_date.desc().nullslast())
+    )
     if unlinked_only:
         stmt = stmt.where(AppleWorkout.activity_id.is_(None))
     stmt = stmt.limit(limit)

@@ -13,11 +13,11 @@ from app.services.activity_features import is_running_eligible
 from app.services.session_types import label_for
 
 
-def _raw_plan(db: Session) -> dict[str, Any]:
+def _raw_plan(db: Session, user_id: int) -> dict[str, Any]:
     """Lit le plan sans adhérence (évite récursion)."""
     from app.services.coach_plan import get_plan
 
-    return get_plan(db, with_adherence=False)
+    return get_plan(db, user_id, with_adherence=False)
 
 
 def _parse_date(value: Any) -> date | None:
@@ -97,6 +97,7 @@ def _match_score(
 
 def build_adherence(
     db: Session,
+    user_id: int,
     *,
     now: datetime | None = None,
     activities: list[Any] | None = None,
@@ -106,7 +107,7 @@ def build_adherence(
         now = now.replace(tzinfo=timezone.utc)
     today = now.astimezone(timezone.utc).date()
 
-    plan_payload = _raw_plan(db)
+    plan_payload = _raw_plan(db, user_id)
     raw_items = plan_payload.get("plan") or []
     if not isinstance(raw_items, list) or not raw_items:
         return {
@@ -158,6 +159,7 @@ def build_adherence(
             a
             for a in db.scalars(
                 select(Activity)
+                .where(Activity.user_id == user_id)
                 .where(Activity.start_date.is_not(None))
                 .where(
                     Activity.start_date

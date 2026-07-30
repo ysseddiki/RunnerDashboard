@@ -10,6 +10,7 @@ import { formatPaceSec, formatTrend } from '../format'
 import { ActivityRow } from '../components/ActivityRow'
 import { WeeklyVolumeChart } from '../components/WeeklyVolumeChart'
 import { FormChart } from '../components/FormChart'
+import { apiFetch } from '../auth'
 
 function trendClass(value: number | null | undefined): string {
   if (value == null || value === 0) return ''
@@ -22,53 +23,90 @@ export function HomePage() {
   const [analytics, setAnalytics] = useState<AnalyticsOverview | null>(null)
   const [loadSeries, setLoadSeries] = useState<LoadSeriesResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [syncBusy, setSyncBusy] = useState(false)
+  const [syncMessage, setSyncMessage] = useState<string | null>(null)
+
+  function loadHome() {
+    return Promise.all([
+      apiFetch('/api/strava/status'),
+      apiFetch('/api/activities?limit=100'),
+      apiFetch('/api/analytics/overview'),
+      apiFetch('/api/analytics/load-series?days=84'),
+    ]).then(async ([statusRes, listRes, analyticsRes, seriesRes]) => {
+      if (!statusRes.ok) throw new Error(`Status Strava HTTP ${statusRes.status}`)
+      if (!listRes.ok) throw new Error(`Activités HTTP ${listRes.status}`)
+      if (!analyticsRes.ok) throw new Error(`Analytics HTTP ${analyticsRes.status}`)
+      const [s, a, an] = await Promise.all([
+        statusRes.json() as Promise<StravaStatus>,
+        listRes.json() as Promise<ActivitySummary[]>,
+        analyticsRes.json() as Promise<AnalyticsOverview>,
+      ])
+      let series: LoadSeriesResponse | null = null
+      if (seriesRes.ok) {
+        series = (await seriesRes.json()) as LoadSeriesResponse
+      }
+      setStrava(s)
+      setActivities(a)
+      setAnalytics(an)
+      setLoadSeries(series)
+    })
+  }
 
   useEffect(() => {
     let cancelled = false
-    void Promise.all([
-      fetch('/api/strava/status'),
-      fetch('/api/activities?limit=100'),
-      fetch('/api/analytics/overview'),
-      fetch('/api/analytics/load-series?days=84'),
-    ])
-      .then(async ([statusRes, listRes, analyticsRes, seriesRes]) => {
-        if (!statusRes.ok) throw new Error(`Status Strava HTTP ${statusRes.status}`)
-        if (!listRes.ok) throw new Error(`Activités HTTP ${listRes.status}`)
-        if (!analyticsRes.ok) throw new Error(`Analytics HTTP ${analyticsRes.status}`)
-        const [s, a, an] = await Promise.all([
-          statusRes.json() as Promise<StravaStatus>,
-          listRes.json() as Promise<ActivitySummary[]>,
-          analyticsRes.json() as Promise<AnalyticsOverview>,
-        ])
-        let series: LoadSeriesResponse | null = null
-        if (seriesRes.ok) {
-          series = (await seriesRes.json()) as LoadSeriesResponse
-        }
-        if (cancelled) return
-        setStrava(s)
-        setActivities(a)
-        setAnalytics(an)
-        setLoadSeries(series)
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Chargement impossible')
-      })
+    void loadHome().catch((err: unknown) => {
+      if (!cancelled) setError(err instanceof Error ? err.message : 'Chargement impossible')
+    })
     return () => {
       cancelled = true
     }
   }, [])
 
+  async function runSync() {
+    setSyncBusy(true)
+    setSyncMessage(null)
+    setError(null)
+    try {
+      const res = await apiFetch('/api/strava/sync', { method: 'POST' })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(
+          typeof body.detail === 'string' ? body.detail : `Sync HTTP ${res.status}`,
+        )
+      }
+      setSyncMessage(typeof body.message === 'string' ? body.message : 'Sync terminée.')
+      await loadHome()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Sync impossible')
+    } finally {
+      setSyncBusy(false)
+    }
+  }
+
   return (
     <>
       {error && <p className="banner error">{error}</p>}
+      {syncMessage && <p className="banner ok">{syncMessage}</p>}
 
       <header className="page-hero">
         <h1>Votre suivi running</h1>
         <p>
           {strava?.connected
-            ? `Bienvenue${strava.athlete_name ? `, ${strava.athlete_name}` : ''}. Vos sorties Strava sont synchronisées.`
-            : 'Connectez Strava depuis Admin pour importer vos sorties et suivre votre évolution.'}
+            ? `Bienvenue${strava.athlete_name ? `, ${strava.athlete_name}` : ''}. Vos sorties Strava sont isolées à votre compte.`
+            : 'Reconnectez Strava via Logout puis Login si la sync échoue.'}
         </p>
+        {strava?.connected && (
+          <div className="admin-actions" style={{ marginTop: '1rem' }}>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => void runSync()}
+              disabled={syncBusy}
+            >
+              {syncBusy ? 'Sync…' : 'Synchroniser Strava'}
+            </button>
+          </div>
+        )}
       </header>
 
       {analytics && (
@@ -229,7 +267,7 @@ export function HomePage() {
         {activities.length === 0 ? (
           <div className="empty-state">
             <p className="muted" style={{ margin: 0 }}>
-              Aucune sortie. Allez dans Admin pour connecter Strava puis synchroniser.
+              Aucune sortie. Lancez une synchronisation Strava ci-dessus.
             </p>
           </div>
         ) : (

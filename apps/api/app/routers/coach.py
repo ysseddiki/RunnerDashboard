@@ -6,8 +6,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app import auth as auth_service
 from app.config import Settings, get_settings
 from app.db import get_db
+from app.models import User
 from app.services import activity_coach as activity_coach_service
 from app.services import coach as coach_service
 from app.services import coach_jobs
@@ -72,6 +74,7 @@ class CoachAdviseResponse(BaseModel):
 
 @router.get("/status", response_model=CoachStatusResponse)
 def coach_status(
+    user: User = Depends(auth_service.require_user),
     db: Session = Depends(get_db),
     env: Settings = Depends(get_settings),
 ) -> CoachStatusResponse:
@@ -80,6 +83,7 @@ def coach_status(
 
 @router.post("/pull-model", response_model=CoachPullResponse)
 def pull_model(
+    _admin: User = Depends(auth_service.require_admin),
     db: Session = Depends(get_db),
     env: Settings = Depends(get_settings),
 ) -> CoachPullResponse:
@@ -92,6 +96,7 @@ def pull_model(
 
 @router.post("/warmup", response_model=CoachWarmupResponse)
 def warmup_model(
+    _admin: User = Depends(auth_service.require_admin),
     db: Session = Depends(get_db),
     env: Settings = Depends(get_settings),
 ) -> CoachWarmupResponse:
@@ -107,12 +112,13 @@ def warmup_model(
 @router.post("/advise", response_model=CoachAdviseResponse)
 def advise(
     body: CoachAdviseRequest | None = None,
+    user: User = Depends(auth_service.require_user),
     db: Session = Depends(get_db),
     env: Settings = Depends(get_settings),
 ) -> CoachAdviseResponse:
     question = body.question if body else None
     try:
-        result = coach_service.advise(db, env, question=question)
+        result = coach_service.advise(db, env, user.id, question=question)
     except OllamaError as exc:
         detail = str(exc).lower()
         if "timeout" in detail:
@@ -126,27 +132,31 @@ def advise(
 
 
 @router.get("/plan")
-def get_plan(db: Session = Depends(get_db)) -> dict:
-    return coach_plan_service.get_plan(db)
+def get_plan(
+    user: User = Depends(auth_service.require_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    return coach_plan_service.get_plan(db, user.id)
 
 
 @router.post("/plan/refresh")
 def refresh_plan(
+    user: User = Depends(auth_service.require_user),
     db: Session = Depends(get_db),
     env: Settings = Depends(get_settings),
     background: bool = Query(default=True),
 ) -> dict:
     if background:
-        started = coach_jobs.schedule_plan_refresh(reason="api")
+        started = coach_jobs.schedule_plan_refresh(user_id=user.id, reason="api")
         return {
             "scheduled": started,
             "message": "Refresh plan démarré en arrière-plan."
             if started
             else "Refresh déjà en cours.",
-            "plan": coach_plan_service.get_plan(db),
+            "plan": coach_plan_service.get_plan(db, user.id),
         }
     try:
-        plan = coach_plan_service.refresh_plan(db, env, reason="api-sync")
+        plan = coach_plan_service.refresh_plan(db, env, user.id, reason="api-sync")
     except OllamaError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return {"scheduled": False, "message": "Plan rafraîchi.", "plan": plan}
@@ -155,11 +165,12 @@ def refresh_plan(
 @router.post("/activities/{activity_id}/analyze")
 def analyze_one(
     activity_id: int,
+    user: User = Depends(auth_service.require_user),
     db: Session = Depends(get_db),
     env: Settings = Depends(get_settings),
 ) -> dict:
     try:
-        return activity_coach_service.analyze_activity(db, env, activity_id)
+        return activity_coach_service.analyze_activity(db, env, user.id, activity_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except OllamaError as exc:

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { SessionTypeInfo } from './types'
+import { apiFetch } from './auth'
 
 let cachedTypes: SessionTypeInfo[] | null = null
 let pendingFetch: Promise<SessionTypeInfo[]> | null = null
@@ -7,7 +8,7 @@ let pendingFetch: Promise<SessionTypeInfo[]> | null = null
 function loadSessionTypes(): Promise<SessionTypeInfo[]> {
   if (cachedTypes) return Promise.resolve(cachedTypes)
   if (!pendingFetch) {
-    pendingFetch = fetch('/api/activities/session-types')
+    pendingFetch = apiFetch('/api/activities/session-types')
       .then(async (res) => {
         if (!res.ok) throw new Error(`Types HTTP ${res.status}`)
         return (await res.json()) as SessionTypeInfo[]

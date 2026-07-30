@@ -93,6 +93,7 @@ def score_match(workout: AppleWorkout, activity: Activity) -> dict[str, Any] | N
 
 def find_candidates(
     db: Session,
+    user_id: int,
     workout: AppleWorkout,
     *,
     exclude_linked: bool = True,
@@ -107,6 +108,7 @@ def find_candidates(
 
     stmt = (
         select(Activity)
+        .where(Activity.user_id == user_id)
         .where(Activity.start_date.is_not(None))
         .where(Activity.start_date >= low)
         .where(Activity.start_date <= high)
@@ -118,6 +120,7 @@ def find_candidates(
     if exclude_linked:
         linked = db.scalars(
             select(AppleWorkout.activity_id).where(
+                AppleWorkout.user_id == user_id,
                 AppleWorkout.activity_id.is_not(None),
                 AppleWorkout.id != workout.id,
             )

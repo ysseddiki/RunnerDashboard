@@ -9,8 +9,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import auth as auth_service
 from app.db import get_db
-from app.models import Activity, AppleWorkout
+from app.models import Activity, AppleWorkout, User
 from app.services import apple_health as apple_service
 from app.services.apple_health_parse import AppleHealthParseError
 from app.services.apple_match import find_candidates, score_match
@@ -91,11 +92,26 @@ class ActivityAppleLinkResponse(BaseModel):
     apple_candidates: list[dict] = []
 
 
+def _owned_workout(db: Session, user_id: int, workout_id: int) -> AppleWorkout:
+    workout = db.get(AppleWorkout, workout_id)
+    if workout is None or workout.user_id != user_id:
+        raise HTTPException(status_code=404, detail="Workout Apple introuvable")
+    return workout
+
+
+def _owned_activity(db: Session, user_id: int, activity_id: int) -> Activity:
+    activity = db.get(Activity, activity_id)
+    if activity is None or activity.user_id != user_id:
+        raise HTTPException(status_code=404, detail="Activité introuvable")
+    return activity
+
+
 @router.post("/import", response_model=ImportResult)
 async def import_apple_health(
     file: UploadFile = File(...),
     auto_link: bool = Query(True),
     auto_promote: bool = Query(True),
+    user: User = Depends(auth_service.require_user),
     db: Session = Depends(get_db),
 ) -> ImportResult:
     if not file.filename or not file.filename.lower().endswith(".zip"):
@@ -110,7 +126,11 @@ async def import_apple_health(
         raise HTTPException(status_code=413, detail="ZIP trop volumineux (max 800 Mo)")
     try:
         result = apple_service.import_zip(
-            db, data, auto_link=auto_link, auto_promote=auto_promote
+            db,
+            user.id,
+            data,
+            auto_link=auto_link,
+            auto_promote=auto_promote,
         )
     except AppleHealthParseError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -121,21 +141,23 @@ async def import_apple_health(
 def list_workouts(
     unlinked_only: bool = Query(False),
     limit: int = Query(50, ge=1, le=200),
+    user: User = Depends(auth_service.require_user),
     db: Session = Depends(get_db),
 ) -> list[AppleWorkoutOut]:
-    rows = apple_service.list_workouts(db, unlinked_only=unlinked_only, limit=limit)
+    rows = apple_service.list_workouts(
+        db, user.id, unlinked_only=unlinked_only, limit=limit
+    )
     return [AppleWorkoutOut.model_validate(apple_service.workout_to_dict(w)) for w in rows]
 
 
 @router.get("/workouts/{workout_id}/candidates", response_model=CandidatesResponse)
 def workout_candidates(
     workout_id: int,
+    user: User = Depends(auth_service.require_user),
     db: Session = Depends(get_db),
 ) -> CandidatesResponse:
-    workout = db.get(AppleWorkout, workout_id)
-    if workout is None:
-        raise HTTPException(status_code=404, detail="Workout Apple introuvable")
-    candidates = find_candidates(db, workout)
+    workout = _owned_workout(db, user.id, workout_id)
+    candidates = find_candidates(db, user.id, workout)
     return CandidatesResponse(
         workout=AppleWorkoutOut.model_validate(apple_service.workout_to_dict(workout)),
         candidates=[MatchCandidate.model_validate(c) for c in candidates],
@@ -146,14 +168,11 @@ def workout_candidates(
 def link_workout(
     workout_id: int,
     body: LinkRequest,
+    user: User = Depends(auth_service.require_user),
     db: Session = Depends(get_db),
 ) -> LinkResult:
-    workout = db.get(AppleWorkout, workout_id)
-    if workout is None:
-        raise HTTPException(status_code=404, detail="Workout Apple introuvable")
-    activity = db.get(Activity, body.activity_id)
-    if activity is None:
-        raise HTTPException(status_code=404, detail="Activité introuvable")
+    workout = _owned_workout(db, user.id, workout_id)
+    activity = _owned_activity(db, user.id, body.activity_id)
     try:
         result = apple_service.link_workout(db, workout, activity)
     except ValueError as exc:
@@ -164,23 +183,21 @@ def link_workout(
 @router.post("/workouts/{workout_id}/unlink")
 def unlink_workout(
     workout_id: int,
+    user: User = Depends(auth_service.require_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    workout = db.get(AppleWorkout, workout_id)
-    if workout is None:
-        raise HTTPException(status_code=404, detail="Workout Apple introuvable")
+    workout = _owned_workout(db, user.id, workout_id)
     return apple_service.unlink_workout(db, workout)
 
 
 @router.post("/workouts/{workout_id}/promote", response_model=PromoteResult)
 def promote_workout(
     workout_id: int,
+    user: User = Depends(auth_service.require_user),
     db: Session = Depends(get_db),
 ) -> PromoteResult:
-    workout = db.get(AppleWorkout, workout_id)
-    if workout is None:
-        raise HTTPException(status_code=404, detail="Workout Apple introuvable")
-    activity = apple_service.promote_to_activity(db, workout)
+    workout = _owned_workout(db, user.id, workout_id)
+    activity = apple_service.promote_to_activity(db, user.id, workout)
     db.refresh(workout)
     return PromoteResult(
         workout=AppleWorkoutOut.model_validate(apple_service.workout_to_dict(workout)),
@@ -191,20 +208,25 @@ def promote_workout(
 @router.get("/activities/{activity_id}/link", response_model=ActivityAppleLinkResponse)
 def activity_apple_link(
     activity_id: int,
+    user: User = Depends(auth_service.require_user),
     db: Session = Depends(get_db),
 ) -> ActivityAppleLinkResponse:
-    activity = db.get(Activity, activity_id)
-    if activity is None:
-        raise HTTPException(status_code=404, detail="Activité introuvable")
+    activity = _owned_activity(db, user.id, activity_id)
 
     workout: AppleWorkout | None = None
     if activity.apple_uuid:
         workout = db.scalar(
-            select(AppleWorkout).where(AppleWorkout.apple_uuid == activity.apple_uuid)
+            select(AppleWorkout).where(
+                AppleWorkout.user_id == user.id,
+                AppleWorkout.apple_uuid == activity.apple_uuid,
+            )
         )
     if workout is None:
         workout = db.scalar(
-            select(AppleWorkout).where(AppleWorkout.activity_id == activity_id)
+            select(AppleWorkout).where(
+                AppleWorkout.user_id == user.id,
+                AppleWorkout.activity_id == activity_id,
+            )
         )
 
     nearby: list[dict] = []
@@ -213,6 +235,7 @@ def activity_apple_link(
         window = timedelta(minutes=10)
         rows = db.scalars(
             select(AppleWorkout).where(
+                AppleWorkout.user_id == user.id,
                 AppleWorkout.start_date >= activity.start_date - window,
                 AppleWorkout.start_date <= activity.start_date + window,
                 AppleWorkout.activity_id.is_(None),

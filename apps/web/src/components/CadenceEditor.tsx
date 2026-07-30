@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { apiFetch } from '../auth'
 
 type Props = {
   activityId: number
@@ -31,7 +32,7 @@ export function CadenceEditor({ activityId, value, onSaved }: Props) {
         throw new Error('Cadence invalide')
       }
 
-      const res = await fetch(`/api/activities/${activityId}`, {
+      const res = await apiFetch(`/api/activities/${activityId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),

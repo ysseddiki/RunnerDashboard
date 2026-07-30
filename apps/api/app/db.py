@@ -29,8 +29,14 @@ def init_db() -> None:
     from app import models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
-    # Migrations légères sans Alembic
+    # Migrations légères (base neuve recommandée pour multi-user)
     with engine.begin() as conn:
+        conn.execute(
+            text("ALTER TABLE activities ADD COLUMN IF NOT EXISTS user_id INTEGER")
+        )
+        conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_activities_user_id ON activities (user_id)")
+        )
         conn.execute(
             text("ALTER TABLE activities ADD COLUMN IF NOT EXISTS weather_json JSONB")
         )
@@ -60,14 +66,7 @@ def init_db() -> None:
                 "WHERE source IS NULL OR source = ''"
             )
         )
-        # strava_id nullable for Apple-only activities
         conn.execute(text("ALTER TABLE activities ALTER COLUMN strava_id DROP NOT NULL"))
-        conn.execute(
-            text(
-                "CREATE UNIQUE INDEX IF NOT EXISTS ix_activities_apple_uuid "
-                "ON activities (apple_uuid) WHERE apple_uuid IS NOT NULL"
-            )
-        )
         conn.execute(
             text(
                 "CREATE INDEX IF NOT EXISTS ix_activities_source ON activities (source)"
@@ -85,11 +84,6 @@ def init_db() -> None:
             )
         )
         conn.execute(
-            text(
-                "ALTER TABLE athlete_profile ADD COLUMN IF NOT EXISTS birth_date DATE"
-            )
-        )
-        conn.execute(
             text("ALTER TABLE activities ADD COLUMN IF NOT EXISTS terrain VARCHAR(32)")
         )
         conn.execute(
@@ -100,5 +94,20 @@ def init_db() -> None:
         conn.execute(
             text(
                 "ALTER TABLE activities ADD COLUMN IF NOT EXISTS features_json JSONB"
+            )
+        )
+        conn.execute(
+            text(
+                "ALTER TABLE strava_tokens ADD COLUMN IF NOT EXISTS user_id INTEGER"
+            )
+        )
+        conn.execute(
+            text(
+                "ALTER TABLE apple_workouts ADD COLUMN IF NOT EXISTS user_id INTEGER"
+            )
+        )
+        conn.execute(
+            text(
+                "ALTER TABLE athlete_profile_history ADD COLUMN IF NOT EXISTS user_id INTEGER"
             )
         )

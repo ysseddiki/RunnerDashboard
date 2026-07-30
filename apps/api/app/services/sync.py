@@ -23,8 +23,8 @@ weather_logger = logging.getLogger("weather")
 RUN_TYPES = {"Run", "TrailRun", "VirtualRun"}
 
 
-def get_token(db: Session) -> StravaToken | None:
-    return db.scalar(select(StravaToken).order_by(StravaToken.id.asc()).limit(1))
+def get_token(db: Session, user_id: int) -> StravaToken | None:
+    return db.scalar(select(StravaToken).where(StravaToken.user_id == user_id).limit(1))
 
 
 def ensure_fresh_token(db: Session, settings: Settings, token: StravaToken) -> StravaToken:
@@ -54,30 +54,6 @@ def ensure_fresh_token(db: Session, settings: Settings, token: StravaToken) -> S
         token.expires_at,
     )
     return token
-
-
-def upsert_token_from_oauth(db: Session, payload: dict[str, Any], scope: str | None) -> StravaToken:
-    athlete = payload.get("athlete") or {}
-    athlete_id = int(athlete["id"])
-    existing = db.scalar(select(StravaToken).where(StravaToken.athlete_id == athlete_id))
-    if existing is None:
-        existing = StravaToken(athlete_id=athlete_id)
-    existing.access_token = payload["access_token"]
-    existing.refresh_token = payload["refresh_token"]
-    existing.expires_at = int(payload["expires_at"])
-    existing.athlete_firstname = athlete.get("firstname")
-    existing.athlete_lastname = athlete.get("lastname")
-    existing.scope = scope
-    db.add(existing)
-    db.commit()
-    db.refresh(existing)
-    logger.info(
-        "Compte Strava connecté | athlete_id=%s | name=%s %s",
-        existing.athlete_id,
-        existing.athlete_firstname,
-        existing.athlete_lastname,
-    )
-    return existing
 
 
 def _parse_start_date(value: str | None) -> datetime | None:
@@ -132,11 +108,11 @@ def activity_from_strava(
     }
 
 
-def recompute_cadence_from_local(db: Session) -> dict[str, int]:
+def recompute_cadence_from_local(db: Session, user_id: int) -> dict[str, int]:
     """Recalcule cadence_ppm depuis raw_json / streams_json déjà en base (sans Strava)."""
     updated = unchanged = still_missing = 0
     with_streams = with_cadence_stream = with_average = with_laps = 0
-    for activity in db.scalars(select(Activity)).all():
+    for activity in db.scalars(select(Activity).where(Activity.user_id == user_id)).all():
         raw = activity.raw_json if isinstance(activity.raw_json, dict) else None
         streams = activity.streams_json if isinstance(activity.streams_json, dict) else None
         stats = cadence_source_stats(raw, streams)
@@ -188,11 +164,12 @@ def recompute_cadence_from_local(db: Session) -> dict[str, int]:
 def refresh_cadence_from_strava(
     db: Session,
     settings: Settings,
+    user_id: int,
     *,
     max_activities: int = 25,
 ) -> dict[str, int]:
     """Re-télécharge détail + streams Strava pour les sorties sans cadence."""
-    token = get_token(db)
+    token = get_token(db, user_id)
     if token is None:
         raise StravaError("Aucun compte Strava connecté | action=connecter_strava_ui")
 
@@ -202,7 +179,7 @@ def refresh_cadence_from_strava(
     candidates = list(
         db.scalars(
             select(Activity)
-            .where(Activity.cadence_ppm.is_(None))
+            .where(Activity.user_id == user_id, Activity.cadence_ppm.is_(None))
             .order_by(Activity.start_date.desc().nullslast())
         ).all()
     )
@@ -315,21 +292,29 @@ def enrich_activity_weather(activity: Activity, *, sync_id: str) -> bool:
     return True
 
 
-def sync_activities(db: Session, settings: Settings, *, max_pages: int = 5) -> dict[str, int | str]:
-    token = get_token(db)
+def sync_activities(
+    db: Session, settings: Settings, user_id: int, *, max_pages: int = 5
+) -> dict[str, int | str]:
+    token = get_token(db, user_id)
     if token is None:
         raise StravaError("Aucun compte Strava connecté | action=connecter_strava_ui")
 
     sync_id = f"sync-{int(time.time())}"
     logger.info(
-        "Sync démarré | sync_id=%s | athlete_id=%s | mode=incremental",
+        "Sync démarré | sync_id=%s | user_id=%s | athlete_id=%s | mode=incremental",
         sync_id,
+        user_id,
         token.athlete_id,
     )
     token = ensure_fresh_token(db, settings, token)
     client = StravaClient(settings)
 
-    latest = db.scalar(select(Activity).order_by(Activity.start_date.desc()).limit(1))
+    latest = db.scalar(
+        select(Activity)
+        .where(Activity.user_id == user_id)
+        .order_by(Activity.start_date.desc())
+        .limit(1)
+    )
     after_ts = int(latest.start_date.timestamp()) if latest and latest.start_date else None
 
     created = updated = skipped = fetched = weather_enriched = 0
@@ -368,8 +353,13 @@ def sync_activities(db: Session, settings: Settings, *, max_pages: int = 5) -> d
             payload = activity_from_strava(detailed, streams=streams)
             if payload["athlete_id"] == 0:
                 payload["athlete_id"] = token.athlete_id
+            payload["user_id"] = user_id
 
-            existing = db.scalar(select(Activity).where(Activity.strava_id == strava_id))
+            existing = db.scalar(
+                select(Activity).where(
+                    Activity.user_id == user_id, Activity.strava_id == strava_id
+                )
+            )
             if existing is None:
                 row = Activity(**payload)
                 guessed = infer_terrain(row)
@@ -418,7 +408,11 @@ def sync_activities(db: Session, settings: Settings, *, max_pages: int = 5) -> d
 
     # Enrichissement météo : max 15 / Sync pour éviter timeout HTTP
     weather_budget = 15
-    for activity in db.scalars(select(Activity).where(Activity.weather_json.is_(None))).all():
+    for activity in db.scalars(
+        select(Activity).where(
+            Activity.user_id == user_id, Activity.weather_json.is_(None)
+        )
+    ).all():
         if weather_enriched >= weather_budget:
             weather_logger.info(
                 "Budget météo Sync atteint | sync_id=%s | enriched=%s | restera_au_prochain_sync=oui",
@@ -431,15 +425,19 @@ def sync_activities(db: Session, settings: Settings, *, max_pages: int = 5) -> d
     db.commit()
 
     remaining_weather = db.scalar(
-        select(Activity).where(Activity.weather_json.is_(None)).limit(1)
+        select(Activity)
+        .where(Activity.user_id == user_id, Activity.weather_json.is_(None))
+        .limit(1)
     )
     more = " (relancer Sync pour continuer la météo)" if remaining_weather else ""
 
-    cadence_stats = recompute_cadence_from_local(db)
+    cadence_stats = recompute_cadence_from_local(db, user_id)
 
     from app.services import activity_features as features_service
 
-    features_stats = features_service.recompute_features_batch(db, force=False)
+    features_stats = features_service.recompute_features_batch(
+        db, user_id, force=False
+    )
 
     message = (
         f"Sync terminée : {created} créée(s), {updated} mise(s) à jour, "
@@ -459,7 +457,7 @@ def sync_activities(db: Session, settings: Settings, *, max_pages: int = 5) -> d
     try:
         from app.services import coach_jobs
 
-        hooks = coach_jobs.after_sync_hooks(created=created)
+        hooks = coach_jobs.after_sync_hooks(user_id=user_id, created=created)
         if hooks.get("plan") or hooks.get("analyses"):
             message += " Coach : plan/analyses planifiés en arrière-plan."
     except Exception:

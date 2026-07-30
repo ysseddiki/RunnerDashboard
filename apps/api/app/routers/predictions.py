@@ -5,7 +5,9 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from app import auth as auth_service
 from app.db import get_db
+from app.models import User
 from app.schemas import PredictionsOverview
 from app.services.predictions import build_predictions_overview
 
@@ -13,5 +15,8 @@ router = APIRouter(prefix="/api/predictions", tags=["predictions"])
 
 
 @router.get("/overview", response_model=PredictionsOverview)
-def predictions_overview(db: Session = Depends(get_db)) -> PredictionsOverview:
-    return PredictionsOverview.model_validate(build_predictions_overview(db))
+def predictions_overview(
+    user: User = Depends(auth_service.require_user),
+    db: Session = Depends(get_db),
+) -> PredictionsOverview:
+    return PredictionsOverview.model_validate(build_predictions_overview(db, user.id))

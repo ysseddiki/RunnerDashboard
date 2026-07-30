@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ActivitySummary } from '../types'
 import { ActivityRow } from '../components/ActivityRow'
 import { useTerrains } from '../useTerrains'
+import { apiFetch } from '../auth'
 
 type PeriodFilter = 'all' | '28d' | '90d' | '365d'
 
@@ -27,7 +28,7 @@ export function ActivitiesPage() {
 
   useEffect(() => {
     let cancelled = false
-    void fetch('/api/activities?limit=200')
+    void apiFetch('/api/activities?limit=200')
       .then(async (res) => {
         if (!res.ok) throw new Error(`Activités HTTP ${res.status}`)
         return (await res.json()) as ActivitySummary[]

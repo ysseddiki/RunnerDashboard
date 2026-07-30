@@ -5,6 +5,7 @@ import { formatDate, formatFinishTime, formatPaceSec } from '../format'
 import { sessionToneClass } from '../sessionTone'
 import { PaceTrendChart } from '../components/PaceTrendChart'
 import { ProjectionChart } from '../components/ProjectionChart'
+import { apiFetch } from '../auth'
 
 type ProjectionOverview = {
   available: boolean
@@ -272,7 +273,7 @@ export function PredictionsPage() {
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    void Promise.all([fetch('/api/predictions/overview'), fetch('/api/projections/overview')])
+    void Promise.all([apiFetch('/api/predictions/overview'), apiFetch('/api/projections/overview')])
       .then(async ([predRes, projRes]) => {
         if (!predRes.ok) throw new Error(`Prévisions HTTP ${predRes.status}`)
         if (!projRes.ok) throw new Error(`Projection HTTP ${projRes.status}`)
