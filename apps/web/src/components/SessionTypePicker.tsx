@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { apiFetch } from '../auth'
 import { getSessionTypeDoc } from '../sessionTypeDocs'
@@ -13,6 +14,8 @@ type Suggestion = {
   label_fr: string | null
 }
 
+type MenuPos = { top: number; left: number; width: number }
+
 type Props = {
   activityId: number
   value: string | null | undefined
@@ -26,6 +29,7 @@ export function SessionTypePicker({ activityId, value, onSaved, children }: Prop
   const [selected, setSelected] = useState(value ?? '')
   const [open, setOpen] = useState(false)
   const [helpId, setHelpId] = useState<string | null>(null)
+  const [menuPos, setMenuPos] = useState<MenuPos | null>(null)
   const [saving, setSaving] = useState(false)
   const [suggesting, setSuggesting] = useState(false)
   const [suggestion, setSuggestion] = useState<Suggestion | null>(null)
@@ -33,24 +37,66 @@ export function SessionTypePicker({ activityId, value, onSaved, children }: Prop
   const listId = useId()
   const requestId = useRef(0)
   const rootRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setSelected(value ?? '')
     setSuggestion(null)
     setHelpId(null)
+    setOpen(false)
   }, [value, activityId])
 
   useEffect(() => {
     if (catalogError) setError(catalogError)
   }, [catalogError])
 
+  function updateMenuPosition(withHelp = Boolean(helpId)) {
+    const el = triggerRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const maxW = window.innerWidth - 16
+    const baseW = Math.min(Math.max(rect.width, 280), Math.min(420, maxW))
+    const helpExtra = withHelp && window.innerWidth > 640 ? Math.min(320, Math.max(240, maxW - baseW)) : 0
+    const width = Math.min(baseW + helpExtra, maxW)
+    let left = rect.left
+    if (left + width > window.innerWidth - 8) {
+      left = Math.max(8, window.innerWidth - width - 8)
+    }
+    const estimatedHeight = Math.min(window.innerHeight * 0.5, 320)
+    const spaceBelow = window.innerHeight - rect.bottom - 8
+    const top =
+      spaceBelow < estimatedHeight && rect.top > estimatedHeight
+        ? Math.max(8, rect.top - estimatedHeight - 6)
+        : rect.bottom + 6
+    setMenuPos({ top, left, width })
+  }
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setMenuPos(null)
+      return
+    }
+    updateMenuPosition(Boolean(helpId))
+    function onReposition() {
+      updateMenuPosition(Boolean(helpId))
+    }
+    window.addEventListener('resize', onReposition)
+    window.addEventListener('scroll', onReposition, true)
+    return () => {
+      window.removeEventListener('resize', onReposition)
+      window.removeEventListener('scroll', onReposition, true)
+    }
+  }, [open, helpId])
+
   useEffect(() => {
     if (!open) return
     function onDocPointer(e: PointerEvent) {
-      if (!rootRef.current?.contains(e.target as Node)) {
-        setOpen(false)
-        setHelpId(null)
-      }
+      const target = e.target as Node
+      if (rootRef.current?.contains(target)) return
+      if (menuRef.current?.contains(target)) return
+      setOpen(false)
+      setHelpId(null)
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
@@ -139,6 +185,113 @@ export function SessionTypePicker({ activityId, value, onSaved, children }: Prop
   const triggerLabel = current?.label_fr ?? 'Non classé'
   const helpDoc = helpId ? getSessionTypeDoc(helpId) : null
 
+  const menu =
+    open && menuPos
+      ? createPortal(
+          <div
+            ref={menuRef}
+            className="session-type-menu session-type-menu-portal"
+            id={listId}
+            role="listbox"
+            style={{
+              top: menuPos.top,
+              left: menuPos.left,
+              width: menuPos.width,
+            }}
+          >
+            <div className="session-type-menu-scroll">
+              <button
+                type="button"
+                role="option"
+                aria-selected={!selected}
+                className={`session-type-option${!selected ? ' is-active' : ''}`}
+                onClick={() => {
+                  setSelected('')
+                  void persist('')
+                }}
+              >
+                <span className="session-type-option-label">Non classé</span>
+              </button>
+              {types.map((t) => {
+                const doc = getSessionTypeDoc(t.id)
+                const isActive = selected === t.id
+                const helpOpen = helpId === t.id
+                return (
+                  <div
+                    key={t.id}
+                    className={`session-type-option-row${isActive ? ' is-active' : ''}`}
+                  >
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={isActive}
+                      className="session-type-option"
+                      onClick={() => {
+                        setSelected(t.id)
+                        void persist(t.id)
+                      }}
+                    >
+                      <span className="session-type-option-label">{t.label_fr}</span>
+                    </button>
+                    {doc && (
+                      <button
+                        type="button"
+                        className={`session-type-help-btn${helpOpen ? ' is-open' : ''}`}
+                        aria-label={`Aide : ${t.label_fr}`}
+                        aria-expanded={helpOpen}
+                        title="Rappel doc de ce type"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setHelpId((cur) => (cur === t.id ? null : t.id))
+                        }}
+                      >
+                        ?
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+            {helpDoc && (
+              <aside className="session-type-help-panel" aria-live="polite">
+                <p className="session-type-help-title">{helpDoc.label}</p>
+                <p className="session-type-help-summary">{helpDoc.summary}</p>
+                <dl className="session-type-help-dl">
+                  <div>
+                    <dt>Pourquoi</dt>
+                    <dd>{helpDoc.purpose}</dd>
+                  </div>
+                  <div>
+                    <dt>Sensation</dt>
+                    <dd>{helpDoc.feel}</dd>
+                  </div>
+                  <div>
+                    <dt>Typique</dt>
+                    <dd>{helpDoc.typical}</dd>
+                  </div>
+                  <div>
+                    <dt>Zones</dt>
+                    <dd>{helpDoc.zones}</dd>
+                  </div>
+                  <div>
+                    <dt>Conseil</dt>
+                    <dd>{helpDoc.tips}</dd>
+                  </div>
+                </dl>
+                <Link
+                  to="/docs?tab=seances"
+                  className="inline-link session-type-help-link"
+                  onClick={() => setOpen(false)}
+                >
+                  Voir toute la doc
+                </Link>
+              </aside>
+            )}
+          </div>,
+          document.body,
+        )
+      : null
+
   return (
     <div
       ref={rootRef}
@@ -150,11 +303,12 @@ export function SessionTypePicker({ activityId, value, onSaved, children }: Prop
         <div className={`session-tag ${tone}`}>
           <div className="session-tag-control">
             <button
+              ref={triggerRef}
               type="button"
               className="session-tag-trigger"
               aria-haspopup="listbox"
               aria-expanded={open}
-              aria-controls={listId}
+              aria-controls={open ? listId : undefined}
               disabled={saving || types.length === 0}
               title={currentDoc?.summary ?? current?.description_fr ?? 'Attribuer un type de séance'}
               onClick={(e) => {
@@ -166,98 +320,7 @@ export function SessionTypePicker({ activityId, value, onSaved, children }: Prop
               <span className="session-tag-trigger-label">{triggerLabel}</span>
               <span className="session-tag-caret" aria-hidden="true" />
             </button>
-            {open && (
-              <div className="session-type-menu" id={listId} role="listbox">
-                <div className="session-type-menu-scroll">
-                  <button
-                    type="button"
-                    role="option"
-                    aria-selected={!selected}
-                    className={`session-type-option${!selected ? ' is-active' : ''}`}
-                    onClick={() => {
-                      setSelected('')
-                      void persist('')
-                    }}
-                  >
-                    <span className="session-type-option-label">Non classé</span>
-                  </button>
-                  {types.map((t) => {
-                    const doc = getSessionTypeDoc(t.id)
-                    const isActive = selected === t.id
-                    const helpOpen = helpId === t.id
-                    return (
-                      <div
-                        key={t.id}
-                        className={`session-type-option-row${isActive ? ' is-active' : ''}`}
-                      >
-                        <button
-                          type="button"
-                          role="option"
-                          aria-selected={isActive}
-                          className="session-type-option"
-                          onClick={() => {
-                            setSelected(t.id)
-                            void persist(t.id)
-                          }}
-                        >
-                          <span className="session-type-option-label">{t.label_fr}</span>
-                        </button>
-                        {doc && (
-                          <button
-                            type="button"
-                            className={`session-type-help-btn${helpOpen ? ' is-open' : ''}`}
-                            aria-label={`Aide : ${t.label_fr}`}
-                            aria-expanded={helpOpen}
-                            title="Rappel doc de ce type"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setHelpId((cur) => (cur === t.id ? null : t.id))
-                            }}
-                          >
-                            ?
-                          </button>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-                {helpDoc && (
-                  <aside className="session-type-help-panel" aria-live="polite">
-                    <p className="session-type-help-title">{helpDoc.label}</p>
-                    <p className="session-type-help-summary">{helpDoc.summary}</p>
-                    <dl className="session-type-help-dl">
-                      <div>
-                        <dt>Pourquoi</dt>
-                        <dd>{helpDoc.purpose}</dd>
-                      </div>
-                      <div>
-                        <dt>Sensation</dt>
-                        <dd>{helpDoc.feel}</dd>
-                      </div>
-                      <div>
-                        <dt>Typique</dt>
-                        <dd>{helpDoc.typical}</dd>
-                      </div>
-                      <div>
-                        <dt>Zones</dt>
-                        <dd>{helpDoc.zones}</dd>
-                      </div>
-                      <div>
-                        <dt>Conseil</dt>
-                        <dd>{helpDoc.tips}</dd>
-                      </div>
-                    </dl>
-                    <Link
-                      to="/docs?tab=seances"
-                      className="inline-link session-type-help-link"
-                      onClick={() => setOpen(false)}
-                    >
-                      Voir toute la doc
-                    </Link>
-                  </aside>
-                )}
-              </div>
-            )}
+            {menu}
           </div>
           <button
             type="button"
