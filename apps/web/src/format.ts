@@ -46,3 +46,9 @@ export function formatClock(seconds: number): string {
   }
   return `${m}:${String(s).padStart(2, '0')}`
 }
+
+export function formatFinishTime(seconds: number | null | undefined): string {
+  if (seconds == null || !Number.isFinite(seconds) || seconds <= 0) return '—'
+  return formatClock(Math.round(seconds))
+}
+

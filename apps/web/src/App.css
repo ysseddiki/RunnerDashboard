@@ -1402,3 +1402,61 @@ a {
     transition: none;
   }
 }
+
+/* ——— Prévisions ——— */
+.pred-hero-block {
+  text-align: center;
+  padding: 1.5rem 1.25rem;
+}
+
+.pred-hero-pace {
+  margin: 0.35rem 0 0.5rem;
+  font-family: var(--font-display);
+  font-size: clamp(2.2rem, 5vw, 3rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--brand);
+}
+
+.pred-metrics {
+  margin-top: 0.25rem;
+}
+
+.pred-training-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.pred-training-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.pred-training-list li:last-child {
+  border-bottom: 0;
+}
+
+.pred-trend {
+  color: var(--brand);
+}
+
+.pred-trend svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.panel-block + .panel-block,
+.banner + .panel-block,
+.page-hero + .panel-block,
+.page-hero + .banner {
+  margin-top: 1rem;
+}

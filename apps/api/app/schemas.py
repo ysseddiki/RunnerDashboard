@@ -131,5 +131,55 @@ class CadenceRecomputeResult(BaseModel):
     message: str
 
 
+class PaceEstimate(BaseModel):
+    id: str
+    label_fr: str
+    distance_km: float
+    pace_sec_per_km: float
+    pace_low_sec_per_km: float
+    pace_high_sec_per_km: float
+    finish_time_s: float
+    confidence: str
+
+
+class TrainingPace(BaseModel):
+    session_type: str
+    label_fr: str
+    pace_sec_per_km: float
+    source: str
+    sample_size: int = 0
+
+
+class TrendPoint(BaseModel):
+    week: str
+    pace_sec_per_km: float
+
+
+class PredictionAnchor(BaseModel):
+    activity_id: int
+    name: str
+    start_date: str | None
+    distance_km: float
+    pace_sec_per_km: float
+    session_type: str | None = None
+    session_type_label_fr: str | None = None
+    method: str
+    charge_factor: float = 1.0
+
+
+class PredictionsOverview(BaseModel):
+    available: bool
+    confidence: str
+    confidence_label_fr: str
+    hero_distance_id: str = "10k"
+    estimates: list[PaceEstimate]
+    training_paces: list[TrainingPace]
+    trend_10k: list[TrendPoint]
+    anchor: PredictionAnchor | None = None
+    reasons: list[str]
+    warnings: list[str]
+    activities_considered: int
+
+
 # Alias conservé pour imports existants
 ActivitySessionTypeUpdate = ActivityUpdate

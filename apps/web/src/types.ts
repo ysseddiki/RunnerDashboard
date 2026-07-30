@@ -126,3 +126,43 @@ export type StreamPoint = {
   lat: number | null
   lng: number | null
 }
+
+export type PredictionsOverview = {
+  available: boolean
+  confidence: string
+  confidence_label_fr: string
+  hero_distance_id: string
+  estimates: Array<{
+    id: string
+    label_fr: string
+    distance_km: number
+    pace_sec_per_km: number
+    pace_low_sec_per_km: number
+    pace_high_sec_per_km: number
+    finish_time_s: number
+    confidence: string
+  }>
+  training_paces: Array<{
+    session_type: string
+    label_fr: string
+    pace_sec_per_km: number
+    source: string
+    sample_size: number
+  }>
+  trend_10k: Array<{ week: string; pace_sec_per_km: number }>
+  anchor: {
+    activity_id: number
+    name: string
+    start_date: string | null
+    distance_km: number
+    pace_sec_per_km: number
+    session_type: string | null
+    session_type_label_fr: string | null
+    method: string
+    charge_factor: number
+  } | null
+  reasons: string[]
+  warnings: string[]
+  activities_considered: number
+}
+

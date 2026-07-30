@@ -19,6 +19,12 @@ export function Layout() {
             Activités
           </NavLink>
           <NavLink
+            to="/predictions"
+            className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
+          >
+            Prévisions
+          </NavLink>
+          <NavLink
             to="/admin"
             className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
           >
