@@ -47,7 +47,9 @@ export function ActivityRow({
     : null
 
   return (
-    <article className={`activity${selected ? ' is-selected' : ''}`}>
+    <article
+      className={`activity${selected ? ' is-selected' : ''}${hasWeather ? ' has-weather' : ''}`}
+    >
       {onToggleSelect && (
         <label className="activity-select">
           <input
@@ -59,7 +61,7 @@ export function ActivityRow({
         </label>
       )}
       <div className="activity-main">
-        <div className="activity-top">
+        <div className="activity-controls">
           <SessionTypePicker
             activityId={activity.id}
             value={activity.session_type}
@@ -75,13 +77,14 @@ export function ActivityRow({
               }}
             />
             <span className={badge.className}>{badge.label}</span>
-            <Link to={detailTo} className="activity-title-link">
-              <strong>{activity.name}</strong>
-            </Link>
           </SessionTypePicker>
         </div>
+
         <Link to={detailTo} className="activity-body-link">
-          <p className="activity-date">{formatDate(activity.start_date)}</p>
+          <div className="activity-heading">
+            <strong className="activity-title">{activity.name}</strong>
+            <p className="activity-date">{formatDate(activity.start_date)}</p>
+          </div>
           <div className="activity-metrics">
             <div className="activity-metric">
               <span>Distance</span>

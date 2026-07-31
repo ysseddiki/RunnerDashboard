@@ -984,7 +984,7 @@ a {
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 0.75rem;
+  gap: 0.85rem;
 }
 
 .activity {
@@ -994,13 +994,18 @@ a {
   color: inherit;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 1rem 1.15rem;
+  padding: 0;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 0.85rem 1rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0;
   align-items: stretch;
+  overflow: hidden;
   box-shadow: var(--shadow-sm);
   transition: border-color 0.2s var(--ease), transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
+}
+
+.activity.has-weather {
+  grid-template-columns: auto minmax(0, 1fr) 8.25rem;
 }
 
 .activity.is-selected {
@@ -1011,7 +1016,7 @@ a {
 .activity-select {
   display: flex;
   align-items: flex-start;
-  padding-top: 0.4rem;
+  padding: 1.15rem 0 1.15rem 1.05rem;
   cursor: pointer;
 }
 
@@ -1065,7 +1070,8 @@ a {
 }
 
 @media (max-width: 720px) {
-  .activity {
+  .activity,
+  .activity.has-weather {
     grid-template-columns: auto minmax(0, 1fr);
   }
 
@@ -1074,8 +1080,12 @@ a {
     flex-direction: row !important;
     justify-content: flex-start !important;
     text-align: left !important;
+    width: auto !important;
     min-height: 0;
-    padding: 0.7rem 0.85rem;
+    padding: 0.75rem 1rem !important;
+    border-left: none !important;
+    border-top: 1px solid var(--line);
+    border-radius: 0 !important;
   }
 
   .activity-weather .activity-weather-text {
@@ -1088,7 +1098,7 @@ a {
 
   .activity-metric {
     border-left: none !important;
-    padding: 0.45rem 0.35rem 0.45rem 0 !important;
+    padding: 0.5rem 0.4rem 0.15rem 0 !important;
     border-top: 1px solid var(--line);
   }
 
@@ -1107,9 +1117,22 @@ a {
 
 .activity-main {
   display: grid;
-  gap: 0.7rem;
+  gap: 0.85rem;
   min-width: 0;
   align-content: start;
+  padding: 1.05rem 1.2rem 1.1rem 0.85rem;
+}
+
+.activity-select + .activity-main {
+  padding-left: 0.75rem;
+}
+
+.activity:not(:has(.activity-select)) .activity-main {
+  padding-left: 1.2rem;
+}
+
+.activity-controls {
+  min-width: 0;
 }
 
 .activity-top {
@@ -1122,7 +1145,7 @@ a {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.55rem;
+  gap: 0.45rem;
   min-width: 0;
 }
 
@@ -1147,22 +1170,34 @@ a {
 }
 
 .activity-title-link strong,
-.activity-top strong {
+.activity-top strong,
+.activity-title {
   font-family: var(--font-display);
-  font-size: 1.08rem;
+  font-size: 1.2rem;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
   color: var(--ink);
   overflow-wrap: anywhere;
+  line-height: 1.2;
+}
+
+.activity-heading {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
 }
 
 .activity-body-link {
   display: grid;
-  gap: 0.65rem;
+  gap: 0.85rem;
   text-decoration: none;
   color: inherit;
   border-radius: var(--radius-sm);
   outline: none;
+}
+
+.activity-body-link:hover .activity-title {
+  color: var(--brand-deep);
 }
 
 .activity-body-link:focus-visible {
@@ -1175,13 +1210,15 @@ a {
   gap: 0;
   align-items: start;
   min-width: 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
 }
 
 .activity-metric {
   display: grid;
-  gap: 0.2rem;
+  gap: 0.28rem;
   min-width: 0;
-  padding: 0.1rem 0.85rem;
+  padding: 0.1rem 0.9rem;
   border-left: 1px solid var(--line);
 }
 
@@ -1191,25 +1228,25 @@ a {
 }
 
 .activity-metric span {
-  font-size: 0.66rem;
+  font-size: 0.65rem;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.07em;
   color: var(--muted);
   font-weight: 600;
 }
 
 .activity-metric strong {
   font-family: var(--font-display);
-  font-size: 1.02rem;
+  font-size: 1.12rem;
   font-weight: 700;
-  color: var(--ink-soft);
-  letter-spacing: -0.02em;
+  color: var(--brand-deep);
+  letter-spacing: -0.025em;
   line-height: 1.15;
 }
 
 .activity-date {
   margin: 0;
-  font-size: 0.85rem;
+  font-size: 0.84rem;
   color: var(--muted);
 }
 
@@ -1218,13 +1255,14 @@ a {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.45rem;
+  gap: 0.5rem;
   align-self: stretch;
-  min-width: 6.75rem;
-  width: 7.25rem;
-  padding: 0.85rem 0.7rem;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--line);
+  width: 100%;
+  min-width: 0;
+  padding: 1rem 0.85rem;
+  border: none;
+  border-left: 1px solid var(--line);
+  border-radius: 0;
   background: #fff7eb;
   text-align: center;
 }
@@ -1232,31 +1270,31 @@ a {
 .activity-weather-icon {
   display: grid;
   place-items: center;
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 2.65rem;
+  height: 2.65rem;
   border-radius: 50%;
   flex-shrink: 0;
 }
 
 .weather-svg {
-  width: 1.35rem;
-  height: 1.35rem;
+  width: 1.4rem;
+  height: 1.4rem;
 }
 
 .activity-weather-text {
   display: grid;
-  gap: 0.12rem;
+  gap: 0.15rem;
   min-width: 0;
   justify-items: center;
 }
 
 .activity-weather-text strong {
   font-family: var(--font-display);
-  font-size: 1.15rem;
+  font-size: 1.35rem;
   font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--ink);
-  line-height: 1.1;
+  letter-spacing: -0.03em;
+  color: var(--brand-deep);
+  line-height: 1.05;
 }
 
 .activity-weather-text span {
@@ -1266,7 +1304,7 @@ a {
   white-space: normal;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 6.5rem;
+  max-width: 6.75rem;
   line-height: 1.25;
 }
 
@@ -1316,8 +1354,8 @@ a {
 .activity-weather.weather-snow,
 .activity-weather.weather-storm,
 .activity-weather.weather-unknown {
-  border-color: color-mix(in srgb, var(--wx) 22%, transparent);
-  background: color-mix(in srgb, var(--wx-bg) 55%, #fff);
+  border-color: color-mix(in srgb, var(--wx) 18%, transparent);
+  background: color-mix(in srgb, var(--wx-bg) 70%, #fff);
 }
 
 /* ——— Detail ——— */
@@ -1437,7 +1475,7 @@ a {
   color: var(--tone-fg);
   background-color: var(--tone-bg);
   cursor: pointer;
-  max-width: 14rem;
+  max-width: 12.5rem;
   outline: none;
   display: inline-flex;
   align-items: center;
@@ -1812,8 +1850,8 @@ a {
 }
 
 .source-strava {
-  color: var(--brand-deep);
-  background: var(--brand-soft);
+  color: #fff;
+  background: #1a5c3a;
 }
 
 .source-apple {
