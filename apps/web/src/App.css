@@ -996,7 +996,7 @@ a {
   border-radius: var(--radius);
   padding: 0;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 0;
   align-items: stretch;
   overflow: hidden;
@@ -1004,7 +1004,15 @@ a {
   transition: border-color 0.2s var(--ease), transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
 }
 
+.activity:has(.activity-select) {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
 .activity.has-weather {
+  grid-template-columns: minmax(0, 1fr) 8.25rem;
+}
+
+.activity.has-weather:has(.activity-select) {
   grid-template-columns: auto minmax(0, 1fr) 8.25rem;
 }
 
@@ -1071,7 +1079,13 @@ a {
 
 @media (max-width: 720px) {
   .activity,
-  .activity.has-weather {
+  .activity:has(.activity-select),
+  .activity.has-weather,
+  .activity.has-weather:has(.activity-select) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .activity:has(.activity-select) {
     grid-template-columns: auto minmax(0, 1fr);
   }
 
@@ -1090,6 +1104,8 @@ a {
 
   .activity-weather .activity-weather-text {
     justify-items: start;
+    max-width: none;
+    width: 100%;
   }
 
   .activity-metrics {
@@ -1257,14 +1273,18 @@ a {
   justify-content: center;
   gap: 0.5rem;
   align-self: stretch;
+  justify-self: stretch;
   width: 100%;
   min-width: 0;
-  padding: 1rem 0.85rem;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 1rem 0.7rem;
   border: none;
   border-left: 1px solid var(--line);
   border-radius: 0;
   background: #fff7eb;
   text-align: center;
+  overflow: hidden;
 }
 
 .activity-weather-icon {
@@ -1285,7 +1305,10 @@ a {
   display: grid;
   gap: 0.15rem;
   min-width: 0;
+  width: 100%;
+  max-width: 100%;
   justify-items: center;
+  overflow: hidden;
 }
 
 .activity-weather-text strong {
@@ -1295,16 +1318,20 @@ a {
   letter-spacing: -0.03em;
   color: var(--brand-deep);
   line-height: 1.05;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .activity-weather-text span {
   font-size: 0.72rem;
   font-weight: 600;
   color: var(--muted);
-  white-space: normal;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 6.75rem;
+  white-space: nowrap;
   line-height: 1.25;
 }
 
