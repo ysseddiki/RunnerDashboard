@@ -24,10 +24,15 @@ class AppSettingsResponse(BaseModel):
     ollama_model: str
     allowed_ollama_models: list[str]
     ollama_model_source: str
+    ollama_num_thread: str = "auto"
+    ollama_num_thread_effective: int | None = None
+    ollama_num_thread_source: str = "env"
+    cpu_count: int = 1
 
 
 class AppSettingsUpdate(BaseModel):
-    ollama_model: str
+    ollama_model: str | None = None
+    ollama_num_thread: str | None = None
 
 
 class ClearSessionTypesResult(BaseModel):
@@ -80,20 +85,7 @@ def get_admin_settings(
     db: Session = Depends(get_db),
     env: Settings = Depends(get_settings),
 ) -> AppSettingsResponse:
-    from app.models import AppSetting
-
-    row = db.get(AppSetting, settings_service.OLLAMA_MODEL_KEY)
-    model = settings_service.get_ollama_model(db, env)
-    source = (
-        "db"
-        if row and row.value in settings_service.ALLOWED_OLLAMA_MODELS
-        else "env"
-    )
-    return AppSettingsResponse(
-        ollama_model=model,
-        allowed_ollama_models=list(settings_service.ALLOWED_OLLAMA_MODELS),
-        ollama_model_source=source,
-    )
+    return AppSettingsResponse(**settings_service.build_settings_payload(db, env))
 
 
 @router.put("/settings", response_model=AppSettingsResponse)
@@ -101,16 +93,21 @@ def update_admin_settings(
     body: AppSettingsUpdate,
     _admin: User = Depends(auth_service.require_admin),
     db: Session = Depends(get_db),
+    env: Settings = Depends(get_settings),
 ) -> AppSettingsResponse:
+    if body.ollama_model is None and body.ollama_num_thread is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Indiquez ollama_model et/ou ollama_num_thread.",
+        )
     try:
-        model = settings_service.set_ollama_model(db, body.ollama_model)
+        if body.ollama_model is not None:
+            settings_service.set_ollama_model(db, body.ollama_model)
+        if body.ollama_num_thread is not None:
+            settings_service.set_ollama_num_thread(db, body.ollama_num_thread)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return AppSettingsResponse(
-        ollama_model=model,
-        allowed_ollama_models=list(settings_service.ALLOWED_OLLAMA_MODELS),
-        ollama_model_source="db",
-    )
+    return AppSettingsResponse(**settings_service.build_settings_payload(db, env))
 
 
 @router.post("/users/{user_id}/clear-session-types", response_model=ClearSessionTypesResult)

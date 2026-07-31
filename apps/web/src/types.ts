@@ -345,6 +345,10 @@ export type AppSettings = {
   ollama_model: string
   allowed_ollama_models: string[]
   ollama_model_source: string
+  ollama_num_thread?: string
+  ollama_num_thread_effective?: number | null
+  ollama_num_thread_source?: string
+  cpu_count?: number
 }
 
 export type SessionTypeInfo = {

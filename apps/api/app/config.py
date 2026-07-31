@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -9,6 +10,46 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEV_SESSION_SECRET = "dev-change-me-runningdashboard-session"
 
+
+def parse_ollama_num_thread(raw: str, *, cpu_count: int | None = None) -> int | None:
+    """Interprète auto / 0 / N → threads Ollama (None = défaut Ollama)."""
+    value = (raw or "").strip().lower()
+    if value in {"", "0", "default", "all"}:
+        return None
+    if value in {"auto", "-1", "max-1", "n-1"}:
+        n = cpu_count if cpu_count is not None else (os.cpu_count() or 2)
+        return max(1, n - 1)
+    try:
+        parsed = int(value)
+    except ValueError:
+        n = cpu_count if cpu_count is not None else (os.cpu_count() or 2)
+        return max(1, n - 1)
+    if parsed <= 0:
+        return None
+    return parsed
+
+
+def normalize_ollama_num_thread_raw(raw: str) -> str:
+    """Normalise une saisie Admin/env vers auto | 0 | N."""
+    value = (raw or "").strip().lower()
+    if value in {"auto", "-1", "max-1", "n-1"}:
+        return "auto"
+    if value in {"", "0", "default", "all"}:
+        return "0"
+    try:
+        n = int(value)
+    except ValueError as exc:
+        raise ValueError(
+            "Threads CPU invalides. Utilisez auto, 0 (tous), ou un entier ≥ 1."
+        ) from exc
+    if n < 0:
+        raise ValueError("Le nombre de threads ne peut pas être négatif.")
+    if n == 0:
+        return "0"
+    cpus = os.cpu_count() or 64
+    if n > max(cpus, 128):
+        raise ValueError(f"Trop de threads (max conseillé {max(cpus, 128)}).")
+    return str(n)
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
@@ -51,23 +92,8 @@ class Settings(BaseSettings):
         return self.environment.strip().lower() in {"production", "prod"}
 
     def resolved_ollama_num_thread(self) -> int | None:
-        """Nombre de threads à passer à Ollama, ou None pour laisser le défaut."""
-        import os
-
-        raw = (self.ollama_num_thread or "").strip().lower()
-        if raw in {"", "0", "default", "all"}:
-            return None
-        if raw in {"auto", "-1", "max-1", "n-1"}:
-            n = os.cpu_count() or 2
-            return max(1, n - 1)
-        try:
-            value = int(raw)
-        except ValueError:
-            n = os.cpu_count() or 2
-            return max(1, n - 1)
-        if value <= 0:
-            return None
-        return value
+        """Fallback env seul (préférer settings.get_resolved_ollama_num_thread avec DB)."""
+        return parse_ollama_num_thread(self.ollama_num_thread)
 
 
 @lru_cache

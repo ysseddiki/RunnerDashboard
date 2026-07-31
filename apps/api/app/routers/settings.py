@@ -18,9 +18,11 @@ router = APIRouter(prefix="/api/settings", tags=["settings"])
 class AppSettingsResponse(BaseModel):
     ollama_model: str
     allowed_ollama_models: list[str]
-    ollama_model_source: str = Field(
-        description="db si réglage UI, sinon env"
-    )
+    ollama_model_source: str = Field(description="db si réglage UI, sinon env")
+    ollama_num_thread: str = "auto"
+    ollama_num_thread_effective: int | None = None
+    ollama_num_thread_source: str = "env"
+    cpu_count: int = 1
 
 
 @router.get("", response_model=AppSettingsResponse)
@@ -29,17 +31,4 @@ def get_app_settings(
     db: Session = Depends(get_db),
     env: Settings = Depends(get_settings),
 ) -> AppSettingsResponse:
-    from app.models import AppSetting
-
-    row = db.get(AppSetting, settings_service.OLLAMA_MODEL_KEY)
-    model = settings_service.get_ollama_model(db, env)
-    source = (
-        "db"
-        if row and row.value in settings_service.ALLOWED_OLLAMA_MODELS
-        else "env"
-    )
-    return AppSettingsResponse(
-        ollama_model=model,
-        allowed_ollama_models=list(settings_service.ALLOWED_OLLAMA_MODELS),
-        ollama_model_source=source,
-    )
+    return AppSettingsResponse(**settings_service.build_settings_payload(db, env))

@@ -26,6 +26,7 @@ export function AdminPage() {
   const [coachStatus, setCoachStatus] = useState<CoachStatus | null>(null)
   const [users, setUsers] = useState<AuthUser[]>([])
   const [selectedModel, setSelectedModel] = useState('')
+  const [selectedNumThread, setSelectedNumThread] = useState('auto')
   const [error, setError] = useState<string | null>(null)
   const [syncMessage, setSyncMessage] = useState<string | null>(null)
   const [settingsMessage, setSettingsMessage] = useState<string | null>(null)
@@ -63,6 +64,7 @@ export function AdminPage() {
     setStrava(s)
     setSettings(st)
     setSelectedModel(st.ollama_model)
+    setSelectedNumThread(st.ollama_num_thread ?? 'auto')
     setUsers(u)
     if (coachRes.ok) {
       setCoachStatus((await coachRes.json()) as CoachStatus)
@@ -103,10 +105,21 @@ export function AdminPage() {
     setSettingsMessage(null)
     setError(null)
     try {
+      const payload: { ollama_model?: string; ollama_num_thread?: string } = {}
+      if (settings && selectedModel !== settings.ollama_model) {
+        payload.ollama_model = selectedModel
+      }
+      if (settings && selectedNumThread !== (settings.ollama_num_thread ?? 'auto')) {
+        payload.ollama_num_thread = selectedNumThread
+      }
+      if (!payload.ollama_model && !payload.ollama_num_thread) {
+        setSettingsMessage('Aucun changement à enregistrer.')
+        return
+      }
       const res = await apiFetch('/api/admin/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ollama_model: selectedModel }),
+        body: JSON.stringify(payload),
       })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -117,7 +130,10 @@ export function AdminPage() {
       const st = body as AppSettings
       setSettings(st)
       setSelectedModel(st.ollama_model)
-      setSettingsMessage('Modèle enregistré — le coach l’utilisera au prochain conseil.')
+      setSelectedNumThread(st.ollama_num_thread ?? 'auto')
+      setSettingsMessage(
+        'Réglages enregistrés — appliqués au prochain appel coach / analyse.',
+      )
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Enregistrement impossible')
     } finally {
@@ -647,8 +663,66 @@ export function AdminPage() {
                   Le profil 14B demande idéalement ~32 Go de RAM sur la VM.
                 </p>
               )}
+              <fieldset className="model-fieldset">
+                <legend>Threads CPU (Ollama)</legend>
+                <label className="model-option">
+                  <input
+                    type="radio"
+                    name="ollama_num_thread"
+                    checked={selectedNumThread === 'auto'}
+                    onChange={() => setSelectedNumThread('auto')}
+                  />
+                  <span>
+                    Auto — cœurs − 1
+                    {settings.cpu_count
+                      ? ` (effectif ~${Math.max(1, settings.cpu_count - 1)} / ${settings.cpu_count})`
+                      : ''}
+                  </span>
+                </label>
+                <label className="model-option">
+                  <input
+                    type="radio"
+                    name="ollama_num_thread"
+                    checked={selectedNumThread === '0'}
+                    onChange={() => setSelectedNumThread('0')}
+                  />
+                  <span>Tous les cœurs (défaut Ollama)</span>
+                </label>
+                <label className="model-option">
+                  <input
+                    type="radio"
+                    name="ollama_num_thread"
+                    checked={selectedNumThread !== 'auto' && selectedNumThread !== '0'}
+                    onChange={() =>
+                      setSelectedNumThread(
+                        settings.cpu_count && settings.cpu_count > 1
+                          ? String(settings.cpu_count - 1)
+                          : '4',
+                      )
+                    }
+                  />
+                  <span>Personnalisé</span>
+                </label>
+                {selectedNumThread !== 'auto' && selectedNumThread !== '0' && (
+                  <label className="admin-inline-field">
+                    Nombre de threads
+                    <input
+                      type="number"
+                      min={1}
+                      max={Math.max(settings.cpu_count ?? 64, 64)}
+                      value={selectedNumThread}
+                      onChange={(e) => setSelectedNumThread(e.target.value || '1')}
+                    />
+                  </label>
+                )}
+              </fieldset>
               <p className="muted">
-                Source actuelle :{' '}
+                Threads : source{' '}
+                {settings.ollama_num_thread_source === 'db' ? 'UI (base)' : 'environnement (.env)'}
+                {settings.ollama_num_thread_effective != null
+                  ? ` · effectif ${settings.ollama_num_thread_effective}`
+                  : ' · effectif = tous (défaut Ollama)'}
+                {' · '}Modèle :{' '}
                 {settings.ollama_model_source === 'db' ? 'UI (base)' : 'environnement (.env)'}
               </p>
               <div className="admin-actions">
@@ -656,9 +730,13 @@ export function AdminPage() {
                   type="button"
                   className="btn"
                   onClick={() => void saveSettings()}
-                  disabled={savingSettings || selectedModel === settings.ollama_model}
+                  disabled={
+                    savingSettings ||
+                    (selectedModel === settings.ollama_model &&
+                      selectedNumThread === (settings.ollama_num_thread ?? 'auto'))
+                  }
                 >
-                  {savingSettings ? 'Enregistrement…' : 'Enregistrer le modèle'}
+                  {savingSettings ? 'Enregistrement…' : 'Enregistrer'}
                 </button>
                 <button
                   type="button"

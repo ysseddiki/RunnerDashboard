@@ -95,7 +95,7 @@ def refresh_plan(
             timeout_s=env.ollama_chat_timeout_s,
             num_predict=max(env.ollama_num_predict, 900),
             keep_alive=env.ollama_keep_alive,
-            num_thread=env.resolved_ollama_num_thread(),
+            num_thread=settings_service.get_resolved_ollama_num_thread(db, env),
         )
         parsed = parse_coach_answer(raw)
         row.model = model

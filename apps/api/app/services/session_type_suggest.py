@@ -391,7 +391,7 @@ def _ai_refine(
             timeout_s=min(120.0, env.ollama_chat_timeout_s),
             num_predict=min(256, env.ollama_num_predict),
             keep_alive=env.ollama_keep_alive,
-            num_thread=env.resolved_ollama_num_thread(),
+            num_thread=settings_service.get_resolved_ollama_num_thread(db, env),
         )
     except OllamaError as exc:
         logger.warning("Suggestion IA échouée | detail=%s", exc)
