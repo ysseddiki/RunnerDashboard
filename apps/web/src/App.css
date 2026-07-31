@@ -2207,6 +2207,14 @@ label.btn.is-disabled {
   line-height: 1.45;
 }
 
+.chart-attention-range {
+  margin: 0 0 0.35rem !important;
+  font-size: 0.78rem !important;
+  font-weight: 600;
+  color: var(--muted) !important;
+  font-variant-numeric: tabular-nums;
+}
+
 @media (min-width: 860px) {
   .detail-secondary {
     grid-template-columns: repeat(3, 1fr);
