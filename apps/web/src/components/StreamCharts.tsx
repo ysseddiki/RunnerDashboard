@@ -158,29 +158,33 @@ export function StreamCharts({ points, features, sessionType }: Props) {
 
     const series: EChartsOption['series'] = available.map((key, i) => {
       const marks = attentionsBySeries.get(key) ?? []
-      const markPointData = marks.map((a) => {
+      const markPointData = marks.flatMap((a) => {
         const idx = nearestIndex(sampled, a.distance_km!)
         const y = valueAt(sampled[idx]!, key)
+        if (y == null || !Number.isFinite(y)) return []
         const isActive = activeId === a.id
-        return {
-          name: a.title,
-          coord: [String(xData[idx]), y],
-          value: a.title,
-          itemStyle: {
-            color: a.severity === 'warn' ? '#a32d2d' : '#8a5a12',
-            borderColor: '#fff',
-            borderWidth: 2,
+        const coord: [string, number] = [String(xData[idx]), y]
+        return [
+          {
+            name: a.title,
+            coord,
+            value: a.title,
+            itemStyle: {
+              color: a.severity === 'warn' ? '#a32d2d' : '#8a5a12',
+              borderColor: '#fff',
+              borderWidth: 2,
+            },
+            symbolSize: isActive ? 16 : 11,
+            label: {
+              show: isActive,
+              formatter: a.title,
+              position: 'top' as const,
+              color: '#142018',
+              fontSize: 11,
+              fontWeight: 600 as const,
+            },
           },
-          symbolSize: isActive ? 16 : 11,
-          label: {
-            show: isActive,
-            formatter: a.title,
-            position: 'top' as const,
-            color: '#142018',
-            fontSize: 11,
-            fontWeight: 600,
-          },
-        }
+        ]
       })
 
       return {
@@ -203,7 +207,7 @@ export function StreamCharts({ points, features, sessionType }: Props) {
         ...(markPointData.length > 0
           ? {
               markPoint: {
-                symbol: 'circle',
+                symbol: 'circle' as const,
                 data: markPointData,
               },
             }
