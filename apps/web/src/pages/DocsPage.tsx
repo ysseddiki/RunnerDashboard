@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router'
 import { apiFetch } from '../auth'
 import { formatPaceSec } from '../format'
 import { SESSION_TYPE_DOCS } from '../sessionTypeDocs'

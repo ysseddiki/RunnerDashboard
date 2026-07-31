@@ -8,9 +8,16 @@ import re
 import zipfile
 from datetime import datetime, timezone
 from typing import Any
-from xml.etree.ElementTree import iterparse
+
+# defusedxml : protège contre l'expansion d'entités XML (billion laughs, etc.)
+from defusedxml.ElementTree import iterparse
 
 logger = logging.getLogger("apple_health.parse")
+
+# Garde-fous anti zip-bomb / DoS
+MAX_ZIP_ENTRIES = 100_000
+MAX_XML_DECOMPRESSED_BYTES = 4 * 1024 * 1024 * 1024  # 4 GiB
+MAX_WORKOUTS = 20_000
 
 # Types HealthKit retenus (course / marche / trail)
 ALLOWED_WORKOUT_TYPES = frozenset(
@@ -226,6 +233,34 @@ def _workout_from_elem(elem) -> dict[str, Any] | None:
     }
 
 
+class _BoundedReader(io.RawIOBase):
+    """Lecture bornée : coupe court à une zip-bomb quel que soit ce qu'annonce l'entête ZIP."""
+
+    def __init__(self, fh, max_bytes: int):
+        self._fh = fh
+        self._remaining = max_bytes
+
+    def readable(self) -> bool:
+        return True
+
+    def read(self, size: int = -1) -> bytes:
+        if size is None or size < 0:
+            size = 1024 * 1024
+        chunk = self._fh.read(size)
+        if chunk:
+            self._remaining -= len(chunk)
+            if self._remaining < 0:
+                raise AppleHealthParseError(
+                    "export.xml décompressé trop volumineux | action=vérifier_le_fichier"
+                )
+        return chunk
+
+    def readinto(self, b) -> int:
+        chunk = self.read(len(b))
+        b[: len(chunk)] = chunk
+        return len(chunk)
+
+
 def _find_export_xml(zf: zipfile.ZipFile) -> str:
     names = zf.namelist()
     for name in names:
@@ -245,13 +280,22 @@ def parse_workouts_from_zip(data: bytes) -> list[dict[str, Any]]:
             "ZIP invalide | action=exporter_à_nouveau_depuis_Apple_Santé"
         ) from exc
 
+    entries = zf.namelist()
+    if len(entries) > MAX_ZIP_ENTRIES:
+        raise AppleHealthParseError(
+            "ZIP anormal (trop d'entrées) | action=vérifier_export_Apple_Santé"
+        )
+
     xml_name = _find_export_xml(zf)
-    logger.info("Parse export Apple | xml=%s | zip_entries=%s", xml_name, len(zf.namelist()))
+    logger.info("Parse export Apple | xml=%s | zip_entries=%s", xml_name, len(entries))
 
     workouts: list[dict[str, Any]] = []
     with zf.open(xml_name) as fh:
+        bounded = io.BufferedReader(
+            _BoundedReader(fh, MAX_XML_DECOMPRESSED_BYTES), buffer_size=1024 * 1024
+        )
         # iterparse pour gros fichiers
-        context = iterparse(fh, events=("end",))
+        context = iterparse(bounded, events=("end",))
         for _event, elem in context:
             tag = elem.tag.split("}")[-1]
             if tag != "Workout":
@@ -260,6 +304,11 @@ def parse_workouts_from_zip(data: bytes) -> list[dict[str, Any]]:
             parsed = _workout_from_elem(elem)
             if parsed:
                 workouts.append(parsed)
+                if len(workouts) >= MAX_WORKOUTS:
+                    logger.warning(
+                        "Plafond workouts atteint | max=%s — import tronqué", MAX_WORKOUTS
+                    )
+                    break
             elem.clear()
 
     logger.info("Workouts Apple retenus | count=%s", len(workouts))

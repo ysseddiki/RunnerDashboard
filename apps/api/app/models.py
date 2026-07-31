@@ -20,8 +20,30 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.types import TypeDecorator
 
 from app.db import Base
+
+
+class EncryptedToken(TypeDecorator):
+    """Chiffre au repos (Fernet) ; lit aussi les valeurs héritées en clair."""
+
+    impl = Text
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        from app.crypto import encrypt_token
+
+        return encrypt_token(value)
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        from app.crypto import decrypt_token
+
+        return decrypt_token(value)
 
 
 class AppSetting(Base):
@@ -57,8 +79,8 @@ class StravaToken(Base):
     athlete_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
     athlete_firstname: Mapped[str | None] = mapped_column(String(120), nullable=True)
     athlete_lastname: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    access_token: Mapped[str] = mapped_column(Text)
-    refresh_token: Mapped[str] = mapped_column(Text)
+    access_token: Mapped[str] = mapped_column(EncryptedToken)
+    refresh_token: Mapped[str] = mapped_column(EncryptedToken)
     expires_at: Mapped[int] = mapped_column(BigInteger)
     scope: Mapped[str | None] = mapped_column(String(255), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(

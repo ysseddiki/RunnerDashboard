@@ -15,6 +15,9 @@ from app.services.apple_match import find_candidates
 
 logger = logging.getLogger("apple_health")
 
+# Borne la taille de la réponse d'import (les compteurs restent exhaustifs).
+MAX_IMPORT_ITEMS = 200
+
 WORKOUT_LABELS = {
     "HKWorkoutActivityTypeRunning": "Course",
     "HKWorkoutActivityTypeWalking": "Marche",
@@ -290,6 +293,8 @@ def import_zip(
         f"Import Apple : {imported} nouveau(x), {updated} mis à jour, "
         f"{auto_linked} lié(s) auto, {promoted} créé(s) comme activité."
     )
+    if len(items) > MAX_IMPORT_ITEMS:
+        message += f" Détail limité aux {MAX_IMPORT_ITEMS} premiers éléments."
     logger.info(message)
     return {
         "imported": imported,
@@ -297,7 +302,7 @@ def import_zip(
         "auto_linked": auto_linked,
         "promoted": promoted,
         "total": len(items),
-        "items": items,
+        "items": items[:MAX_IMPORT_ITEMS],
         "message": message,
     }
 

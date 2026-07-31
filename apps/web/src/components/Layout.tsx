@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router'
 import { apiFetch, logout } from '../auth'
 import { useAuth } from '../authContext'
 import type { HealthResponse } from '../types'

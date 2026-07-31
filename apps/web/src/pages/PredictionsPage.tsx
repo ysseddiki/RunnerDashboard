@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import type { AnalyticsOverview, PredictionsOverview } from '../types'
 import { formatDate, formatFinishTime, formatPaceSec } from '../format'
 import { sessionToneClass } from '../sessionTone'

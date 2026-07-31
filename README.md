@@ -21,12 +21,36 @@ Prérequis : Docker et Docker Compose.
 cp .env.example .env
 # Éditer .env : PUBLIC_HOST, PUBLIC_APP_URL, CORS_ORIGINS, STRAVA_*, OLLAMA_MODEL
 sudo mkdir -p /var/log/running-dashboards/host-logs
+sudo chown -R 1000 /var/log/running-dashboards/host-logs  # l'API tourne en non-root (uid 1000)
 docker compose -f infra/docker-compose.yml --env-file .env up --build -d
 ```
 
 Accès :
 - **HTTP** : `http://VOTRE_IP`
 - **HTTPS** : `https://VOTRE_IP` (certificat auto-signé → accepter l’avertissement)
+
+### HTTPS avec Let's Encrypt (recommandé en production)
+
+Si `PUBLIC_HOST` est un **domaine public** (ex. `run.example.com`), Caddy obtient et
+renouvelle automatiquement un certificat **Let's Encrypt** ; HTTP est alors redirigé
+vers HTTPS. Prérequis :
+
+1. Un enregistrement DNS `A`/`AAAA` pointant vers la VM.
+2. Ports **80** et **443** ouverts depuis Internet (challenge ACME HTTP-01).
+3. Dans `.env` :
+
+```env
+PUBLIC_HOST=run.example.com
+PUBLIC_APP_URL=https://run.example.com
+STRAVA_REDIRECT_URI=https://run.example.com/api/auth/strava/callback
+ACME_EMAIL=vous@example.com
+SESSION_COOKIE_SECURE=true
+CORS_ORIGINS=https://run.example.com
+```
+
+`TLS_MODE=auto` (défaut) choisit Let's Encrypt pour un domaine, et retombe sur un
+certificat auto-signé pour une IP ou `localhost` (Let's Encrypt ne signe pas d'IP).
+Forçage possible : `TLS_MODE=letsencrypt` ou `TLS_MODE=selfsigned`.
 
 Les logs API : `/var/log/running-dashboards/host-logs/`.
 

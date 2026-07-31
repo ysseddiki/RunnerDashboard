@@ -1,6 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import { apiFetch } from '../auth'
 import { getSessionTypeDoc } from '../sessionTypeDocs'
 import { sessionToneClass } from '../sessionTone'

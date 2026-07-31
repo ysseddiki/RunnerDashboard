@@ -11,12 +11,15 @@ from app import auth as auth_service
 from app.config import Settings, get_settings
 from app.db import get_db
 from app.models import User
+from app.rate_limit import rate_limited
 from app.schemas import StravaStatus, SyncResult
 from app.services import sync as sync_service
 from app.services.strava_client import StravaError
 
 logger = logging.getLogger("sync.strava")
 router = APIRouter(prefix="/api/strava", tags=["strava"])
+
+sync_rate = rate_limited(12, 3600)
 
 
 @router.get("/status", response_model=StravaStatus)
@@ -40,7 +43,7 @@ def strava_status(
 
 @router.post("/sync", response_model=SyncResult)
 def sync_strava(
-    user: User = Depends(auth_service.require_user),
+    user: User = Depends(sync_rate),
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> SyncResult:

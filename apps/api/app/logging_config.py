@@ -21,7 +21,6 @@ class FrenchFormatter(logging.Formatter):
 def setup_logging(log_dir: str, log_level: str, log_file_name: str) -> Path:
     """Configure le logging. Retourne le chemin du fichier de log principal."""
     directory = Path(log_dir)
-    directory.mkdir(parents=True, exist_ok=True)
     log_path = directory / log_file_name
 
     root = logging.getLogger()
@@ -34,14 +33,25 @@ def setup_logging(log_dir: str, log_level: str, log_file_name: str) -> Path:
     stream_handler.setFormatter(formatter)
     root.addHandler(stream_handler)
 
-    file_handler = RotatingFileHandler(
-        log_path,
-        maxBytes=10 * 1024 * 1024,
-        backupCount=5,
-        encoding="utf-8",
-    )
-    file_handler.setFormatter(formatter)
-    root.addHandler(file_handler)
+    # Conteneur non-root : si le volume de logs n'est pas inscriptible,
+    # on continue en stdout seul plutôt que d'empêcher le démarrage.
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        file_handler = RotatingFileHandler(
+            log_path,
+            maxBytes=10 * 1024 * 1024,
+            backupCount=5,
+            encoding="utf-8",
+        )
+        file_handler.setFormatter(formatter)
+        root.addHandler(file_handler)
+    except OSError as exc:
+        logging.getLogger("observability").warning(
+            "Logs fichier indisponibles (%s) | log_dir=%s | fallback=stdout "
+            "| action=chown_uid_1000_du_répertoire_hôte",
+            exc,
+            directory,
+        )
 
     # Réduire le bruit des libs tierces
     logging.getLogger("uvicorn.access").setLevel(logging.INFO)

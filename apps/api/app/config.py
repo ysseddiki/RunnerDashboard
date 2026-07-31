@@ -5,6 +5,9 @@ from functools import lru_cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+DEV_SESSION_SECRET = "dev-change-me-runningdashboard-session"
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -31,11 +34,17 @@ class Settings(BaseSettings):
     # -1 = ne jamais décharger le modèle (reste en RAM tant qu’Ollama tourne)
     ollama_keep_alive: str = "-1"
     # Cookie session signé (obligatoire en prod)
-    session_secret: str = "dev-change-me-runningdashboard-session"
+    session_secret: str = DEV_SESSION_SECRET
+    # Clé de chiffrement au repos des tokens Strava (défaut : dérivée de session_secret)
+    token_encryption_key: str = ""
     session_cookie_name: str = "rd_session"
     session_max_age_s: int = 60 * 60 * 24 * 30  # 30 jours
     # Cookie Secure si l’app est servie en HTTPS
     session_cookie_secure: bool = False
+
+    @property
+    def is_production(self) -> bool:
+        return self.environment.strip().lower() in {"production", "prod"}
 
 
 @lru_cache

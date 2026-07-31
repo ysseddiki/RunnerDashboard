@@ -95,10 +95,10 @@ class StravaClient:
         with httpx.Client(timeout=30.0) as client:
             response = client.post(STRAVA_TOKEN_URL, data=payload)
         if response.status_code >= 400:
+            # Ne jamais logger le corps brut (peut contenir des données sensibles)
             logger.error(
-                "Échec token Strava | status=%s | detail=%s | action=vérifier_client_id_secret",
+                "Échec token Strava | status=%s | action=vérifier_client_id_secret",
                 response.status_code,
-                response.text[:300],
             )
             raise StravaError(
                 f"Échec OAuth Strava (HTTP {response.status_code})",
@@ -122,10 +122,9 @@ class StravaClient:
             )
         if response.status_code >= 400:
             logger.error(
-                "Échec API Strava | path=%s | status=%s | detail=%s",
+                "Échec API Strava | path=%s | status=%s",
                 path,
                 response.status_code,
-                response.text[:300],
             )
             raise StravaError(
                 f"Échec API Strava {path} (HTTP {response.status_code})",

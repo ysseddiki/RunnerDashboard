@@ -1,5 +1,17 @@
+(security_headers) {
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self'; font-src 'self' data:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://www.strava.com"
+		-Server
+	}
+}
+
 (app) {
 	encode gzip
+	import security_headers
 
 	handle /api/coach/* {
 		reverse_proxy api:8000 {
@@ -19,17 +31,11 @@
 	}
 
 	handle {
-		reverse_proxy web:80
+		reverse_proxy web:8080
 	}
 }
 
-# HTTP — toujours accessible (http://IP ou http://localhost)
-:80 {
-	import app
-}
-
-# HTTPS — certificat auto-signé avec SAN (IP/DNS via PUBLIC_HOST)
-:443 {
-	tls /data/certs/cert.pem /data/certs/key.pem
-	import app
-}
+# Blocs de sites générés par caddy-entrypoint.sh selon PUBLIC_HOST / TLS_MODE :
+# - domaine public  → Let's Encrypt (ACME automatique) + HSTS + redirection HTTP→HTTPS
+# - IP / localhost  → certificat auto-signé (Let's Encrypt ne couvre pas ces cas)
+import /etc/caddy/sites.caddy

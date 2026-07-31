@@ -10,6 +10,7 @@ from app import auth as auth_service
 from app.config import Settings, get_settings
 from app.db import get_db
 from app.models import User
+from app.rate_limit import rate_limited
 from app.services import activity_coach as activity_coach_service
 from app.services import coach as coach_service
 from app.services import coach_jobs
@@ -17,6 +18,11 @@ from app.services import coach_plan as coach_plan_service
 from app.services.ollama_client import OllamaError
 
 router = APIRouter(prefix="/api/coach", tags=["coach"])
+
+# Endpoints LLM coûteux : limites par utilisateur (fenêtre glissante)
+advise_rate = rate_limited(10, 600)
+plan_refresh_rate = rate_limited(6, 600)
+analyze_rate = rate_limited(20, 600)
 
 
 class CoachStatusResponse(BaseModel):
@@ -78,7 +84,11 @@ def coach_status(
     db: Session = Depends(get_db),
     env: Settings = Depends(get_settings),
 ) -> CoachStatusResponse:
-    return CoachStatusResponse.model_validate(coach_service.coach_status(db, env))
+    status = coach_service.coach_status(db, env)
+    if user.role != auth_service.ROLE_ADMIN:
+        # Ne pas exposer la topologie interne (URL Ollama, modèles installés)
+        status = {**status, "ollama_base_url": "", "installed_models": []}
+    return CoachStatusResponse.model_validate(status)
 
 
 @router.post("/pull-model", response_model=CoachPullResponse)
@@ -112,7 +122,7 @@ def warmup_model(
 @router.post("/advise", response_model=CoachAdviseResponse)
 def advise(
     body: CoachAdviseRequest | None = None,
-    user: User = Depends(auth_service.require_user),
+    user: User = Depends(advise_rate),
     db: Session = Depends(get_db),
     env: Settings = Depends(get_settings),
 ) -> CoachAdviseResponse:
@@ -141,7 +151,7 @@ def get_plan(
 
 @router.post("/plan/refresh")
 def refresh_plan(
-    user: User = Depends(auth_service.require_user),
+    user: User = Depends(plan_refresh_rate),
     db: Session = Depends(get_db),
     env: Settings = Depends(get_settings),
     background: bool = Query(default=True),
@@ -165,7 +175,7 @@ def refresh_plan(
 @router.post("/activities/{activity_id}/analyze")
 def analyze_one(
     activity_id: int,
-    user: User = Depends(auth_service.require_user),
+    user: User = Depends(analyze_rate),
     db: Session = Depends(get_db),
     env: Settings = Depends(get_settings),
 ) -> dict:

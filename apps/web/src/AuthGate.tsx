@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Navigate, useLocation } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router'
 import { fetchMe, type AuthUser } from './auth'
 import { AuthContext, useAuth } from './authContext'
 

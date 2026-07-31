@@ -11,6 +11,7 @@ from app import auth as auth_service
 from app.config import Settings, get_settings
 from app.db import get_db
 from app.models import Activity, User
+from app.rate_limit import rate_limited
 from app.services import session_type_suggest as suggest_service
 from app.services import sync as sync_service
 from app.services.session_types import SESSION_TYPES
@@ -26,6 +27,9 @@ from app.schemas import (
 )
 
 router = APIRouter(prefix="/api/activities", tags=["activities"])
+
+# Batchs potentiellement lourds (LLM / appels Strava / recalculs)
+batch_rate = rate_limited(12, 600)
 
 
 class SessionTypeSuggestRequest(BaseModel):
@@ -116,7 +120,7 @@ def clear_session_types(
 @router.post("/suggest-session-types", response_model=SessionTypeSuggestBatchResponse)
 def suggest_session_types_batch(
     body: SessionTypeSuggestBatchRequest | None = None,
-    user: User = Depends(auth_service.require_user),
+    user: User = Depends(batch_rate),
     db: Session = Depends(get_db),
     env: Settings = Depends(get_settings),
 ) -> SessionTypeSuggestBatchResponse:
@@ -136,7 +140,7 @@ def suggest_session_types_batch(
 @router.post("/apply-session-type-suggestions")
 def apply_session_type_suggestions(
     body: ApplySuggestionsRequest | None = None,
-    user: User = Depends(auth_service.require_user),
+    user: User = Depends(batch_rate),
     db: Session = Depends(get_db),
     env: Settings = Depends(get_settings),
 ) -> dict:
@@ -195,7 +199,7 @@ def recompute_cadence(
 
 @router.post("/refresh-cadence-strava", response_model=CadenceRecomputeResult)
 def refresh_cadence_strava(
-    user: User = Depends(auth_service.require_user),
+    user: User = Depends(batch_rate),
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
     max_activities: int = Query(25, ge=1, le=50),
@@ -226,7 +230,7 @@ def refresh_cadence_strava(
 @router.post("/recompute-features")
 def recompute_features(
     force: bool = Query(False),
-    user: User = Depends(auth_service.require_user),
+    user: User = Depends(batch_rate),
     db: Session = Depends(get_db),
 ) -> dict:
     from app.services import activity_features as features_service

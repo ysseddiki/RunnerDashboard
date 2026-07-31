@@ -12,11 +12,17 @@ from sqlalchemy.orm import Session
 from app import auth as auth_service
 from app.db import get_db
 from app.models import Activity, AppleWorkout, User
+from app.rate_limit import rate_limited
 from app.services import apple_health as apple_service
 from app.services.apple_health_parse import AppleHealthParseError
 from app.services.apple_match import find_candidates, score_match
 
 router = APIRouter(prefix="/api/apple-health", tags=["apple-health"])
+
+MAX_UPLOAD_BYTES = 800 * 1024 * 1024
+_READ_CHUNK = 1024 * 1024
+
+import_rate = rate_limited(6, 3600)
 
 
 class MatchCandidate(BaseModel):
@@ -111,7 +117,7 @@ async def import_apple_health(
     file: UploadFile = File(...),
     auto_link: bool = Query(True),
     auto_promote: bool = Query(True),
-    user: User = Depends(auth_service.require_user),
+    user: User = Depends(import_rate),
     db: Session = Depends(get_db),
 ) -> ImportResult:
     if not file.filename or not file.filename.lower().endswith(".zip"):
@@ -119,11 +125,24 @@ async def import_apple_health(
             status_code=400,
             detail="Fichier ZIP attendu (export Apple Santé)",
         )
-    data = await file.read()
+    # Lecture par morceaux avec plafond strict : on n'accumule jamais plus
+    # que la limite en RAM, même si le client annonce une taille mensongère.
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = await file.read(_READ_CHUNK)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > MAX_UPLOAD_BYTES:
+            raise HTTPException(status_code=413, detail="ZIP trop volumineux (max 800 Mo)")
+        chunks.append(chunk)
+    data = b"".join(chunks)
+    del chunks
     if not data:
         raise HTTPException(status_code=400, detail="Fichier vide")
-    if len(data) > 800 * 1024 * 1024:
-        raise HTTPException(status_code=413, detail="ZIP trop volumineux (max 800 Mo)")
+    if not data.startswith(b"PK"):
+        raise HTTPException(status_code=400, detail="Fichier ZIP invalide")
     try:
         result = apple_service.import_zip(
             db,

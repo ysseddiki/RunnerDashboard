@@ -1,4 +1,4 @@
-import { Navigate, useSearchParams } from 'react-router-dom'
+import { Navigate, useSearchParams } from 'react-router'
 import { stravaLoginUrl } from '../auth'
 import { useAuth } from '../authContext'
 import './LoginPage.css'

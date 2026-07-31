@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.config import get_settings
+from app.config import DEV_SESSION_SECRET, get_settings
 from app.db import init_db
 from app.logging_config import setup_logging
 from app.routers import activities, admin, analytics, apple_health, auth, strava
@@ -39,19 +39,26 @@ async def lifespan(_app: FastAPI):
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    if settings.is_production and settings.session_secret == DEV_SESSION_SECRET:
+        raise RuntimeError(
+            "SESSION_SECRET de développement détecté en production : "
+            "définissez un secret fort (ex. `openssl rand -hex 32`) dans .env"
+        )
     application = FastAPI(
         title=settings.app_name,
         version="0.5.0",
         lifespan=lifespan,
     )
+    # Jamais de wildcard : credentials (cookie de session) + origines explicites uniquement.
     origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
-    application.add_middleware(
-        CORSMiddleware,
-        allow_origins=origins or ["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    if origins:
+        application.add_middleware(
+            CORSMiddleware,
+            allow_origins=origins,
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
 
     @application.get("/health")
     @application.get("/api/health")
