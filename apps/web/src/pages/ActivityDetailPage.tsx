@@ -233,12 +233,9 @@ export function ActivityDetailPage() {
               </div>
             </section>
 
-            <section className="panel-block detail-map-panel detail-pair-panel">
-              <h3>Trace GPS</h3>
-              <div className="detail-pair-fill">
-                <ActivityMap activity={detail} />
-              </div>
-            </section>
+            <div className="detail-map-panel detail-pair-panel">
+              <ActivityMap activity={detail} />
+            </div>
           </div>
 
           <div className="detail-block apple-link-panel">
