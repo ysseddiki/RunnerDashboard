@@ -1,11 +1,12 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import ReactECharts from 'echarts-for-react'
 import type { EChartsOption } from 'echarts'
 import type { ActivityFeatures, StreamPoint } from '../types'
 import { downsamplePoints } from '../streams'
 import { formatClock, formatPaceSec } from '../format'
+import { buildChartAttentions, type ChartAttention, type ChartSeriesKey } from '../chartAttention'
 
-type SeriesKey = 'pace' | 'heartrate' | 'cadence' | 'altitude' | 'watts'
+type SeriesKey = ChartSeriesKey
 
 const SERIES_META: Record<
   SeriesKey,
@@ -43,13 +44,33 @@ function formatValue(key: SeriesKey, value: number | null): string {
   return String(value)
 }
 
+function nearestIndex(sampled: StreamPoint[], distanceKm: number): number {
+  let best = 0
+  let bestDist = Infinity
+  for (let i = 0; i < sampled.length; i++) {
+    const d = Math.abs(sampled[i]!.distance_km - distanceKm)
+    if (d < bestDist) {
+      bestDist = d
+      best = i
+    }
+  }
+  return best
+}
+
 type Props = {
   points: StreamPoint[]
   features?: ActivityFeatures | null
+  sessionType?: string | null
 }
 
-export function StreamCharts({ points, features }: Props) {
+export function StreamCharts({ points, features, sessionType }: Props) {
   const sampled = useMemo(() => downsamplePoints(points), [points])
+  const attentions = useMemo(
+    () => buildChartAttentions({ points: sampled, features, sessionType }),
+    [sampled, features, sessionType],
+  )
+  const [activeId, setActiveId] = useState<string | null>(null)
+  const active = attentions.find((a) => a.id === activeId) ?? null
 
   const available = useMemo(() => {
     const keys: SeriesKey[] = []
@@ -127,24 +148,68 @@ export function StreamCharts({ points, features }: Props) {
           )
         : undefined
 
-    const series: EChartsOption['series'] = available.map((key, i) => ({
-      name: SERIES_META[key].label,
-      type: 'line' as const,
-      showSymbol: false,
-      sampling: 'lttb' as const,
-      xAxisIndex: i,
-      yAxisIndex: i,
-      data: sampled.map((p) => {
-        const v = valueAt(p, key)
-        return v != null && Number.isFinite(v) ? Number(v.toFixed(2)) : null
-      }),
-      lineStyle: { width: 2, color: SERIES_META[key].color },
-      itemStyle: { color: SERIES_META[key].color },
-      connectNulls: true,
-      ...(key === 'pace' && markAreas
-        ? { markArea: { silent: true, data: markAreas } }
-        : {}),
-    }))
+    const attentionsBySeries = new Map<SeriesKey, ChartAttention[]>()
+    for (const a of attentions) {
+      if (a.distance_km == null || !available.includes(a.series)) continue
+      const list = attentionsBySeries.get(a.series) ?? []
+      list.push(a)
+      attentionsBySeries.set(a.series, list)
+    }
+
+    const series: EChartsOption['series'] = available.map((key, i) => {
+      const marks = attentionsBySeries.get(key) ?? []
+      const markPointData = marks.map((a) => {
+        const idx = nearestIndex(sampled, a.distance_km!)
+        const y = valueAt(sampled[idx]!, key)
+        const isActive = activeId === a.id
+        return {
+          name: a.title,
+          coord: [String(xData[idx]), y],
+          value: a.title,
+          itemStyle: {
+            color: a.severity === 'warn' ? '#a32d2d' : '#8a5a12',
+            borderColor: '#fff',
+            borderWidth: 2,
+          },
+          symbolSize: isActive ? 16 : 11,
+          label: {
+            show: isActive,
+            formatter: a.title,
+            position: 'top' as const,
+            color: '#142018',
+            fontSize: 11,
+            fontWeight: 600,
+          },
+        }
+      })
+
+      return {
+        name: SERIES_META[key].label,
+        type: 'line' as const,
+        showSymbol: false,
+        sampling: 'lttb' as const,
+        xAxisIndex: i,
+        yAxisIndex: i,
+        data: sampled.map((p) => {
+          const v = valueAt(p, key)
+          return v != null && Number.isFinite(v) ? Number(v.toFixed(2)) : null
+        }),
+        lineStyle: { width: 2, color: SERIES_META[key].color },
+        itemStyle: { color: SERIES_META[key].color },
+        connectNulls: true,
+        ...(key === 'pace' && markAreas
+          ? { markArea: { silent: true, data: markAreas } }
+          : {}),
+        ...(markPointData.length > 0
+          ? {
+              markPoint: {
+                symbol: 'circle',
+                data: markPointData,
+              },
+            }
+          : {}),
+      }
+    })
 
     return {
       animation: false,
@@ -158,11 +223,19 @@ export function StreamCharts({ points, features }: Props) {
           if (typeof idx !== 'number') return ''
           const point = sampled[idx]
           if (!point) return ''
+          const near = attentions.filter(
+            (a) =>
+              a.distance_km != null && Math.abs(a.distance_km - point.distance_km) < 0.35,
+          )
           const rows = [
             `<div><strong>${point.distance_km.toFixed(2)} km</strong> · ${formatClock(point.time_s)}</div>`,
             ...available.map(
               (key) =>
                 `<div style="color:${SERIES_META[key].color}">${SERIES_META[key].label}: <strong>${formatValue(key, valueAt(point, key))}</strong></div>`,
+            ),
+            ...near.map(
+              (a) =>
+                `<div style="margin-top:4px;color:#8a5a12"><strong>${a.title}</strong> — ${a.detail}</div>`,
             ),
           ]
           return rows.join('')
@@ -190,24 +263,53 @@ export function StreamCharts({ points, features }: Props) {
       yAxis: yAxes,
       series,
     }
-  }, [sampled, available, features])
+  }, [sampled, available, features, attentions, activeId])
 
   if (!option) {
-    return <p className="muted">Aucune série numérique exploitable pour les graphs.</p>
+    return <p className="muted">Aucune série numérique exploitable pour les courbes.</p>
   }
 
   const height = 36 + available.length * 148 + 44
   const hasIntervals = (features?.chart_overlays?.interval_segments?.length ?? 0) > 0
-  const hasZones = Boolean(features?.chart_overlays?.zones_summary)
 
   return (
-    <div className="charts-wrap">
-      <p className="muted charts-hint">
-        Survolez un point pour le détail · molette ou curseur bas pour zoomer / pan.
-        {hasIntervals ? ' · Bandes vertes = intervalles détectés.' : ''}
-        {hasZones ? ' · Zones FC résumées dans la lecture séance.' : ''}
-      </p>
-      <ReactECharts option={option} style={{ height, width: '100%' }} notMerge lazyUpdate />
+    <div className="charts-panel">
+      {attentions.length > 0 && (
+        <div className="chart-attentions" aria-label="Points d’attention">
+          {attentions.map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              className={`chart-attention-chip${a.severity === 'warn' ? ' is-warn' : ''}${
+                activeId === a.id ? ' is-active' : ''
+              }`}
+              onClick={() => setActiveId((cur) => (cur === a.id ? null : a.id))}
+              aria-pressed={activeId === a.id}
+            >
+              <span className="chart-attention-chip-title">{a.title}</span>
+              {a.distance_km != null && (
+                <span className="chart-attention-chip-km">{a.distance_km.toFixed(1)} km</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+      {active && (
+        <div className={`chart-attention-detail${active.severity === 'warn' ? ' is-warn' : ''}`}>
+          <strong>{active.title}</strong>
+          <p>{active.detail}</p>
+        </div>
+      )}
+      <div className="charts-wrap">
+        <p className="muted charts-hint">
+          Survolez un point pour le détail · molette ou curseur pour zoomer.
+          {hasIntervals ? ' · Bandes vertes = intervalles détectés.' : ''}
+          {attentions.length > 0
+            ? ' · Pastilles = points d’attention (cliquez une puce pour le détail).'
+            : ''}
+        </p>
+        <ReactECharts option={option} style={{ height, width: '100%' }} notMerge lazyUpdate />
+      </div>
     </div>
   )
 }

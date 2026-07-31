@@ -17,11 +17,13 @@ function reasonFor(features: ActivityFeatures, key: string): string | undefined 
 export function SessionInsights({ features, sessionType }: Props) {
   if (!features) {
     return (
-      <section className="panel-block session-insights">
+      <section className="panel-block session-insights detail-pair-panel">
         <h3>Lecture séance</h3>
-        <p className="muted">
-          Pas encore de features calculées. Lancez un Sync ou « Recalculer les features » dans Admin.
-        </p>
+        <div className="detail-pair-scroll">
+          <p className="muted">
+            Pas encore de features calculées. Lancez un Sync ou « Recalculer les features » dans Admin.
+          </p>
+        </div>
       </section>
     )
   }
@@ -85,38 +87,40 @@ export function SessionInsights({ features, sessionType }: Props) {
   const flags = features.quality_flags
 
   return (
-    <section className="panel-block session-insights">
+    <section className="panel-block session-insights detail-pair-panel">
       <h3>Lecture séance</h3>
-      {(sessionType || family !== 'generic') && (
-        <p className="muted session-insights-meta">
-          Template : {sessionType ?? 'non classé'} · famille {family}
-          {flags?.has_streams === false ? ' · sans streams' : ''}
-        </p>
-      )}
-      <dl className="insight-kpi-grid">
-        {items.map((it) => (
-          <div key={it.label} className="insight-kpi">
-            <dt>{it.label}</dt>
-            <dd>{it.value}</dd>
-          </div>
-        ))}
-      </dl>
-      {features.time_in_zone && (
-        <div className="zone-bars" aria-label="Répartition zones FC">
-          {(['Z1', 'Z2', 'Z3', 'Z4', 'Z5'] as const).map((zid) => {
-            const pct = features.time_in_zone?.[zid]?.pct ?? 0
-            return (
-              <div key={zid} className="zone-bar-row">
-                <span>{zid}</span>
-                <div className="zone-bar-track">
-                  <div className={`zone-bar-fill zone-${zid}`} style={{ width: `${pct}%` }} />
+      <div className="detail-pair-scroll">
+        {(sessionType || family !== 'generic') && (
+          <p className="muted session-insights-meta">
+            Template : {sessionType ?? 'non classé'} · famille {family}
+            {flags?.has_streams === false ? ' · sans streams' : ''}
+          </p>
+        )}
+        <dl className="insight-kpi-grid">
+          {items.map((it) => (
+            <div key={it.label} className="insight-kpi">
+              <dt>{it.label}</dt>
+              <dd>{it.value}</dd>
+            </div>
+          ))}
+        </dl>
+        {features.time_in_zone && (
+          <div className="zone-bars" aria-label="Répartition zones FC">
+            {(['Z1', 'Z2', 'Z3', 'Z4', 'Z5'] as const).map((zid) => {
+              const pct = features.time_in_zone?.[zid]?.pct ?? 0
+              return (
+                <div key={zid} className="zone-bar-row">
+                  <span>{zid}</span>
+                  <div className="zone-bar-track">
+                    <div className={`zone-bar-fill zone-${zid}`} style={{ width: `${pct}%` }} />
+                  </div>
+                  <span>{pct.toFixed(0)} %</span>
                 </div>
-                <span>{pct.toFixed(0)} %</span>
-              </div>
-            )
-          })}
-        </div>
-      )}
+              )
+            })}
+          </div>
+        )}
+      </div>
     </section>
   )
 }
@@ -134,10 +138,10 @@ export function FeatureTables({ features }: TablesProps) {
   }
 
   return (
-    <section className="panel-block feature-tables">
-      {splits && splits.length > 0 && (
-        <>
-          <h3>Splits km</h3>
+    <section className="panel-block feature-tables detail-pair-panel">
+      <h3>{splits && splits.length > 0 ? 'Splits km' : 'Répétitions'}</h3>
+      <div className="detail-pair-scroll">
+        {splits && splits.length > 0 && (
           <div className="table-wrap">
             <table className="data-table">
               <thead>
@@ -160,37 +164,37 @@ export function FeatureTables({ features }: TablesProps) {
               </tbody>
             </table>
           </div>
-        </>
-      )}
-      {reps && reps.length > 0 && (
-        <>
-          <h3>Répétitions</h3>
-          <div className="table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Distance</th>
-                  <th>Durée</th>
-                  <th>Allure</th>
-                  <th>FC</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reps.map((r, i) => (
-                  <tr key={`${r.start_distance_m}-${i}`}>
-                    <td>{i + 1}</td>
-                    <td>{(r.distance_m / 1000).toFixed(2)} km</td>
-                    <td>{Math.round(r.duration_s)} s</td>
-                    <td>{formatPaceSec(r.pace_sec_per_km)}</td>
-                    <td>{r.avg_hr != null ? Math.round(r.avg_hr) : '—'}</td>
+        )}
+        {reps && reps.length > 0 && (
+          <>
+            {splits && splits.length > 0 && <h4 className="feature-tables-sub">Répétitions</h4>}
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Distance</th>
+                    <th>Durée</th>
+                    <th>Allure</th>
+                    <th>FC</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
+                </thead>
+                <tbody>
+                  {reps.map((r, i) => (
+                    <tr key={`${r.start_distance_m}-${i}`}>
+                      <td>{i + 1}</td>
+                      <td>{(r.distance_m / 1000).toFixed(2)} km</td>
+                      <td>{Math.round(r.duration_s)} s</td>
+                      <td>{formatPaceSec(r.pace_sec_per_km)}</td>
+                      <td>{r.avg_hr != null ? Math.round(r.avg_hr) : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </div>
     </section>
   )
 }

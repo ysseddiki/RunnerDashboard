@@ -14,6 +14,24 @@ function FitBounds({ positions }: { positions: Array<[number, number]> }) {
   return null
 }
 
+function InvalidateSize() {
+  const map = useMap()
+  useEffect(() => {
+    const invalidate = () => map.invalidateSize()
+    const t = window.setTimeout(invalidate, 80)
+    const el = map.getContainer()
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(invalidate) : null
+    ro?.observe(el)
+    window.addEventListener('resize', invalidate)
+    return () => {
+      window.clearTimeout(t)
+      ro?.disconnect()
+      window.removeEventListener('resize', invalidate)
+    }
+  }, [map])
+  return null
+}
+
 function decodeSummary(encoded: string | null | undefined): Array<[number, number]> {
   if (!encoded) return []
   try {
@@ -68,6 +86,7 @@ export function ActivityMap({ activity }: Props) {
           pathOptions={{ color: '#a32d2d', fillColor: '#c44', fillOpacity: 1 }}
         />
         <FitBounds positions={positions} />
+        <InvalidateSize />
       </MapContainer>
     </div>
   )

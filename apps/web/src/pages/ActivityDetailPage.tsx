@@ -158,81 +158,87 @@ export function ActivityDetailPage() {
             />
           </header>
 
-          <section className="panel-block detail-coach-analysis">
-            <div className="section-head">
-              <h3 style={{ margin: 0 }}>Analyse coach</h3>
-              <button
-                type="button"
-                className="btn btn-ghost"
-                disabled={analyzeBusy}
-                onClick={() => {
-                  void (async () => {
-                    setAnalyzeBusy(true)
-                    setError(null)
-                    try {
-                      const res = await apiFetch(`/api/coach/activities/${activityId}/analyze`, {
-                        method: 'POST',
-                      })
-                      const body = await res.json().catch(() => ({}))
-                      if (!res.ok) {
-                        throw new Error(
-                          typeof body.detail === 'string'
-                            ? body.detail
-                            : `Analyse HTTP ${res.status}`,
+          <div className="detail-pair detail-pair-coach">
+            <section className="panel-block detail-coach-analysis detail-pair-panel">
+              <div className="section-head">
+                <h3 style={{ margin: 0 }}>Analyse coach</h3>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  disabled={analyzeBusy}
+                  onClick={() => {
+                    void (async () => {
+                      setAnalyzeBusy(true)
+                      setError(null)
+                      try {
+                        const res = await apiFetch(`/api/coach/activities/${activityId}/analyze`, {
+                          method: 'POST',
+                        })
+                        const body = await res.json().catch(() => ({}))
+                        if (!res.ok) {
+                          throw new Error(
+                            typeof body.detail === 'string'
+                              ? body.detail
+                              : `Analyse HTTP ${res.status}`,
+                          )
+                        }
+                        setDetail((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                coach_analysis_json: body,
+                                coach_analyzed_at: new Date().toISOString(),
+                              }
+                            : prev,
                         )
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : 'Analyse impossible')
+                      } finally {
+                        setAnalyzeBusy(false)
                       }
-                      setDetail((prev) =>
-                        prev
-                          ? {
-                              ...prev,
-                              coach_analysis_json: body,
-                              coach_analyzed_at: new Date().toISOString(),
-                            }
-                          : prev,
-                      )
-                    } catch (err) {
-                      setError(err instanceof Error ? err.message : 'Analyse impossible')
-                    } finally {
-                      setAnalyzeBusy(false)
-                    }
-                  })()
-                }}
-              >
-                {analyzeBusy ? 'Analyse…' : detail.coach_analysis_json ? 'Relancer' : 'Analyser'}
-              </button>
-            </div>
-            {detail.coach_analysis_json?.hints && detail.coach_analysis_json.hints.length > 0 && (
-              <div className="insight-hints">
-                {detail.coach_analysis_json.hints.map((h) => (
-                  <div key={h.title} className="insight-hint">
-                    <strong>{h.title}</strong>
-                    <p>{h.text}</p>
-                  </div>
-                ))}
+                    })()
+                  }}
+                >
+                  {analyzeBusy ? 'Analyse…' : detail.coach_analysis_json ? 'Relancer' : 'Analyser'}
+                </button>
               </div>
-            )}
-            {detail.coach_analysis_json?.summary ? (
-              <>
-                <p className="coach-summary-text">{detail.coach_analysis_json.summary}</p>
-                {detail.coach_analysis_json.markdown && (
-                  <div className="coach-markdown">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {detail.coach_analysis_json.markdown}
-                    </ReactMarkdown>
+              <div className="detail-pair-scroll">
+                {detail.coach_analysis_json?.hints && detail.coach_analysis_json.hints.length > 0 && (
+                  <div className="insight-hints">
+                    {detail.coach_analysis_json.hints.map((h) => (
+                      <div key={h.title} className="insight-hint">
+                        <strong>{h.title}</strong>
+                        <p>{h.text}</p>
+                      </div>
+                    ))}
                   </div>
                 )}
-              </>
-            ) : (
-              <p className="muted">
-                Pas encore d’analyse. Elle se lance aussi après Sync (nouvelles sorties), ou via le
-                bouton.
-              </p>
-            )}
-          </section>
+                {detail.coach_analysis_json?.summary ? (
+                  <>
+                    <p className="coach-summary-text">{detail.coach_analysis_json.summary}</p>
+                    {detail.coach_analysis_json.markdown && (
+                      <div className="coach-markdown">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {detail.coach_analysis_json.markdown}
+                        </ReactMarkdown>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="muted">
+                    Pas encore d’analyse. Elle se lance aussi après Sync (nouvelles sorties), ou via le
+                    bouton.
+                  </p>
+                )}
+              </div>
+            </section>
 
-          <div className="detail-block">
-            <h3>Trace GPS</h3>
-            <ActivityMap activity={detail} />
+            <section className="panel-block detail-map-panel detail-pair-panel">
+              <h3>Trace GPS</h3>
+              <div className="detail-pair-fill">
+                <ActivityMap activity={detail} />
+              </div>
+            </section>
           </div>
 
           <div className="detail-block apple-link-panel">
@@ -291,175 +297,205 @@ export function ActivityDetailPage() {
             )}
           </div>
 
-          <SessionInsights features={detail.features_json} sessionType={detail.session_type} />
-          <FeatureTables features={detail.features_json} />
+          <div
+            className={`detail-pair detail-pair-insights${
+              (detail.features_json?.splits_km?.length ?? 0) > 0 ||
+              (detail.features_json?.intervals?.reps?.length ?? 0) > 0
+                ? ''
+                : ' is-single'
+            }`}
+          >
+            <SessionInsights features={detail.features_json} sessionType={detail.session_type} />
+            <FeatureTables features={detail.features_json} />
+          </div>
 
-          <div className="detail-block">
-            <h3>Graphs</h3>
+          <section className="panel-block detail-charts">
+            <div className="section-head">
+              <div>
+                <h3 style={{ margin: 0 }}>Courbes de la séance</h3>
+                <p className="muted section-sub">
+                  Allure, FC et co. — les pastilles signalent les zones à regarder de plus près.
+                </p>
+              </div>
+            </div>
             {points.length > 0 ? (
-              <StreamCharts points={points} features={detail.features_json} />
+              <StreamCharts
+                points={points}
+                features={detail.features_json}
+                sessionType={detail.session_type}
+              />
             ) : (
               <p className="muted">Aucun stream stocké pour cette sortie.</p>
             )}
-          </div>
+          </section>
 
-          <div className="detail-secondary">
-            <div className="kv-panel">
-              <h3>Performance</h3>
-              <dl className="kv">
-                <div>
-                  <dt>Durée totale</dt>
-                  <dd>{formatDuration(detail.elapsed_time_s)}</dd>
-                </div>
-                <div>
-                  <dt>Allure max</dt>
-                  <dd>{formatPace(detail.max_speed_mps)}</dd>
-                </div>
-                <div>
-                  <dt>FC moyenne</dt>
-                  <dd>
-                    {detail.average_heartrate != null
-                      ? `${Math.round(detail.average_heartrate)} bpm`
-                      : '—'}
-                  </dd>
-                </div>
-                <div>
-                  <dt>FC max</dt>
-                  <dd>
-                    {detail.max_heartrate != null
-                      ? `${Math.round(detail.max_heartrate)} bpm`
-                      : '—'}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Cadence</dt>
-                  <dd>{detail.cadence_ppm != null ? `${detail.cadence_ppm} PPM` : '—'}</dd>
-                </div>
-                <div>
-                  <dt>Puissance</dt>
-                  <dd>
-                    {detail.average_watts != null
-                      ? `${Math.round(detail.average_watts)} W`
-                      : '—'}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Calories</dt>
-                  <dd>
-                    {detail.calories != null ? `${Math.round(detail.calories)} kcal` : '—'}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Travail</dt>
-                  <dd>
-                    {detail.kilojoules != null
-                      ? `${Math.round(detail.kilojoules)} kJ`
-                      : '—'}
-                  </dd>
-                </div>
-              </dl>
+          <section className="panel-block detail-tech">
+            <div className="section-head">
+              <div>
+                <h3 style={{ margin: 0 }}>Détail technique</h3>
+                <p className="muted section-sub">
+                  Performance brute, météo du jour et contexte d’enregistrement.
+                </p>
+              </div>
             </div>
-
-            <div className="kv-panel">
-              <h3>Météo</h3>
-              {detail.weather_json ? (
+            <div className="detail-secondary">
+              <div className="kv-panel">
+                <h3>Performance</h3>
                 <dl className="kv">
                   <div>
-                    <dt>Conditions</dt>
-                    <dd>{detail.weather_json.weather_label_fr ?? '—'}</dd>
+                    <dt>Durée totale</dt>
+                    <dd>{formatDuration(detail.elapsed_time_s)}</dd>
                   </div>
                   <div>
-                    <dt>Température</dt>
-                    <dd>
-                      {detail.weather_json.temperature_c != null
-                        ? `${detail.weather_json.temperature_c} °C`
-                        : '—'}
-                      {detail.weather_json.apparent_temperature_c != null
-                        ? ` (ressenti ${detail.weather_json.apparent_temperature_c} °C)`
-                        : ''}
-                    </dd>
+                    <dt>Allure max</dt>
+                    <dd>{formatPace(detail.max_speed_mps)}</dd>
                   </div>
                   <div>
-                    <dt>Humidité</dt>
+                    <dt>FC moyenne</dt>
                     <dd>
-                      {detail.weather_json.humidity_pct != null
-                        ? `${detail.weather_json.humidity_pct} %`
+                      {detail.average_heartrate != null
+                        ? `${Math.round(detail.average_heartrate)} bpm`
                         : '—'}
                     </dd>
                   </div>
                   <div>
-                    <dt>Précip.</dt>
+                    <dt>FC max</dt>
                     <dd>
-                      {detail.weather_json.precipitation_mm != null
-                        ? `${detail.weather_json.precipitation_mm} mm`
+                      {detail.max_heartrate != null
+                        ? `${Math.round(detail.max_heartrate)} bpm`
                         : '—'}
                     </dd>
                   </div>
                   <div>
-                    <dt>Vent</dt>
+                    <dt>Cadence</dt>
+                    <dd>{detail.cadence_ppm != null ? `${detail.cadence_ppm} PPM` : '—'}</dd>
+                  </div>
+                  <div>
+                    <dt>Puissance</dt>
                     <dd>
-                      {detail.weather_json.wind_speed_kmh != null
-                        ? `${detail.weather_json.wind_speed_kmh} km/h`
+                      {detail.average_watts != null
+                        ? `${Math.round(detail.average_watts)} W`
                         : '—'}
-                      {detail.weather_json.wind_direction_deg != null
-                        ? ` · ${Math.round(detail.weather_json.wind_direction_deg)}°`
-                        : ''}
                     </dd>
                   </div>
                   <div>
-                    <dt>Relevé</dt>
-                    <dd>{detail.weather_json.observed_at ?? '—'}</dd>
+                    <dt>Calories</dt>
+                    <dd>
+                      {detail.calories != null ? `${Math.round(detail.calories)} kcal` : '—'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Travail</dt>
+                    <dd>
+                      {detail.kilojoules != null
+                        ? `${Math.round(detail.kilojoules)} kJ`
+                        : '—'}
+                    </dd>
                   </div>
                 </dl>
-              ) : (
-                <p className="muted" style={{ margin: 0 }}>
-                  Pas de météo (GPS manquant, indoor, ou pas encore synchronisée).
-                </p>
-              )}
-            </div>
+              </div>
 
-            <div className="kv-panel">
-              <h3>Contexte</h3>
-              <dl className="kv">
-                <div>
-                  <dt>Appareil</dt>
-                  <dd>{detail.device_name ?? '—'}</dd>
-                </div>
-                <div>
-                  <dt>Indoor</dt>
-                  <dd>{detail.trainer ? 'Oui' : 'Non'}</dd>
-                </div>
-                <div>
-                  <dt>Fuseau</dt>
-                  <dd>{detail.timezone ?? '—'}</dd>
-                </div>
-                <div>
-                  <dt>GPS départ</dt>
-                  <dd>
-                    {detail.start_lat != null && detail.start_lng != null
-                      ? `${detail.start_lat.toFixed(5)}, ${detail.start_lng.toFixed(5)}`
-                      : '—'}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Strava ID</dt>
-                  <dd>{detail.strava_id ?? '—'}</dd>
-                </div>
-                <div>
-                  <dt>Source</dt>
-                  <dd>{detail.source_label_fr ?? detail.source ?? '—'}</dd>
-                </div>
-                <div>
-                  <dt>Apple UUID</dt>
-                  <dd className="truncate-id">{detail.apple_uuid ?? '—'}</dd>
-                </div>
-                <div>
-                  <dt>Sync</dt>
-                  <dd>{formatDate(detail.synced_at)}</dd>
-                </div>
-              </dl>
+              <div className="kv-panel">
+                <h3>Météo</h3>
+                {detail.weather_json ? (
+                  <dl className="kv">
+                    <div>
+                      <dt>Conditions</dt>
+                      <dd>{detail.weather_json.weather_label_fr ?? '—'}</dd>
+                    </div>
+                    <div>
+                      <dt>Température</dt>
+                      <dd>
+                        {detail.weather_json.temperature_c != null
+                          ? `${detail.weather_json.temperature_c} °C`
+                          : '—'}
+                        {detail.weather_json.apparent_temperature_c != null
+                          ? ` (ressenti ${detail.weather_json.apparent_temperature_c} °C)`
+                          : ''}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Humidité</dt>
+                      <dd>
+                        {detail.weather_json.humidity_pct != null
+                          ? `${detail.weather_json.humidity_pct} %`
+                          : '—'}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Précip.</dt>
+                      <dd>
+                        {detail.weather_json.precipitation_mm != null
+                          ? `${detail.weather_json.precipitation_mm} mm`
+                          : '—'}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Vent</dt>
+                      <dd>
+                        {detail.weather_json.wind_speed_kmh != null
+                          ? `${detail.weather_json.wind_speed_kmh} km/h`
+                          : '—'}
+                        {detail.weather_json.wind_direction_deg != null
+                          ? ` · ${Math.round(detail.weather_json.wind_direction_deg)}°`
+                          : ''}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Relevé</dt>
+                      <dd>{detail.weather_json.observed_at ?? '—'}</dd>
+                    </div>
+                  </dl>
+                ) : (
+                  <p className="muted" style={{ margin: 0 }}>
+                    Pas de météo (GPS manquant, indoor, ou pas encore synchronisée).
+                  </p>
+                )}
+              </div>
+
+              <div className="kv-panel">
+                <h3>Contexte</h3>
+                <dl className="kv">
+                  <div>
+                    <dt>Appareil</dt>
+                    <dd>{detail.device_name ?? '—'}</dd>
+                  </div>
+                  <div>
+                    <dt>Indoor</dt>
+                    <dd>{detail.trainer ? 'Oui' : 'Non'}</dd>
+                  </div>
+                  <div>
+                    <dt>Fuseau</dt>
+                    <dd>{detail.timezone ?? '—'}</dd>
+                  </div>
+                  <div>
+                    <dt>GPS départ</dt>
+                    <dd>
+                      {detail.start_lat != null && detail.start_lng != null
+                        ? `${detail.start_lat.toFixed(5)}, ${detail.start_lng.toFixed(5)}`
+                        : '—'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Strava ID</dt>
+                    <dd>{detail.strava_id ?? '—'}</dd>
+                  </div>
+                  <div>
+                    <dt>Source</dt>
+                    <dd>{detail.source_label_fr ?? detail.source ?? '—'}</dd>
+                  </div>
+                  <div>
+                    <dt>Apple UUID</dt>
+                    <dd className="truncate-id">{detail.apple_uuid ?? '—'}</dd>
+                  </div>
+                  <div>
+                    <dt>Sync</dt>
+                    <dd>{formatDate(detail.synced_at)}</dd>
+                  </div>
+                </dl>
+              </div>
             </div>
-          </div>
+          </section>
         </>
       )}
     </section>
