@@ -1391,14 +1391,21 @@ a {
   margin-bottom: 1.25rem;
 }
 
-.detail-hero h1 {
-  margin: 0.35rem 0 0.4rem;
-  font-family: var(--font-display);
-  font-size: clamp(1.55rem, 3vw, 2.1rem);
-  font-weight: 700;
-  letter-spacing: -0.035em;
-  line-height: 1.15;
-  color: var(--brand-deep);
+.detail-hero .activity-title {
+  margin: 0;
+}
+
+.detail-hero .activity.is-detail:hover,
+.detail-hero .activity.is-detail:focus-within {
+  transform: none;
+}
+
+.detail-hero .activity-body-link.is-static {
+  cursor: default;
+}
+
+.detail-hero .activity-body-link.is-static:hover .activity-title {
+  color: var(--ink);
 }
 
 .detail-meta {

@@ -3,13 +3,12 @@ import { Link, useParams } from 'react-router'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { ActivityDetail, AppleWorkout } from '../types'
-import { formatDate, formatDuration, formatKm, formatPace } from '../format'
+import { formatDate, formatDuration, formatPace } from '../format'
 import { buildStreamPoints } from '../streams'
 import { ActivityMap } from '../components/ActivityMap'
+import { ActivityRow } from '../components/ActivityRow'
 import { StreamCharts } from '../components/StreamCharts'
 import { SessionInsights, FeatureTables } from '../components/SessionInsights'
-import { SessionTypePicker } from '../components/SessionTypePicker'
-import { TerrainPicker } from '../components/TerrainPicker'
 import { apiFetch } from '../auth'
 
 type AppleLinkInfo = {
@@ -130,80 +129,34 @@ export function ActivityDetailPage() {
       {!loading && detail && activityId != null && (
         <>
           <header className="detail-hero">
-            <div className="detail-meta">
-              <SessionTypePicker
-                activityId={activityId}
-                value={detail.session_type}
-                onSaved={(sessionType, label) => {
-                  setDetail((prev) =>
-                    prev
-                      ? {
-                          ...prev,
-                          session_type: sessionType,
-                          session_type_label_fr: label,
-                        }
-                      : prev,
-                  )
-                }}
-              />
-              <TerrainPicker
-                activityId={activityId}
-                value={detail.terrain}
-                onSaved={(terrain, label) => {
-                  setDetail((prev) =>
-                    prev
-                      ? {
-                          ...prev,
-                          terrain,
-                          terrain_label_fr: label,
-                        }
-                      : prev,
-                  )
-                }}
-              />
-              <span>{formatDate(detail.start_date)}</span>
-            </div>
-            <h1>{detail.name}</h1>
-            {(detail.source_label_fr || detail.source) && (
-              <p className="muted">
-                Source :{' '}
-                <span
-                  className={`source-badge ${
-                    detail.source === 'apple'
-                      ? 'source-apple'
-                      : detail.apple_uuid
-                        ? 'source-linked'
-                        : 'source-strava'
-                  }`}
-                >
-                  {detail.source_label_fr ?? detail.source}
-                </span>
-              </p>
-            )}
+            <ActivityRow
+              activity={detail}
+              linkBody={false}
+              titleAs="h1"
+              onSessionTypeSaved={(_id, sessionType, label) => {
+                setDetail((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        session_type: sessionType,
+                        session_type_label_fr: label,
+                      }
+                    : prev,
+                )
+              }}
+              onTerrainSaved={(_id, terrain, label) => {
+                setDetail((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        terrain,
+                        terrain_label_fr: label,
+                      }
+                    : prev,
+                )
+              }}
+            />
           </header>
-
-          <div className="stat-grid">
-            <div className="stat">
-              <span>Distance</span>
-              <strong>{formatKm(detail.distance_m)}</strong>
-            </div>
-            <div className="stat">
-              <span>Durée</span>
-              <strong>{formatDuration(detail.moving_time_s)}</strong>
-            </div>
-            <div className="stat">
-              <span>Allure moy.</span>
-              <strong>{formatPace(detail.average_speed_mps)}</strong>
-            </div>
-            <div className="stat">
-              <span>D+</span>
-              <strong>
-                {detail.total_elevation_gain_m != null
-                  ? `${Math.round(detail.total_elevation_gain_m)} m`
-                  : '—'}
-              </strong>
-            </div>
-          </div>
 
           <section className="panel-block detail-coach-analysis">
             <div className="section-head">
