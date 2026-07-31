@@ -169,11 +169,60 @@ def build_coach_context(
             "reason_fr": "Adhérence indisponible.",
         }
 
+    next_sessions_compact: dict[str, Any]
+    try:
+        from app.services.next_sessions import build_next_sessions
+
+        ns = build_next_sessions(db, user_id, preview_limit=6)
+        next_sessions_compact = {
+            "available": ns.get("available"),
+            "reason_fr": ns.get("reason_fr"),
+            "notes_fr": ns.get("notes_fr") or [],
+            "sessions": [
+                {
+                    "date": s.get("date"),
+                    "session_type": s.get("session_type"),
+                    "title_fr": s.get("title_fr"),
+                    "duration_or_distance": s.get("duration_or_distance"),
+                    "target_pace": _fmt_pace(s.get("target_pace_sec_per_km")),
+                    "rationale_fr": s.get("rationale_fr"),
+                    "source": s.get("source"),
+                }
+                for s in (ns.get("sessions") or [])
+            ],
+        }
+    except Exception:
+        next_sessions_compact = {
+            "available": False,
+            "reason_fr": "Prescriptions indisponibles.",
+            "sessions": [],
+        }
+
+    trends_compact: dict[str, Any]
+    try:
+        from app.services.session_type_trends import build_summary, build_trends
+
+        trends = build_trends(db, user_id, days=84)
+        summary = build_summary(trends, limit=6)
+        trends_compact = {
+            "available": summary.get("available"),
+            "reason_fr": summary.get("reason_fr") or trends.get("reason_fr"),
+            "items": summary.get("items") or [],
+        }
+    except Exception:
+        trends_compact = {
+            "available": False,
+            "reason_fr": "Tendances par type indisponibles.",
+            "items": [],
+        }
+
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "predictions": pred_compact,
         "analytics": analytics_compact,
         "form": form_compact,
         "adherence": adherence_compact,
+        "next_sessions": next_sessions_compact,
+        "session_type_trends": trends_compact,
         "recent_activities": recent,
     }

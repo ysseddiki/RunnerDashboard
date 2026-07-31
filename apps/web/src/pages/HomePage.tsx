@@ -10,7 +10,10 @@ import { formatPaceSec, formatTrend } from '../format'
 import { ActivityRow } from '../components/ActivityRow'
 import { WeeklyVolumeChart } from '../components/WeeklyVolumeChart'
 import { FormChart } from '../components/FormChart'
+import { NextSessionsCard } from '../components/NextSessionsCard'
+import { SessionTypeTrendsPanel } from '../components/SessionTypeTrendsPanel'
 import { apiFetch } from '../auth'
+import type { SessionTypeTrendsResponse } from '../types'
 
 function trendClass(value: number | null | undefined): string {
   if (value == null || value === 0) return ''
@@ -22,6 +25,7 @@ export function HomePage() {
   const [activities, setActivities] = useState<ActivitySummary[]>([])
   const [analytics, setAnalytics] = useState<AnalyticsOverview | null>(null)
   const [loadSeries, setLoadSeries] = useState<LoadSeriesResponse | null>(null)
+  const [typeTrends, setTypeTrends] = useState<SessionTypeTrendsResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [syncBusy, setSyncBusy] = useState(false)
   const [syncMessage, setSyncMessage] = useState<string | null>(null)
@@ -32,7 +36,8 @@ export function HomePage() {
       apiFetch('/api/activities?limit=100'),
       apiFetch('/api/analytics/overview'),
       apiFetch('/api/analytics/load-series?days=84'),
-    ]).then(async ([statusRes, listRes, analyticsRes, seriesRes]) => {
+      apiFetch('/api/analytics/session-type-trends?days=84'),
+    ]).then(async ([statusRes, listRes, analyticsRes, seriesRes, trendsRes]) => {
       if (!statusRes.ok) throw new Error(`Status Strava HTTP ${statusRes.status}`)
       if (!listRes.ok) throw new Error(`Activités HTTP ${listRes.status}`)
       if (!analyticsRes.ok) throw new Error(`Analytics HTTP ${analyticsRes.status}`)
@@ -45,10 +50,15 @@ export function HomePage() {
       if (seriesRes.ok) {
         series = (await seriesRes.json()) as LoadSeriesResponse
       }
+      let trends: SessionTypeTrendsResponse | null = null
+      if (trendsRes.ok) {
+        trends = (await trendsRes.json()) as SessionTypeTrendsResponse
+      }
       setStrava(s)
       setActivities(a)
       setAnalytics(an)
       setLoadSeries(series)
+      setTypeTrends(trends)
     })
   }
 
@@ -252,6 +262,19 @@ export function HomePage() {
                   </dd>
                 </div>
               </dl>
+            </div>
+            <div className="panel-block">
+              <h3>Prochaines séances</h3>
+              <NextSessionsCard data={analytics.next_sessions} />
+            </div>
+            <div className="panel-block">
+              <h3>Tendances par type</h3>
+              <SessionTypeTrendsPanel
+                summary={analytics.session_type_trends_summary}
+                trends={typeTrends?.trends}
+                detailed={Boolean(typeTrends?.available)}
+                emptyReason={typeTrends?.reason_fr}
+              />
             </div>
           </div>
         </section>

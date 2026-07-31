@@ -3,9 +3,10 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { apiFetch } from '../auth'
 import { useAuth } from '../authContext'
+import { NextSessionsCard } from '../components/NextSessionsCard'
 import { sessionToneClass } from '../sessionTone'
 import { useSessionTypes } from '../useSessionTypes'
-import type { PlanAdherence } from '../types'
+import type { NextSessionsResponse, PlanAdherence } from '../types'
 
 type CoachStatus = {
   reachable: boolean
@@ -162,6 +163,7 @@ export function CoachPage() {
   const [question, setQuestion] = useState('')
   const [answer, setAnswer] = useState<AdviseResponse | null>(null)
   const [storedPlan, setStoredPlan] = useState<StoredPlan | null>(null)
+  const [nextSessions, setNextSessions] = useState<NextSessionsResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loadingStatus, setLoadingStatus] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -202,9 +204,20 @@ export function CoachPage() {
       })
   }
 
+  function loadNextSessions() {
+    return apiFetch('/api/analytics/next-sessions')
+      .then(async (res) => {
+        if (!res.ok) return null
+        return (await res.json()) as NextSessionsResponse
+      })
+      .then((data) => setNextSessions(data))
+      .catch(() => setNextSessions(null))
+  }
+
   useEffect(() => {
     void refreshStatus()
     void loadPlan()
+    void loadNextSessions()
   }, [])
 
   async function warmupModel() {
@@ -433,6 +446,11 @@ export function CoachPage() {
             {storedPlan.model ? ` · ${storedPlan.model}` : ''}
           </p>
         )}
+      </section>
+
+      <section className="panel-block">
+        <h3>Prochaines séances (règles)</h3>
+        <NextSessionsCard data={nextSessions} />
       </section>
 
       <section className="panel-block">

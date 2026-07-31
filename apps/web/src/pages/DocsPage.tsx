@@ -297,6 +297,14 @@ function FormeTab() {
           Le coach et l’adhérence au plan s’appuient aussi sur ce contexte de charge, sans inventer
           de chronos
         </li>
+        <li>
+          Les <strong>prochaines séances</strong> affichées sur l’accueil / coach sont des
+          prescriptions déterministes (règles + forme + volumes), distinctes du plan LLM
+        </li>
+        <li>
+          Les <strong>tendances par type</strong> comparent allure / régularité récentes (28 j)
+          vs période antérieure — utiles pour juger si tempo, seuil, EF progressent
+        </li>
       </ul>
       <p>
         <Link to="/" className="inline-link">

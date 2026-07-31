@@ -495,9 +495,14 @@ def build_overview(db: Session, user_id: int) -> dict[str, Any]:
 
     volume_buckets = _volume_buckets_28d(recent)
 
+    from app.services.next_sessions import build_next_sessions
+    from app.services.session_type_trends import build_from_activities, build_summary
     from app.services.training_load import build_form_snapshot
 
     form = build_form_snapshot(db, user_id, now=now)
+    trends_payload = build_from_activities(all_rows, now=now, days=84)
+    trends_summary = build_summary(trends_payload, limit=5)
+    next_sessions = build_next_sessions(db, user_id, now=now, preview_limit=5)
 
     return {
         "category": category,
@@ -505,6 +510,8 @@ def build_overview(db: Session, user_id: int) -> dict[str, Any]:
         "reasons": reasons,
         "running_eligible_count": len(rows),
         "form": form,
+        "next_sessions": next_sessions,
+        "session_type_trends_summary": trends_summary,
         "totals": {
             "activities": len(rows),
             "distance_km": round(volume_km(rows), 2),

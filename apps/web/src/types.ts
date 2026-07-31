@@ -204,6 +204,60 @@ export type PlanAdherence = {
   plan_updated_at?: string | null
 }
 
+export type NextSessionItem = {
+  date: string
+  session_type: string
+  title_fr: string
+  duration_or_distance: string
+  target_pace_sec_per_km: number | null
+  rationale_fr: string
+  source: string
+}
+
+export type NextSessionsResponse = {
+  available: boolean
+  sessions: NextSessionItem[]
+  horizon_days?: number
+  form_status?: string | null
+  acr_elevated?: boolean
+  notes_fr?: string[]
+  reason_fr?: string | null
+}
+
+export type SessionTypeTrend = {
+  session_type: string
+  label_fr: string
+  available: boolean
+  reason_fr?: string | null
+  sample_recent?: number
+  sample_prior?: number
+  recent?: Record<string, number | null>
+  prior?: Record<string, number | null>
+  pace_delta_pct?: number | null
+  direction?: 'mieux' | 'stable' | 'moins_bon' | 'indetermine' | null
+  directions?: Record<string, string>
+}
+
+export type SessionTypeTrendsSummary = {
+  available: boolean
+  items: Array<{
+    session_type: string
+    label_fr: string
+    direction: string | null
+    pace_delta_pct: number | null
+    sample_recent?: number
+  }>
+  reason_fr?: string | null
+}
+
+export type SessionTypeTrendsResponse = {
+  available: boolean
+  days: number
+  recent_days: number
+  trends: SessionTypeTrend[]
+  reason_fr?: string | null
+}
+
 export type AnalyticsOverview = {
   category: string
   category_label_fr: string
@@ -256,6 +310,8 @@ export type AnalyticsOverview = {
     sample_with_trimp?: number
   }
   form?: FormSnapshot
+  next_sessions?: NextSessionsResponse
+  session_type_trends_summary?: SessionTypeTrendsSummary
   weather: {
     activities_with_weather: number
     avg_temperature_c: number | null
