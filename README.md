@@ -98,7 +98,8 @@ docker compose -f infra/docker-compose.yml --env-file .env up --build -d
 
 **Timeouts / CPU** : le premier appel charge le modèle en RAM (souvent plusieurs minutes sur CPU).
 Timeout par défaut `OLLAMA_CHAT_TIMEOUT_S=600`. `OLLAMA_KEEP_ALIVE=-1` garde le modèle chargé
-en permanence (recommandé sur VM 32 Go). Si timeout, passez à `qwen2.5:7b` (Admin).
+en permanence (recommandé sur VM 32 Go). `OLLAMA_NUM_THREAD=auto` limite à **nproc − 1** cœurs
+(laissez `0` pour utiliser tous les cœurs). Si timeout, passez à `qwen2.5:7b` (Admin).
 
 Le coach reçoit un contexte déterministe : prévisions d’allure, analytics, sorties récentes (min/km, FC, type de séance, cadence si dispo, météo). Aucun cloud IA.
 Sur les activités, **Suggérer** propose un type de séance (règles ; confirmation humaine).

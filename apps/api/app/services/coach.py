@@ -329,6 +329,7 @@ def warmup_configured_model(db: Session, env: Settings) -> dict[str, Any]:
         model,
         keep_alive=env.ollama_keep_alive,
         timeout_s=env.ollama_chat_timeout_s,
+        num_thread=env.resolved_ollama_num_thread(),
     )
     return {
         "model": model,
@@ -374,6 +375,7 @@ def advise(
         timeout_s=env.ollama_chat_timeout_s,
         num_predict=num_predict,
         keep_alive=env.ollama_keep_alive,
+        num_thread=env.resolved_ollama_num_thread(),
     )
     parsed = parse_coach_answer(raw)
     logger.info(

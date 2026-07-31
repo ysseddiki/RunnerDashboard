@@ -5,33 +5,52 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
-
-from app.config import Settings
-from app.models import Activity
-from app.services import knowledge
-from app.services import settings as settings_service
-from app.services.coach import parse_coach_answer
-from app.services.ollama_client import OllamaClient, OllamaError
 from app.services.session_types import label_for
 from app.services.terrains import label_for as terrain_label_for
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
+
+    from app.config import Settings
+    from app.models import Activity
 
 logger = logging.getLogger("coach.activity")
 
 ANALYSIS_SYSTEM = """Tu es un coach running francophone.
 Tu analyses UNE sortie à partir du JSON activité + pack knowledge (analyse-seance.md).
-N'invente aucune métrique absente. Réponds UNIQUEMENT JSON :
+Règles :
+- N'invente aucune métrique absente du JSON.
+- Si session_type / session_type_label_fr est présent, le type EST connu : ne dis jamais « sans type » ni « taguez le type ».
+- Utilise terrain_label_fr quand présent (route, trail, piste…).
+- Préfère pace_label (min/km) et distance_km aux m/s bruts.
+- Appuie-toi sur features_json (zones FC, decoupling, cv_pace, session) si disponibles.
+Réponds UNIQUEMENT JSON :
 {"summary":"2–3 phrases","markdown":"## Lecture\\n- ...\\n## Points d'attention\\n- ...","focus":["metric_keys"]}
-Adapte le focus au session_type (ef vs fractionne vs competition…) et au terrain (route vs trail vs indoor).
+Adapte le focus au session_type et au terrain.
 """
 
 
-def _activity_context(activity: Activity) -> dict[str, Any]:
+def _pace_sec_per_km(mps: float | None) -> float | None:
+    if mps is None or mps <= 0:
+        return None
+    return round(1000.0 / mps, 1)
+
+
+def _fmt_pace(sec: float | None) -> str | None:
+    if sec is None:
+        return None
+    mm = int(sec // 60)
+    ss = int(round(sec % 60))
+    if ss == 60:
+        mm += 1
+        ss = 0
+    return f"{mm}:{ss:02d}/km"
+
+
+def _activity_context(activity: Any) -> dict[str, Any]:
     features = activity.features_json if isinstance(activity.features_json, dict) else None
-    # Tronquer overlays / splits longs pour le prompt
     features_for_coach = None
     if features:
         features_for_coach = {
@@ -53,13 +72,23 @@ def _activity_context(activity: Activity) -> dict[str, Any]:
         splits = features.get("splits_km")
         if isinstance(splits, list) and splits:
             features_for_coach["splits_km"] = splits[:20]
+
+    pace = _pace_sec_per_km(activity.average_speed_mps)
     return {
         "id": activity.id,
         "name": activity.name,
         "start_date": activity.start_date.isoformat() if activity.start_date else None,
         "distance_m": activity.distance_m,
+        "distance_km": round((activity.distance_m or 0) / 1000.0, 2)
+        if activity.distance_m
+        else None,
         "moving_time_s": activity.moving_time_s,
+        "moving_time_min": round((activity.moving_time_s or 0) / 60.0, 1)
+        if activity.moving_time_s
+        else None,
         "average_speed_mps": activity.average_speed_mps,
+        "pace_sec_per_km": pace,
+        "pace_label": _fmt_pace(pace),
         "average_heartrate": activity.average_heartrate,
         "max_heartrate": activity.max_heartrate,
         "cadence_ppm": activity.cadence_ppm,
@@ -73,43 +102,118 @@ def _activity_context(activity: Activity) -> dict[str, Any]:
     }
 
 
-def insight_hints(session_type: str | None) -> list[dict[str, str]]:
-    """Hints UI déterministes selon type (complètent l’analyse IA)."""
-    st = session_type or ""
-    if st in {"ef", "recuperation"}:
+def insight_hints(
+    session_type: str | None,
+    terrain: str | None = None,
+) -> list[dict[str, str]]:
+    """Hints UI déterministes selon type (+ nuance terrain)."""
+    st = (session_type or "").strip()
+    terrain_note = ""
+    if terrain == "trail":
+        terrain_note = " Sur trail, l’allure compte moins que l’effort / FC."
+    elif terrain == "piste":
+        terrain_note = " Sur piste, la régularité des tours est un bon signal."
+    elif terrain == "tapis" or terrain == "indoor":
+        terrain_note = " En indoor, comparez surtout FC et cadence (PPM)."
+
+    by_type: dict[str, tuple[str, str]] = {
+        "ef": (
+            "Allure conversationnelle et FC en zones basses (Z1–Z2).",
+            "Vérifiez qu’il n’y a pas de dérive inutile vers le tempo.",
+        ),
+        "recuperation": (
+            "Très léger : volume court, FC basse.",
+            "Objectif = digérer la charge, pas « bien courir ».",
+        ),
+        "endurance_active": (
+            "Allure un peu plus soutenue que l’EF, encore contrôlée (souvent Z2–Z3).",
+            "Gardez une allure stable ; la FC peut monter en Z3 sans viser le seuil.",
+        ),
+        "sortie_longue": (
+            "Volume, dérive cardiaque (decoupling), météo.",
+            "Gardez une allure soutenable sur toute la durée.",
+        ),
+        "tempo": (
+            "Régularité d’allure vs cible tempo / spécifique.",
+            "Comparez FC moyenne à vos zones Z3–Z4 et le CV d’allure.",
+        ),
+        "seuil": (
+            "Blocs ou continu au seuil : allure et FC en zone cible.",
+            "Surveillez la dérive en 2e moitié et la régularité (cv_pace).",
+        ),
+        "fractionne": (
+            "Qualité des intervalles et récupérations.",
+            "Cadence et pics d’allure comptent plus que le km total.",
+        ),
+        "vma": (
+            "Répétitions courtes / moyennes autour de la VMA.",
+            "Récups complètes : la qualité des reps prime sur le volume.",
+        ),
+        "cotes": (
+            "Effort en montée : puissance / FC, pas l’allure plate.",
+            "Descendez en récup ; évitez de forcer en descente.",
+        ),
+        "fartlek": (
+            "Variations d’allure libres : contraste facile / soutenu.",
+            "Lisez le temps en zones et la sensation plutôt qu’une cible unique.",
+        ),
+        "competition": (
+            "Perf vs prévisions de distance (ancre course).",
+            "Utile pour recalibrer allures et confiance des prévisions.",
+        ),
+        "test": (
+            "Évaluation : chrono / VMA / test — ancre de calibrage.",
+            "Comparez au dernier test et aux allures d’entraînement.",
+        ),
+        "autre": (
+            "Métriques globales : distance, allure, FC, terrain.",
+            "Précisez le type de séance pour une lecture plus ciblée.",
+        ),
+    }
+
+    if st in by_type:
+        focus, lecture = by_type[st]
         return [
-            {"title": "Focus", "text": "Allure conversationnelle et FC en zones basses."},
-            {"title": "Lecture", "text": "Vérifiez qu’il n’y a pas de dérive inutile vers le tempo."},
+            {"title": "Focus", "text": focus + terrain_note},
+            {"title": "Lecture", "text": lecture},
         ]
-    if st in {"tempo", "seuil"}:
-        return [
-            {"title": "Focus", "text": "Régularité d’allure vs cible prévisions seuil/tempo."},
-            {"title": "Lecture", "text": "Comparez FC moyenne à vos zones Z3–Z4."},
-        ]
-    if st in {"fractionne", "vma"}:
-        return [
-            {"title": "Focus", "text": "Qualité des intervalles et récupérations."},
-            {"title": "Lecture", "text": "Cadence et pics d’allure comptent plus que le km total."},
-        ]
-    if st == "sortie_longue":
-        return [
-            {"title": "Focus", "text": "Volume, dérive cardiaque, météo."},
-            {"title": "Lecture", "text": "Gardez une allure soutenable sur toute la durée."},
-        ]
-    if st in {"competition", "test"}:
-        return [
-            {"title": "Focus", "text": "Perf vs prévisions de distance."},
-            {"title": "Lecture", "text": "Utile comme ancre pour recalibrer les allures."},
-        ]
+
     return [
-        {"title": "Focus", "text": "Distance, allure, FC — taguez le type pour affiner."},
-        {"title": "Lecture", "text": "Sans type de séance, l’analyse reste générique."},
+        {
+            "title": "Focus",
+            "text": "Distance, allure, FC — taguez le type de séance pour affiner."
+            + terrain_note,
+        },
+        {
+            "title": "Lecture",
+            "text": "Sans type de séance, l’analyse reste générique.",
+        },
     ]
+
+
+def refresh_analysis_hints(
+    payload: dict[str, Any] | None, activity: Any
+) -> dict[str, Any] | None:
+    """Recalcule Focus/Lecture selon le type/terrain actuels (sans relancer le LLM)."""
+    if not isinstance(payload, dict):
+        return payload
+    return {
+        **payload,
+        "hints": insight_hints(activity.session_type, activity.terrain),
+        "session_type": activity.session_type,
+        "terrain": activity.terrain,
+    }
 
 
 def analyze_activity(
     db: Session, env: Settings, user_id: int, activity_id: int
 ) -> dict[str, Any]:
+    from app.models import Activity
+    from app.services import knowledge
+    from app.services import settings as settings_service
+    from app.services.coach import parse_coach_answer
+    from app.services.ollama_client import OllamaClient, OllamaError
+
     activity = db.get(Activity, activity_id)
     if activity is None:
         raise ValueError(f"Activité {activity_id} introuvable")
@@ -131,19 +235,22 @@ def analyze_activity(
         user=(
             f"Pack knowledge :\n{pack}\n\n"
             f"Activité JSON :\n{json.dumps(ctx, ensure_ascii=False)}\n\n"
-            "Analyse cette sortie."
+            "Analyse cette sortie en t’appuyant sur session_type_label_fr, "
+            "terrain_label_fr, pace_label et features_json."
         ),
         timeout_s=env.ollama_chat_timeout_s,
         num_predict=min(env.ollama_num_predict, 700),
         keep_alive=env.ollama_keep_alive,
+        num_thread=env.resolved_ollama_num_thread(),
     )
     parsed = parse_coach_answer(raw)
     payload = {
         "model": model,
         "summary": parsed["summary"],
         "markdown": parsed["markdown"],
-        "hints": insight_hints(activity.session_type),
+        "hints": insight_hints(activity.session_type, activity.terrain),
         "session_type": activity.session_type,
+        "terrain": activity.terrain,
     }
     activity.coach_analysis_json = payload
     activity.coach_analyzed_at = datetime.now(timezone.utc)
@@ -156,6 +263,10 @@ def analyze_activity(
 def analyze_missing(
     db: Session, env: Settings, user_id: int, *, limit: int = 3
 ) -> int:
+    from sqlalchemy import select
+
+    from app.models import Activity
+
     rows = list(
         db.scalars(
             select(Activity)

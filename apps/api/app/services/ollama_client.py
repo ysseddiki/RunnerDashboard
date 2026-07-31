@@ -84,15 +84,24 @@ class OllamaClient:
         *,
         keep_alive: str | int = -1,
         timeout_s: float = 600.0,
+        num_thread: int | None = None,
     ) -> dict[str, Any]:
         """Charge le modèle en RAM via un chat minimal (num_predict=1)."""
-        logger.info("Warmup Ollama | model=%s | keep_alive=%s", model, keep_alive)
+        logger.info(
+            "Warmup Ollama | model=%s | keep_alive=%s | num_thread=%s",
+            model,
+            keep_alive,
+            num_thread,
+        )
         keep_alive_value: str | int
         if isinstance(keep_alive, int):
             keep_alive_value = keep_alive
         else:
             raw = str(keep_alive).strip()
             keep_alive_value = int(raw) if raw.lstrip("-").isdigit() else raw
+        options: dict[str, Any] = {"temperature": 0, "num_predict": 4}
+        if num_thread is not None and num_thread > 0:
+            options["num_thread"] = int(num_thread)
         timeout = httpx.Timeout(connect=30.0, read=timeout_s, write=60.0, pool=30.0)
         try:
             with httpx.Client(timeout=timeout) as client:
@@ -109,7 +118,7 @@ class OllamaClient:
                             },
                             {"role": "user", "content": "ping"},
                         ],
-                        "options": {"temperature": 0, "num_predict": 4},
+                        "options": options,
                     },
                 )
             if res.status_code >= 400:
@@ -165,14 +174,17 @@ class OllamaClient:
         timeout_s: float = 600.0,
         num_predict: int = 650,
         keep_alive: str | int = -1,
+        num_thread: int | None = None,
     ) -> str:
         logger.info(
-            "Chat Ollama | model=%s | user_chars=%s | timeout_s=%s | num_predict=%s | keep_alive=%s",
+            "Chat Ollama | model=%s | user_chars=%s | timeout_s=%s | num_predict=%s | "
+            "keep_alive=%s | num_thread=%s",
             model,
             len(user),
             timeout_s,
             num_predict,
             keep_alive,
+            num_thread,
         )
         timeout = httpx.Timeout(
             connect=30.0,
@@ -187,6 +199,12 @@ class OllamaClient:
         else:
             raw = str(keep_alive).strip()
             keep_alive_value = int(raw) if raw.lstrip("-").isdigit() else raw
+        options: dict[str, Any] = {
+            "temperature": 0.3,
+            "num_predict": num_predict,
+        }
+        if num_thread is not None and num_thread > 0:
+            options["num_thread"] = int(num_thread)
         try:
             with httpx.Client(timeout=timeout) as client:
                 res = client.post(
@@ -199,10 +217,7 @@ class OllamaClient:
                             {"role": "system", "content": system},
                             {"role": "user", "content": user},
                         ],
-                        "options": {
-                            "temperature": 0.3,
-                            "num_predict": num_predict,
-                        },
+                        "options": options,
                     },
                 )
             if res.status_code >= 400:

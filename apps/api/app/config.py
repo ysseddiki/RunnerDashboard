@@ -1,5 +1,7 @@
 """Configuration de l'API RunningDashboard."""
 
+from __future__ import annotations
+
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -33,6 +35,8 @@ class Settings(BaseSettings):
     ollama_num_predict: int = 650
     # -1 = ne jamais décharger le modèle (reste en RAM tant qu’Ollama tourne)
     ollama_keep_alive: str = "-1"
+    # Threads CPU Ollama : "auto" = (nproc − 1), "0" = défaut Ollama (tous), ou entier
+    ollama_num_thread: str = "auto"
     # Cookie session signé (obligatoire en prod)
     session_secret: str = DEV_SESSION_SECRET
     # Clé de chiffrement au repos des tokens Strava (défaut : dérivée de session_secret)
@@ -45,6 +49,25 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.environment.strip().lower() in {"production", "prod"}
+
+    def resolved_ollama_num_thread(self) -> int | None:
+        """Nombre de threads à passer à Ollama, ou None pour laisser le défaut."""
+        import os
+
+        raw = (self.ollama_num_thread or "").strip().lower()
+        if raw in {"", "0", "default", "all"}:
+            return None
+        if raw in {"auto", "-1", "max-1", "n-1"}:
+            n = os.cpu_count() or 2
+            return max(1, n - 1)
+        try:
+            value = int(raw)
+        except ValueError:
+            n = os.cpu_count() or 2
+            return max(1, n - 1)
+        if value <= 0:
+            return None
+        return value
 
 
 @lru_cache

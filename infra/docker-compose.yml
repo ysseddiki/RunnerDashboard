@@ -40,6 +40,7 @@ services:
       OLLAMA_CHAT_TIMEOUT_S: ${OLLAMA_CHAT_TIMEOUT_S:-600}
       OLLAMA_NUM_PREDICT: ${OLLAMA_NUM_PREDICT:-650}
       OLLAMA_KEEP_ALIVE: "${OLLAMA_KEEP_ALIVE:--1}"
+      OLLAMA_NUM_THREAD: ${OLLAMA_NUM_THREAD:-auto}
     volumes:
       - ${HOST_LOG_DIR:-/var/log/running-dashboards/host-logs}:${LOG_DIR:-/var/log/running-dashboards/host-logs}
     depends_on:

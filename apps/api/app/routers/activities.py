@@ -264,8 +264,16 @@ def get_activity(
     activity_id: int,
     user: User = Depends(auth_service.require_user),
     db: Session = Depends(get_db),
-) -> Activity:
-    return _owned_activity(db, user.id, activity_id)
+) -> ActivityDetail:
+    row = _owned_activity(db, user.id, activity_id)
+    detail = ActivityDetail.model_validate(row)
+    if detail.coach_analysis_json:
+        from app.services.activity_coach import refresh_analysis_hints
+
+        detail.coach_analysis_json = refresh_analysis_hints(
+            detail.coach_analysis_json, row
+        )
+    return detail
 
 
 @router.post(
@@ -293,7 +301,7 @@ def patch_activity(
     body: ActivityUpdate,
     user: User = Depends(auth_service.require_user),
     db: Session = Depends(get_db),
-) -> Activity:
+) -> ActivityDetail:
     row = _owned_activity(db, user.id, activity_id)
 
     payload = body.model_dump(exclude_unset=True)
@@ -312,7 +320,23 @@ def patch_activity(
         from app.services import activity_features as features_service
 
         features_service.apply_features(db, row, force=True)
+        # Mettre à jour Focus/Lecture sans relancer le LLM
+        if isinstance(row.coach_analysis_json, dict):
+            from app.services.activity_coach import refresh_analysis_hints
+            from sqlalchemy.orm.attributes import flag_modified
+
+            row.coach_analysis_json = refresh_analysis_hints(
+                row.coach_analysis_json, row
+            )
+            flag_modified(row, "coach_analysis_json")
 
     db.commit()
     db.refresh(row)
-    return row
+    detail = ActivityDetail.model_validate(row)
+    if detail.coach_analysis_json:
+        from app.services.activity_coach import refresh_analysis_hints
+
+        detail.coach_analysis_json = refresh_analysis_hints(
+            detail.coach_analysis_json, row
+        )
+    return detail
