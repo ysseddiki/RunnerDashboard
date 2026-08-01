@@ -37,12 +37,12 @@ export function NextSessionsCard({ data }: Props) {
 
   return (
     <div className="next-sessions">
-      <p className="muted next-sessions-source">Source : règles déterministes (pas le LLM)</p>
+      <p className="next-sessions-source">Source : règles déterministes (pas le LLM)</p>
       <ul className="next-sessions-list">
         {sessions.map((s) => (
           <li key={`${s.date}-${s.session_type}-${s.title_fr}`}>
             <div className="next-session-head">
-              <time>{formatDay(s.date)}</time>
+              <time dateTime={s.date}>{formatDay(s.date)}</time>
               <span className={`chip ${sessionToneClass(s.session_type)}`}>
                 {s.title_fr}
               </span>
@@ -58,7 +58,7 @@ export function NextSessionsCard({ data }: Props) {
         ))}
       </ul>
       {data.notes_fr && data.notes_fr.length > 0 && (
-        <ul className="muted next-sessions-notes">
+        <ul className="next-sessions-notes">
           {data.notes_fr.map((n) => (
             <li key={n}>{n}</li>
           ))}
