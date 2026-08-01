@@ -13,7 +13,7 @@ import { FormChart } from '../components/FormChart'
 import { NextSessionsCard } from '../components/NextSessionsCard'
 import { SessionTypeTrendsPanel } from '../components/SessionTypeTrendsPanel'
 import { Panel } from '../components/Panel'
-import { EmptyState } from '../components/EmptyState'
+import { EmptyState, SkeletonList } from '../components/EmptyState'
 import { apiFetch } from '../auth'
 import type { SessionTypeTrendsResponse } from '../types'
 
@@ -28,6 +28,7 @@ export function HomePage() {
   const [analytics, setAnalytics] = useState<AnalyticsOverview | null>(null)
   const [loadSeries, setLoadSeries] = useState<LoadSeriesResponse | null>(null)
   const [typeTrends, setTypeTrends] = useState<SessionTypeTrendsResponse | null>(null)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [syncBusy, setSyncBusy] = useState(false)
   const [syncMessage, setSyncMessage] = useState<string | null>(null)
@@ -66,9 +67,14 @@ export function HomePage() {
 
   useEffect(() => {
     let cancelled = false
-    void loadHome().catch((err: unknown) => {
-      if (!cancelled) setError(err instanceof Error ? err.message : 'Chargement impossible')
-    })
+    setLoading(true)
+    void loadHome()
+      .catch((err: unknown) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Chargement impossible')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
     return () => {
       cancelled = true
     }
@@ -103,11 +109,13 @@ export function HomePage() {
       <header className="page-hero">
         <h1>Votre suivi running</h1>
         <p>
-          {strava?.connected
-            ? `Bienvenue${strava.athlete_name ? `, ${strava.athlete_name}` : ''}. Vos sorties Strava sont isolées à votre compte.`
-            : 'Reconnectez Strava via Logout puis Login si la sync échoue.'}
+          {loading
+            ? 'Chargement de votre suivi…'
+            : strava?.connected
+              ? `Bienvenue${strava.athlete_name ? `, ${strava.athlete_name}` : ''}. Vos sorties Strava sont isolées à votre compte.`
+              : 'Reconnectez Strava via Logout puis Login si la sync échoue.'}
         </p>
-        {strava?.connected && (
+        {!loading && strava?.connected && (
           <div className="admin-actions" style={{ marginTop: '1rem' }}>
             <button
               type="button"
@@ -284,7 +292,11 @@ export function HomePage() {
             Tout voir
           </Link>
         </div>
-        {activities.length === 0 ? (
+        {loading ? (
+          <div aria-busy="true" aria-label="Chargement des sorties">
+            <SkeletonList rows={4} />
+          </div>
+        ) : activities.length === 0 ? (
           <EmptyState
             title="Aucune sortie"
             description="Lancez une synchronisation Strava ci-dessus pour importer vos activités."
