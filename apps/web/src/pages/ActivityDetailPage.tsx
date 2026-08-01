@@ -9,6 +9,8 @@ import { ActivityMap } from '../components/ActivityMap'
 import { ActivityRow } from '../components/ActivityRow'
 import { StreamCharts } from '../components/StreamCharts'
 import { SessionInsights, FeatureTables } from '../components/SessionInsights'
+import { Panel } from '../components/Panel'
+import { SkeletonDetail } from '../components/EmptyState'
 import { apiFetch } from '../auth'
 
 type AppleLinkInfo = {
@@ -125,7 +127,7 @@ export function ActivityDetailPage() {
         ← Retour aux activités
       </Link>
       {error && <p className="banner error">{error}</p>}
-      {loading && <p className="muted">Chargement du détail…</p>}
+      {loading && <SkeletonDetail />}
       {!loading && detail && activityId != null && (
         <>
           <header className="detail-hero">
@@ -238,8 +240,13 @@ export function ActivityDetailPage() {
             </div>
           </div>
 
-          <div className="detail-block apple-link-panel">
-            <h3>Lien Apple Santé</h3>
+          <Panel
+            id={`activity-apple-${activityId}`}
+            title="Lien Apple Santé"
+            subtitle="Association optionnelle avec un workout importé"
+            className="detail-block apple-link-panel"
+            defaultOpen={Boolean(appleLink?.linked_workout || appleLink?.apple_candidates?.length)}
+          >
             {appleLink?.linked_workout ? (
               <>
                 <p>
@@ -292,7 +299,7 @@ export function ActivityDetailPage() {
                 candidats.
               </p>
             )}
-          </div>
+          </Panel>
 
           <div
             className={`detail-pair detail-pair-insights${
@@ -306,15 +313,13 @@ export function ActivityDetailPage() {
             <FeatureTables features={detail.features_json} />
           </div>
 
-          <section className="panel-block detail-charts">
-            <div className="section-head">
-              <div>
-                <h3 style={{ margin: 0 }}>Courbes de la séance</h3>
-                <p className="muted section-sub">
-                  Allure, FC et co. — les pastilles signalent les zones à regarder de plus près.
-                </p>
-              </div>
-            </div>
+          <Panel
+            id={`activity-charts-${activityId}`}
+            title="Courbes de la séance"
+            subtitle="Allure, FC et co. — les pastilles signalent les zones à regarder de plus près."
+            className="detail-charts"
+            defaultOpen
+          >
             {points.length > 0 ? (
               <StreamCharts
                 points={points}
@@ -324,17 +329,15 @@ export function ActivityDetailPage() {
             ) : (
               <p className="muted">Aucun stream stocké pour cette sortie.</p>
             )}
-          </section>
+          </Panel>
 
-          <section className="panel-block detail-tech">
-            <div className="section-head">
-              <div>
-                <h3 style={{ margin: 0 }}>Détail technique</h3>
-                <p className="muted section-sub">
-                  Performance brute, météo du jour et contexte d’enregistrement.
-                </p>
-              </div>
-            </div>
+          <Panel
+            id={`activity-tech-${activityId}`}
+            title="Détail technique"
+            subtitle="Performance brute, météo du jour et contexte d’enregistrement."
+            className="detail-tech"
+            defaultOpen={false}
+          >
             <div className="detail-secondary">
               <div className="kv-panel">
                 <h3>Performance</h3>
@@ -492,7 +495,7 @@ export function ActivityDetailPage() {
                 </dl>
               </div>
             </div>
-          </section>
+          </Panel>
         </>
       )}
     </section>

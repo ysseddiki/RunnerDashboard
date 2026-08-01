@@ -6,9 +6,10 @@
   position: relative;
   overflow: hidden;
   background:
-    radial-gradient(ellipse 80% 60% at 20% 10%, rgba(61, 122, 74, 0.28), transparent 55%),
-    radial-gradient(ellipse 70% 50% at 90% 80%, rgba(28, 58, 42, 0.35), transparent 50%),
-    linear-gradient(165deg, #0f1f16 0%, #1a3324 45%, #243d2c 100%);
+    radial-gradient(ellipse 80% 60% at 20% 10%, rgba(45, 111, 191, 0.32), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 90% 80%, rgba(232, 117, 44, 0.22), transparent 50%),
+    linear-gradient(165deg, #0c1422 0%, #121c2e 45%, #152033 100%);
+  color-scheme: dark;
 }
 
 .login-atmosphere {
@@ -37,9 +38,9 @@
 .login-brand {
   font-family: Syne, sans-serif;
   font-weight: 700;
-  font-size: clamp(1.75rem, 4vw, 2.25rem);
+  font-size: clamp(1.85rem, 4.2vw, 2.45rem);
   letter-spacing: -0.03em;
-  color: #e8f2ea;
+  color: #e8eef5;
   margin: 0 0 1.5rem;
 }
 
@@ -47,20 +48,20 @@
   font-family: Manrope, sans-serif;
   font-size: 1.15rem;
   font-weight: 600;
-  color: #c5d9cb;
+  color: #c5d0de;
   margin: 0 0 0.65rem;
 }
 
 .login-lead {
   margin: 0 0 1.75rem;
-  color: rgba(197, 217, 203, 0.78);
+  color: rgba(197, 208, 222, 0.78);
   font-size: 0.95rem;
   line-height: 1.5;
 }
 
 .login-error {
   margin: 0 0 1rem;
-  color: #f0b4a8;
+  color: #e07070;
   font-size: 0.9rem;
 }
 
@@ -83,9 +84,9 @@
 @keyframes login-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(126, 185, 112, 0.35);
+    box-shadow: 0 0 0 0 rgba(232, 117, 44, 0.4);
   }
   50% {
-    box-shadow: 0 0 0 8px rgba(126, 185, 112, 0);
+    box-shadow: 0 0 0 8px rgba(232, 117, 44, 0);
   }
 }

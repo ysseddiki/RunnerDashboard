@@ -33,7 +33,7 @@ export function PaceTrendChart({ points }: Props) {
           if (!item || typeof item.dataIndex !== 'number') return ''
           const point = points[item.dataIndex]
           if (!point) return ''
-          return `<div><strong>${point.week}</strong></div><div style="color:#1a5c3a">Allure 10 km : <strong>${formatPaceSec(point.pace_sec_per_km)}</strong></div>`
+          return `<div><strong>${point.week}</strong></div><div style="color:#1a4f8c">Allure 10 km : <strong>${formatPaceSec(point.pace_sec_per_km)}</strong></div>`
         },
       },
       xAxis: {
@@ -54,7 +54,7 @@ export function PaceTrendChart({ points }: Props) {
         scale: true,
         name: 'Allure',
         nameTextStyle: {
-          color: '#1a5c3a',
+          color: '#1a4f8c',
           fontSize: 12,
           fontWeight: 600,
           fontFamily: 'Manrope, sans-serif',
@@ -78,8 +78,8 @@ export function PaceTrendChart({ points }: Props) {
           showSymbol: true,
           symbolSize: 7,
           smooth: 0.25,
-          lineStyle: { width: 2.5, color: '#1a5c3a' },
-          itemStyle: { color: '#1a5c3a', borderColor: '#fff', borderWidth: 2 },
+          lineStyle: { width: 2.5, color: '#1a4f8c' },
+          itemStyle: { color: '#1a4f8c', borderColor: '#fff', borderWidth: 2 },
           areaStyle: {
             color: {
               type: 'linear',

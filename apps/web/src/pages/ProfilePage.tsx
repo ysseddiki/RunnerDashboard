@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from '../auth'
+import { ThemeSelector } from '../components/ThemeSelector'
+import { Panel } from '../components/Panel'
 
 type HistoryEntry = {
   id: number
@@ -157,6 +159,14 @@ export function ProfilePage() {
 
       {error && <p className="banner error">{error}</p>}
 
+      <section className="panel-block profile-theme">
+        <header className="profile-form-head">
+          <h3>Apparence</h3>
+          <p className="muted">Thème de l’interface (stocké sur cet appareil).</p>
+        </header>
+        <ThemeSelector />
+      </section>
+
       <form className="panel-block profile-form" onSubmit={(e) => void save(e)}>
         <header className="profile-form-head">
           <h3>Identité & physiologie</h3>
@@ -298,8 +308,7 @@ export function ProfilePage() {
 
       {profile && (
         <div className="home-grid">
-          <section className="panel-block">
-            <h3>Zones FC</h3>
+          <Panel id="profile-zones" title="Zones FC" defaultOpen>
             {!profile.zones.available ? (
               <p className="muted">{profile.zones.reason_fr}</p>
             ) : (
@@ -321,9 +330,8 @@ export function ProfilePage() {
             {profile.zones.method && (
               <p className="muted">Méthode : {profile.zones.method}</p>
             )}
-          </section>
-          <section className="panel-block">
-            <h3>VO2max estimée</h3>
+          </Panel>
+          <Panel id="profile-vo2" title="VO2max estimée" defaultOpen>
             {profile.vo2max.available ? (
               <p className="pred-hero-pace" style={{ fontSize: '2rem' }}>
                 {profile.vo2max.vo2max_ml_kg_min}
@@ -335,7 +343,7 @@ export function ProfilePage() {
             {profile.vo2max.method && (
               <p className="muted">Méthode : {profile.vo2max.method} (approximation)</p>
             )}
-          </section>
+          </Panel>
         </div>
       )}
 

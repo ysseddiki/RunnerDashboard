@@ -1,10 +1,20 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import ReactECharts from 'echarts-for-react'
 import type { EChartsOption } from 'echarts'
 import type { ActivityFeatures, StreamPoint } from '../types'
 import { downsamplePoints } from '../streams'
 import { formatClock, formatPaceSec } from '../format'
 import { buildChartAttentions, attentionRangeLabel, type ChartAttention, type ChartSeriesKey } from '../chartAttention'
+import {
+  CHART_BRAND,
+  CHART_BRAND_FILL,
+  CHART_DANGER,
+  CHART_INK,
+  CHART_LINE,
+  CHART_OK_BAND,
+  CHART_SERIES,
+  CHART_WARN,
+} from '../chartTheme'
 
 type SeriesKey = ChartSeriesKey
 
@@ -12,11 +22,11 @@ const SERIES_META: Record<
   SeriesKey,
   { label: string; unit: string; color: string; invertY?: boolean }
 > = {
-  pace: { label: 'Allure', unit: '/km', color: '#1a5c3a', invertY: true },
-  heartrate: { label: 'FC', unit: 'bpm', color: '#a32d2d' },
-  cadence: { label: 'Cadence', unit: 'PPM', color: '#2d6a8f' },
-  altitude: { label: 'Altitude', unit: 'm', color: '#5c6f62' },
-  watts: { label: 'Puissance', unit: 'W', color: '#8a5a12' },
+  pace: { label: 'Allure', unit: '/km', color: CHART_SERIES.pace, invertY: true },
+  heartrate: { label: 'FC', unit: 'bpm', color: CHART_SERIES.heartrate },
+  cadence: { label: 'Cadence', unit: 'PPM', color: CHART_SERIES.cadence },
+  altitude: { label: 'Altitude', unit: 'm', color: CHART_SERIES.altitude },
+  watts: { label: 'Puissance', unit: 'W', color: CHART_SERIES.watts },
 }
 
 function valueAt(point: StreamPoint, key: SeriesKey): number | null {
@@ -137,7 +147,7 @@ export function StreamCharts({ points, features, sessionType }: Props) {
         formatter: (v: number) =>
           key === 'pace' ? formatPaceSec(v).replace(' /km', '') : String(Math.round(v)),
       },
-      splitLine: { lineStyle: { color: 'rgba(20,32,24,0.08)' } },
+      splitLine: { lineStyle: { color: CHART_LINE } },
     }))
 
     const segments = features?.chart_overlays?.interval_segments ?? []
@@ -151,7 +161,7 @@ export function StreamCharts({ points, features, sessionType }: Props) {
             (seg): MarkAreaPair => [
               {
                 xAxis: snapX(sampled, xData, seg.start_distance_m / 1000),
-                itemStyle: { color: 'rgba(26, 92, 58, 0.12)' },
+                itemStyle: { color: CHART_OK_BAND },
                 name: 'Intervalle',
               },
               {
@@ -205,7 +215,7 @@ export function StreamCharts({ points, features, sessionType }: Props) {
             coord,
             value: a.title,
             itemStyle: {
-              color: a.severity === 'warn' ? '#a32d2d' : '#8a5a12',
+              color: a.severity === 'warn' ? CHART_DANGER : CHART_WARN,
               borderColor: '#fff',
               borderWidth: 2,
             },
@@ -214,7 +224,7 @@ export function StreamCharts({ points, features, sessionType }: Props) {
               show: isActive,
               formatter: a.title,
               position: 'top' as const,
-              color: '#142018',
+              color: CHART_INK,
               fontSize: 11,
               fontWeight: 600 as const,
             },
@@ -280,7 +290,7 @@ export function StreamCharts({ points, features, sessionType }: Props) {
                 `<div style="color:${SERIES_META[key].color}">${SERIES_META[key].label}: <strong>${formatValue(key, valueAt(point, key))}</strong></div>`,
             ),
             ...near.map((a) => {
-              const color = a.severity === 'warn' ? '#a32d2d' : '#8a5a12'
+              const color = a.severity === 'warn' ? CHART_DANGER : CHART_WARN
               return `<div style="margin-top:4px;color:${color}"><strong>${a.title}</strong> — ${a.detail}</div>`
             }),
           ]
@@ -293,15 +303,18 @@ export function StreamCharts({ points, features, sessionType }: Props) {
           type: 'inside',
           xAxisIndex: available.map((_, i) => i),
           filterMode: 'none',
+          zoomOnMouseWheel: true,
+          moveOnMouseMove: true,
         },
         {
           type: 'slider',
           xAxisIndex: available.map((_, i) => i),
           height: 22,
           bottom: 8,
-          borderColor: 'rgba(20,32,24,0.14)',
-          fillerColor: 'rgba(26,92,58,0.15)',
-          handleStyle: { color: '#1a5c3a' },
+          borderColor: CHART_LINE,
+          fillerColor: CHART_BRAND_FILL,
+          handleStyle: { color: CHART_BRAND },
+          brushSelect: true,
         },
       ],
       grid: grids,
@@ -310,6 +323,24 @@ export function StreamCharts({ points, features, sessionType }: Props) {
       series,
     }
   }, [sampled, available, features, attentions, activeId])
+
+  const chartRef = useRef<ReactECharts | null>(null)
+
+  useEffect(() => {
+    if (!active || active.from_km == null || active.to_km == null) return
+    const instance = chartRef.current?.getEchartsInstance()
+    if (!instance || sampled.length < 2) return
+    const maxKm = sampled[sampled.length - 1]!.distance_km
+    if (!(maxKm > 0)) return
+    const pad = Math.max((active.to_km - active.from_km) * 0.35, 0.15)
+    const start = Math.max(0, ((active.from_km - pad) / maxKm) * 100)
+    const end = Math.min(100, ((active.to_km + pad) / maxKm) * 100)
+    instance.dispatchAction({
+      type: 'dataZoom',
+      start,
+      end,
+    })
+  }, [active, sampled])
 
   if (!option) {
     return <p className="muted">Aucune série numérique exploitable pour les courbes.</p>
@@ -320,6 +351,22 @@ export function StreamCharts({ points, features, sessionType }: Props) {
 
   return (
     <div className="charts-panel">
+      <div className="chart-legend" aria-label="Légende des plages">
+        {hasIntervals && (
+          <span className="chart-legend-item">
+            <span className="chart-legend-swatch is-ok" aria-hidden="true" />
+            Intervalles
+          </span>
+        )}
+        <span className="chart-legend-item">
+          <span className="chart-legend-swatch is-warn" aria-hidden="true" />
+          Attention
+        </span>
+        <span className="chart-legend-item">
+          <span className="chart-legend-swatch is-danger" aria-hidden="true" />
+          Critique
+        </span>
+      </div>
       {attentions.length > 0 && (
         <div className="chart-attentions" aria-label="Points d’attention">
           {attentions.map((a) => {
@@ -353,12 +400,18 @@ export function StreamCharts({ points, features, sessionType }: Props) {
       <div className="charts-wrap">
         <p className="muted charts-hint">
           Survolez un point pour le détail · molette ou curseur pour zoomer.
-          {hasIntervals ? ' · Bandes vertes = intervalles.' : ''}
+          {hasIntervals ? ' · Bandes teal = intervalles.' : ''}
           {attentions.length > 0
-            ? ' · Bandes ambre/rouge = plages d’attention (cliquez une puce).'
+            ? ' · Bandes ambre/rouge = plages d’attention (cliquez une puce pour zoomer).'
             : ''}
         </p>
-        <ReactECharts option={option} style={{ height, width: '100%' }} notMerge lazyUpdate />
+        <ReactECharts
+          ref={chartRef}
+          option={option}
+          style={{ height, width: '100%' }}
+          notMerge
+          lazyUpdate
+        />
       </div>
     </div>
   )

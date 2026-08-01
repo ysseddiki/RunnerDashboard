@@ -60,6 +60,11 @@ Login obligatoire via Strava. Chaque compte a ses activités / profil / plan iso
 Rôles : `user` (défaut) et `admin`. **Le premier compte** qui se connecte devient admin ; les admins
 peuvent ensuite promouvoir d’autres utilisateurs (page Admin → Utilisateurs).
 
+### Thème clair / sombre
+
+Dans **Profil → Apparence**, choisissez `Clair`, `Sombre` ou `Système` (suit `prefers-color-scheme`).
+La préférence est stockée dans le navigateur (`localStorage`), pas sur le serveur.
+
 Variables `.env` importantes :
 - `SESSION_SECRET` — secret de signature du cookie de session (changez en production)
 - `STRAVA_REDIRECT_URI` — doit pointer vers `/api/auth/strava/callback`

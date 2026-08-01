@@ -45,9 +45,9 @@ export function Layout() {
   return (
     <div className="shell">
       <header className="topbar">
-        <NavLink to="/" className="brand-btn" end>
+        <NavLink to="/" className="brand-btn" end aria-label="RunningDashboard — Accueil">
           <span className="brand-mark" aria-hidden="true" />
-          RunningDashboard
+          <span className="brand-name">RunningDashboard</span>
         </NavLink>
         <nav className="nav" aria-label="Navigation principale">
           <NavLink to="/" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')} end>

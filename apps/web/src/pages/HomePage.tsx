@@ -12,6 +12,8 @@ import { WeeklyVolumeChart } from '../components/WeeklyVolumeChart'
 import { FormChart } from '../components/FormChart'
 import { NextSessionsCard } from '../components/NextSessionsCard'
 import { SessionTypeTrendsPanel } from '../components/SessionTypeTrendsPanel'
+import { Panel } from '../components/Panel'
+import { EmptyState } from '../components/EmptyState'
 import { apiFetch } from '../auth'
 import type { SessionTypeTrendsResponse } from '../types'
 
@@ -217,8 +219,7 @@ export function HomePage() {
           </div>
 
           <div className="home-grid">
-            <div className="panel-block">
-              <h3>Forme (ATL / CTL / TSB)</h3>
+            <Panel id="home-form" title="Forme (ATL / CTL / TSB)" defaultOpen>
               <FormChart
                 series={loadSeries?.available ? loadSeries.series : []}
                 form={loadSeries?.form ?? analytics.form}
@@ -228,15 +229,13 @@ export function HomePage() {
                   'Pas assez de sorties avec TRIMP (FC + zones).'
                 }
               />
-            </div>
+            </Panel>
             {analytics.weekly_volume.length > 0 && (
-              <div className="panel-block">
-                <h3>Volume hebdomadaire</h3>
+              <Panel id="home-volume" title="Volume hebdomadaire" defaultOpen>
                 <WeeklyVolumeChart weeks={analytics.weekly_volume} />
-              </div>
+              </Panel>
             )}
-            <div className="panel-block">
-              <h3>Météo des sorties</h3>
+            <Panel id="home-weather" title="Météo des sorties" defaultOpen>
               <dl className="weather-strip">
                 <div className="weather-stat">
                   <dt>Sorties enrichies</dt>
@@ -262,20 +261,18 @@ export function HomePage() {
                   </dd>
                 </div>
               </dl>
-            </div>
-            <div className="panel-block">
-              <h3>Prochaines séances</h3>
+            </Panel>
+            <Panel id="home-next" title="Prochaines séances" defaultOpen>
               <NextSessionsCard data={analytics.next_sessions} />
-            </div>
-            <div className="panel-block">
-              <h3>Tendances par type</h3>
+            </Panel>
+            <Panel id="home-trends" title="Tendances par type" defaultOpen>
               <SessionTypeTrendsPanel
                 summary={analytics.session_type_trends_summary}
                 trends={typeTrends?.trends}
                 detailed={Boolean(typeTrends?.available)}
                 emptyReason={typeTrends?.reason_fr}
               />
-            </div>
+            </Panel>
           </div>
         </section>
       )}
@@ -288,11 +285,10 @@ export function HomePage() {
           </Link>
         </div>
         {activities.length === 0 ? (
-          <div className="empty-state">
-            <p className="muted" style={{ margin: 0 }}>
-              Aucune sortie. Lancez une synchronisation Strava ci-dessus.
-            </p>
-          </div>
+          <EmptyState
+            title="Aucune sortie"
+            description="Lancez une synchronisation Strava ci-dessus pour importer vos activités."
+          />
         ) : (
           <ul className="activity-list">
             {activities.slice(0, 5).map((activity) => (

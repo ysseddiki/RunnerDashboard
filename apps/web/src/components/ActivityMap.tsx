@@ -74,11 +74,11 @@ export function ActivityMap({ activity }: Props) {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <Polyline positions={positions} pathOptions={{ color: '#1a5c3a', weight: 4, opacity: 0.92 }} />
+        <Polyline positions={positions} pathOptions={{ color: '#1a4f8c', weight: 4, opacity: 0.92 }} />
         <CircleMarker
           center={start}
           radius={7}
-          pathOptions={{ color: '#1a5c3a', fillColor: '#2d7a52', fillOpacity: 1 }}
+          pathOptions={{ color: '#1a4f8c', fillColor: '#2d6fbf', fillOpacity: 1 }}
         />
         <CircleMarker
           center={end}

@@ -40,8 +40,8 @@ export function FormChart({ series, form, emptyReason }: Props) {
           type: 'line',
           showSymbol: false,
           data: series.map((p) => p.ctl),
-          lineStyle: { width: 2, color: '#1a5c3a' },
-          itemStyle: { color: '#1a5c3a' },
+          lineStyle: { width: 2, color: '#1a4f8c' },
+          itemStyle: { color: '#1a4f8c' },
         },
         {
           name: 'ATL',

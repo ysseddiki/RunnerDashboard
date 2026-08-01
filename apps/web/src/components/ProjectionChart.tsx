@@ -62,7 +62,7 @@ export function ProjectionChart({ volume, pace10k }: Props) {
           name: 'km',
           nameLocation: 'end',
           nameGap: 8,
-          nameTextStyle: { color: '#1a5c3a', fontWeight: 600 },
+          nameTextStyle: { color: '#1a4f8c', fontWeight: 600 },
           splitLine: { lineStyle: { color: 'rgba(20,32,24,0.08)' } },
           axisLabel: { color: '#5c6f62' },
         },
@@ -87,7 +87,7 @@ export function ProjectionChart({ volume, pace10k }: Props) {
           name: 'Volume (passé)',
           type: 'bar',
           data: volHist,
-          itemStyle: { color: '#1a5c3a' },
+          itemStyle: { color: '#1a4f8c' },
         },
         {
           name: 'Volume (projeté)',

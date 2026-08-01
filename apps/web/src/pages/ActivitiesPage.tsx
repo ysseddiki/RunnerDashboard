@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ActivitySummary } from '../types'
 import { ActivityRow } from '../components/ActivityRow'
+import { EmptyState, SkeletonList } from '../components/EmptyState'
 import { useSessionTypes } from '../useSessionTypes'
 import { useTerrains } from '../useTerrains'
 import { apiFetch } from '../auth'
@@ -20,6 +21,7 @@ export function ActivitiesPage() {
   const { terrains } = useTerrains()
   const { types: sessionTypes } = useSessionTypes()
   const [activities, setActivities] = useState<ActivitySummary[]>([])
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [query, setQuery] = useState('')
@@ -42,9 +44,14 @@ export function ActivitiesPage() {
 
   useEffect(() => {
     let cancelled = false
-    void reload().catch((err: unknown) => {
-      if (!cancelled) setError(err instanceof Error ? err.message : 'Chargement impossible')
-    })
+    setLoading(true)
+    void reload()
+      .catch((err: unknown) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Chargement impossible')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
     return () => {
       cancelled = true
     }
@@ -468,12 +475,15 @@ export function ActivitiesPage() {
         )}
       </div>
 
-      {activities.length === 0 && !error ? (
-        <div className="empty-state">
-          <p className="muted" style={{ margin: 0 }}>
-            Aucune sortie synchronisée.
-          </p>
+      {loading ? (
+        <div aria-busy="true" aria-label="Chargement des activités">
+          <SkeletonList rows={6} />
         </div>
+      ) : activities.length === 0 && !error ? (
+        <EmptyState
+          title="Aucune sortie synchronisée"
+          description="Connectez Strava et lancez une synchronisation depuis l’accueil ou l’admin pour voir vos activités ici."
+        />
       ) : (
         <>
           <div className="list-meta-row">
@@ -493,15 +503,21 @@ export function ActivitiesPage() {
             )}
           </div>
           {filtered.length === 0 ? (
-            <div className="empty-state">
-              <p className="muted" style={{ margin: 0 }}>
-                Aucun résultat pour ces filtres.
-              </p>
-            </div>
+            <EmptyState
+              title="Aucun résultat"
+              description="Aucun résultat pour ces filtres. Essayez d’élargir la période ou de réinitialiser."
+              action={
+                hasActiveFilters ? (
+                  <button type="button" className="btn btn-ghost" onClick={resetFilters}>
+                    Réinitialiser les filtres
+                  </button>
+                ) : undefined
+              }
+            />
           ) : (
             <ul className="activity-list">
-              {filtered.map((activity) => (
-                <li key={activity.id}>
+              {filtered.map((activity, index) => (
+                <li key={activity.id} style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}>
                   <ActivityRow
                     activity={activity}
                     selected={selected.has(activity.id)}
