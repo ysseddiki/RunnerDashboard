@@ -33,7 +33,7 @@ def data_revision(
     user: User = Depends(auth_service.require_user),
     db: Session = Depends(get_db),
 ) -> DataRevisionResponse:
-    """Empreinte légère des données métier pour cache client (prévisions, etc.)."""
+    """Empreinte légère des données métier pour cache client (accueil, activités, prévisions)."""
     count = db.scalar(
         select(func.count()).select_from(Activity).where(Activity.user_id == user.id)
     ) or 0

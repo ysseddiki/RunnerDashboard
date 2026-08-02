@@ -6,7 +6,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app import auth as auth_service
@@ -162,7 +162,7 @@ def clear_session_types(
     result = db.execute(
         update(Activity)
         .where(Activity.user_id == user.id, Activity.session_type.is_not(None))
-        .values(session_type=None)
+        .values(session_type=None, synced_at=func.now())
     )
     cleared = result.rowcount or 0
     db.commit()

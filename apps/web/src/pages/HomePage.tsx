@@ -16,11 +16,44 @@ import { Panel } from '../components/Panel'
 import { EmptyState, SkeletonList } from '../components/EmptyState'
 import { apiFetch } from '../auth'
 import type { SessionTypeTrendsResponse } from '../types'
-import { clearPredictionsCache } from '../predictionsCache'
+import {
+  ACTIVITIES_CACHE_KEY,
+  HOME_CACHE_KEY,
+  clearAllPageCaches,
+  clearPageCache,
+  fetchDataRevision,
+  readPageCache,
+  writePageCache,
+} from '../pageCache'
 
 function trendClass(value: number | null | undefined): string {
   if (value == null || value === 0) return ''
   return value > 0 ? 'trend-up' : 'trend-down'
+}
+
+type HomeCacheData = {
+  strava: StravaStatus
+  activities: ActivitySummary[]
+  analytics: AnalyticsOverview
+  loadSeries: LoadSeriesResponse | null
+  typeTrends: SessionTypeTrendsResponse | null
+}
+
+function applyHomeData(
+  data: HomeCacheData,
+  setters: {
+    setStrava: (v: StravaStatus) => void
+    setActivities: (v: ActivitySummary[]) => void
+    setAnalytics: (v: AnalyticsOverview) => void
+    setLoadSeries: (v: LoadSeriesResponse | null) => void
+    setTypeTrends: (v: SessionTypeTrendsResponse | null) => void
+  },
+) {
+  setters.setStrava(data.strava)
+  setters.setActivities(data.activities)
+  setters.setAnalytics(data.analytics)
+  setters.setLoadSeries(data.loadSeries)
+  setters.setTypeTrends(data.typeTrends)
 }
 
 export function HomePage() {
@@ -34,35 +67,62 @@ export function HomePage() {
   const [syncBusy, setSyncBusy] = useState(false)
   const [syncMessage, setSyncMessage] = useState<string | null>(null)
 
-  function loadHome() {
-    return Promise.all([
+  async function fetchHomePayload(): Promise<HomeCacheData> {
+    const [statusRes, listRes, analyticsRes, seriesRes, trendsRes] = await Promise.all([
       apiFetch('/api/strava/status'),
       apiFetch('/api/activities?limit=100'),
       apiFetch('/api/analytics/overview'),
       apiFetch('/api/analytics/load-series?days=84'),
       apiFetch('/api/analytics/session-type-trends?days=84'),
-    ]).then(async ([statusRes, listRes, analyticsRes, seriesRes, trendsRes]) => {
-      if (!statusRes.ok) throw new Error(`Status Strava HTTP ${statusRes.status}`)
-      if (!listRes.ok) throw new Error(`Activités HTTP ${listRes.status}`)
-      if (!analyticsRes.ok) throw new Error(`Analytics HTTP ${analyticsRes.status}`)
-      const [s, a, an] = await Promise.all([
-        statusRes.json() as Promise<StravaStatus>,
-        listRes.json() as Promise<ActivitySummary[]>,
-        analyticsRes.json() as Promise<AnalyticsOverview>,
-      ])
-      let series: LoadSeriesResponse | null = null
-      if (seriesRes.ok) {
-        series = (await seriesRes.json()) as LoadSeriesResponse
+    ])
+    if (!statusRes.ok) throw new Error(`Status Strava HTTP ${statusRes.status}`)
+    if (!listRes.ok) throw new Error(`Activités HTTP ${listRes.status}`)
+    if (!analyticsRes.ok) throw new Error(`Analytics HTTP ${analyticsRes.status}`)
+    const [s, a, an] = await Promise.all([
+      statusRes.json() as Promise<StravaStatus>,
+      listRes.json() as Promise<ActivitySummary[]>,
+      analyticsRes.json() as Promise<AnalyticsOverview>,
+    ])
+    let series: LoadSeriesResponse | null = null
+    if (seriesRes.ok) {
+      series = (await seriesRes.json()) as LoadSeriesResponse
+    }
+    let trends: SessionTypeTrendsResponse | null = null
+    if (trendsRes.ok) {
+      trends = (await trendsRes.json()) as SessionTypeTrendsResponse
+    }
+    return {
+      strava: s,
+      activities: a,
+      analytics: an,
+      loadSeries: series,
+      typeTrends: trends,
+    }
+  }
+
+  async function loadHome(options?: { bypassCache?: boolean }) {
+    const revision = await fetchDataRevision()
+    if (!options?.bypassCache) {
+      const cached = readPageCache<HomeCacheData>(HOME_CACHE_KEY, revision)
+      if (cached) {
+        applyHomeData(cached, {
+          setStrava,
+          setActivities,
+          setAnalytics,
+          setLoadSeries,
+          setTypeTrends,
+        })
+        return
       }
-      let trends: SessionTypeTrendsResponse | null = null
-      if (trendsRes.ok) {
-        trends = (await trendsRes.json()) as SessionTypeTrendsResponse
-      }
-      setStrava(s)
-      setActivities(a)
-      setAnalytics(an)
-      setLoadSeries(series)
-      setTypeTrends(trends)
+    }
+    const data = await fetchHomePayload()
+    writePageCache(HOME_CACHE_KEY, revision, data)
+    applyHomeData(data, {
+      setStrava,
+      setActivities,
+      setAnalytics,
+      setLoadSeries,
+      setTypeTrends,
     })
   }
 
@@ -94,13 +154,51 @@ export function HomePage() {
         )
       }
       setSyncMessage(typeof body.message === 'string' ? body.message : 'Sync terminée.')
-      clearPredictionsCache()
-      await loadHome()
+      clearAllPageCaches()
+      setLoading(true)
+      await loadHome({ bypassCache: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sync impossible')
     } finally {
+      setLoading(false)
       setSyncBusy(false)
     }
+  }
+
+  function patchActivityInCaches(
+    activityId: number,
+    patch: Partial<ActivitySummary>,
+  ) {
+    setActivities((prev) =>
+      prev.map((a) => (a.id === activityId ? { ...a, ...patch } : a)),
+    )
+    void fetchDataRevision()
+      .then((revision) => {
+        const home = readPageCache<HomeCacheData>(HOME_CACHE_KEY, revision)
+        if (home) {
+          writePageCache(HOME_CACHE_KEY, revision, {
+            ...home,
+            activities: home.activities.map((a) =>
+              a.id === activityId ? { ...a, ...patch } : a,
+            ),
+          })
+        }
+        const acts = readPageCache<{ activities: ActivitySummary[] }>(
+          ACTIVITIES_CACHE_KEY,
+          revision,
+        )
+        if (acts) {
+          writePageCache(ACTIVITIES_CACHE_KEY, revision, {
+            activities: acts.activities.map((a) =>
+              a.id === activityId ? { ...a, ...patch } : a,
+            ),
+          })
+        }
+      })
+      .catch(() => {
+        clearPageCache(HOME_CACHE_KEY)
+        clearPageCache(ACTIVITIES_CACHE_KEY)
+      })
   }
 
   return (
@@ -130,6 +228,15 @@ export function HomePage() {
           </div>
         )}
       </header>
+
+      {loading && !analytics ? (
+        <section className="evolution" aria-busy="true" aria-label="Chargement de l’évolution">
+          <div className="section-head">
+            <h2>Évolution</h2>
+          </div>
+          <SkeletonList rows={3} />
+        </section>
+      ) : null}
 
       {analytics && (
         <section className="evolution" aria-labelledby="evolution-title">
@@ -310,30 +417,16 @@ export function HomePage() {
                 <ActivityRow
                   activity={activity}
                   onSessionTypeSaved={(activityId, sessionType, label) => {
-                    setActivities((prev) =>
-                      prev.map((a) =>
-                        a.id === activityId
-                          ? {
-                              ...a,
-                              session_type: sessionType,
-                              session_type_label_fr: label,
-                            }
-                          : a,
-                      ),
-                    )
+                    patchActivityInCaches(activityId, {
+                      session_type: sessionType,
+                      session_type_label_fr: label,
+                    })
                   }}
                   onTerrainSaved={(activityId, terrain, label) => {
-                    setActivities((prev) =>
-                      prev.map((a) =>
-                        a.id === activityId
-                          ? {
-                              ...a,
-                              terrain,
-                              terrain_label_fr: label,
-                            }
-                          : a,
-                      ),
-                    )
+                    patchActivityInCaches(activityId, {
+                      terrain,
+                      terrain_label_fr: label,
+                    })
                   }}
                 />
               </li>

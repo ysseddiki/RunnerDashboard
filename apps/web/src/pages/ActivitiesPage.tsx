@@ -6,8 +6,20 @@ import { EmptyState, SkeletonList } from '../components/EmptyState'
 import { useSessionTypes } from '../useSessionTypes'
 import { useTerrains } from '../useTerrains'
 import { apiFetch } from '../auth'
+import {
+  ACTIVITIES_CACHE_KEY,
+  HOME_CACHE_KEY,
+  clearPageCache,
+  fetchDataRevision,
+  readPageCache,
+  writePageCache,
+} from '../pageCache'
 
 type PeriodFilter = 'all' | '28d' | '90d' | '365d'
+
+type ActivitiesCacheData = {
+  activities: ActivitySummary[]
+}
 
 function withinPeriod(iso: string | null, period: PeriodFilter): boolean {
   if (period === 'all' || !iso) return period === 'all' ? true : false
@@ -37,10 +49,24 @@ export function ActivitiesPage() {
   const [bulkTerrain, setBulkTerrain] = useState('')
   const [minConfidence, setMinConfidence] = useState<'basse' | 'moyenne' | 'haute'>('basse')
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (options?: { bypassCache?: boolean }) => {
+    const revision = await fetchDataRevision()
+    if (!options?.bypassCache) {
+      const cached = readPageCache<ActivitiesCacheData>(ACTIVITIES_CACHE_KEY, revision)
+      if (cached?.activities) {
+        setActivities(cached.activities)
+        return
+      }
+    }
     const res = await apiFetch('/api/activities?limit=200')
     if (!res.ok) throw new Error(`Activités HTTP ${res.status}`)
-    setActivities((await res.json()) as ActivitySummary[])
+    const list = (await res.json()) as ActivitySummary[]
+    setActivities(list)
+    writePageCache(ACTIVITIES_CACHE_KEY, revision, { activities: list })
+    // Invalidate home list slice so Accueil refetch if types/terrains changed
+    if (options?.bypassCache) {
+      clearPageCache(HOME_CACHE_KEY)
+    }
   }, [])
 
   useEffect(() => {
@@ -189,7 +215,7 @@ export function ActivitiesPage() {
       }
       setMessage(typeof body.message === 'string' ? body.message : 'Mise à jour OK.')
       setSelected(new Set())
-      await reload()
+      await reload({ bypassCache: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Mise à jour impossible')
     } finally {
@@ -218,7 +244,7 @@ export function ActivitiesPage() {
       }
       setMessage(typeof body.message === 'string' ? body.message : 'Types effacés.')
       setSelected(new Set())
-      await reload()
+      await reload({ bypassCache: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Effacement impossible')
     } finally {
@@ -257,7 +283,7 @@ export function ActivitiesPage() {
       }
       setMessage(typeof body.message === 'string' ? body.message : 'Classification terminée.')
       setSelected(new Set())
-      await reload()
+      await reload({ bypassCache: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Classification automatique impossible')
     } finally {
@@ -266,6 +292,22 @@ export function ActivitiesPage() {
   }
 
   const untypedCount = activities.filter((a) => !a.session_type).length
+
+  function patchActivityLocal(activityId: number, patch: Partial<ActivitySummary>) {
+    setActivities((prev) => {
+      const next = prev.map((a) => (a.id === activityId ? { ...a, ...patch } : a))
+      void fetchDataRevision()
+        .then((revision) => {
+          writePageCache(ACTIVITIES_CACHE_KEY, revision, { activities: next })
+          clearPageCache(HOME_CACHE_KEY)
+        })
+        .catch(() => {
+          clearPageCache(ACTIVITIES_CACHE_KEY)
+          clearPageCache(HOME_CACHE_KEY)
+        })
+      return next
+    })
+  }
 
   return (
     <>
@@ -532,30 +574,16 @@ export function ActivitiesPage() {
                     selected={selected.has(activity.id)}
                     onToggleSelect={toggleSelect}
                     onSessionTypeSaved={(activityId, sessionType, label) => {
-                      setActivities((prev) =>
-                        prev.map((a) =>
-                          a.id === activityId
-                            ? {
-                                ...a,
-                                session_type: sessionType,
-                                session_type_label_fr: label,
-                              }
-                            : a,
-                        ),
-                      )
+                      patchActivityLocal(activityId, {
+                        session_type: sessionType,
+                        session_type_label_fr: label,
+                      })
                     }}
                     onTerrainSaved={(activityId, terrain, label) => {
-                      setActivities((prev) =>
-                        prev.map((a) =>
-                          a.id === activityId
-                            ? {
-                                ...a,
-                                terrain,
-                                terrain_label_fr: label,
-                              }
-                            : a,
-                        ),
-                      )
+                      patchActivityLocal(activityId, {
+                        terrain,
+                        terrain_label_fr: label,
+                      })
                     }}
                   />
                 </li>
