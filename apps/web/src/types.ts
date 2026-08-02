@@ -341,6 +341,37 @@ export type AnalyticsOverview = {
   }
 }
 
+export type CodeStorageReport = {
+  available: boolean
+  reason_fr?: string
+  root?: string
+  mode?: string
+  mode_label_fr?: string
+  generated_at?: string
+  source?: {
+    bytes: number
+    bytes_label: string
+    files: number
+    loc_total: number
+  }
+  dependencies?: {
+    bytes: number
+    bytes_label: string
+    files: number
+    note_fr?: string
+  }
+  buckets?: Array<{
+    id: string
+    bytes: number
+    bytes_label: string
+    files: number
+    loc: number
+  }>
+  languages?: Array<{ id: string; files: number; loc: number }>
+  largest_files?: Array<{ path: string; bytes: number; bytes_label: string }>
+  notes_fr?: string[]
+}
+
 export type AppSettings = {
   ollama_model: string
   allowed_ollama_models: string[]

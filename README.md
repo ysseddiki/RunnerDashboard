@@ -136,6 +136,7 @@ docker compose -f infra/docker-compose.yml --env-file .env down
 | **Features** | Fait | KPIs par séance (zones, TRIMP, intervalles), charge ACR, UI détail |
 | **Forme** | Fait | ATL / CTL / TSB + courbe Home ; adhérence plan coach vs sorties |
 | **Prochaines séances** | Fait | Prescriptions déterministes (règles) + tendances par type de séance |
+| **Admin stockage code** | Fait | Inventaire sources / dépendances / LOC (`GET /api/admin/storage`) |
 
 Après Sync (ou **Admin → Recalculer les features**), chaque activité running dérive des métriques déterministes depuis les streams. L’accueil affiche la charge TRIMP/ACR, la **forme** (ATL/CTL/TSB), le volume facile vs qualité, les **prochaines séances** (règles) et les **tendances par type**. Le détail adapte graphes et tableaux au type de séance. La page **Coach** montre le plan avec statut fait / manqué / à venir.
 

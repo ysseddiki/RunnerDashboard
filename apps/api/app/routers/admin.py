@@ -12,6 +12,7 @@ from app.config import Settings, get_settings
 from app.db import get_db
 from app.models import Activity, User
 from app.services import settings as settings_service
+from app.services.code_storage import build_storage_report
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -152,3 +153,12 @@ def clear_own_session_types(
         else "Aucun type de séance à effacer."
     )
     return ClearSessionTypesResult(cleared=cleared, message=message)
+
+
+@router.get("/storage")
+def admin_code_storage(
+    _admin: User = Depends(auth_service.require_admin),
+    env: Settings = Depends(get_settings),
+) -> dict:
+    """Inventaire stockage code (sources / dépendances / LOC)."""
+    return build_storage_report(code_root=env.code_root or None)

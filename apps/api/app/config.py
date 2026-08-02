@@ -78,6 +78,8 @@ class Settings(BaseSettings):
     ollama_keep_alive: str = "-1"
     # Threads CPU Ollama : "auto" = (nproc − 1), "0" = défaut Ollama (tous), ou entier
     ollama_num_thread: str = "auto"
+    # Racine code pour inventaire Admin (vide = auto-détection /code ou monorepo)
+    code_root: str = ""
     # Cookie session signé (obligatoire en prod)
     session_secret: str = DEV_SESSION_SECRET
     # Clé de chiffrement au repos des tokens Strava (défaut : dérivée de session_secret)

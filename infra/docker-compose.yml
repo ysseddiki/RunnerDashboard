@@ -41,8 +41,10 @@ services:
       OLLAMA_NUM_PREDICT: ${OLLAMA_NUM_PREDICT:-650}
       OLLAMA_KEEP_ALIVE: "${OLLAMA_KEEP_ALIVE:--1}"
       OLLAMA_NUM_THREAD: ${OLLAMA_NUM_THREAD:-auto}
+      CODE_ROOT: ${CODE_ROOT:-/code}
     volumes:
       - ${HOST_LOG_DIR:-/var/log/running-dashboards/host-logs}:${LOG_DIR:-/var/log/running-dashboards/host-logs}
+      - ${HOST_CODE_ROOT:-..}:/code:ro
     depends_on:
       postgres:
         condition: service_healthy

@@ -2,7 +2,13 @@ import { useCallback, useEffect, useState } from 'react'
 import type { AuthUser } from '../auth'
 import { apiFetch } from '../auth'
 import { useAuth } from '../authContext'
-import type { AppSettings, AppleImportResult, HealthResponse, StravaStatus } from '../types'
+import type {
+  AppSettings,
+  AppleImportResult,
+  CodeStorageReport,
+  HealthResponse,
+  StravaStatus,
+} from '../types'
 
 type CoachStatus = {
   reachable: boolean
@@ -40,16 +46,20 @@ export function AdminPage() {
   const [appleBusy, setAppleBusy] = useState(false)
   const [appleMessage, setAppleMessage] = useState<string | null>(null)
   const [appleImport, setAppleImport] = useState<AppleImportResult | null>(null)
+  const [storage, setStorage] = useState<CodeStorageReport | null>(null)
+  const [storageBusy, setStorageBusy] = useState(false)
 
   const refresh = useCallback(async () => {
     setError(null)
-    const [healthRes, statusRes, settingsRes, coachRes, usersRes] = await Promise.all([
-      apiFetch('/api/health'),
-      apiFetch('/api/strava/status'),
-      apiFetch('/api/admin/settings'),
-      apiFetch('/api/coach/status'),
-      apiFetch('/api/admin/users'),
-    ])
+    const [healthRes, statusRes, settingsRes, coachRes, usersRes, storageRes] =
+      await Promise.all([
+        apiFetch('/api/health'),
+        apiFetch('/api/strava/status'),
+        apiFetch('/api/admin/settings'),
+        apiFetch('/api/coach/status'),
+        apiFetch('/api/admin/users'),
+        apiFetch('/api/admin/storage'),
+      ])
     if (!healthRes.ok) throw new Error(`Health HTTP ${healthRes.status}`)
     if (!statusRes.ok) throw new Error(`Status Strava HTTP ${statusRes.status}`)
     if (!settingsRes.ok) throw new Error(`Settings HTTP ${settingsRes.status}`)
@@ -71,8 +81,26 @@ export function AdminPage() {
     } else {
       setCoachStatus(null)
     }
+    if (storageRes.ok) {
+      setStorage((await storageRes.json()) as CodeStorageReport)
+    } else {
+      setStorage(null)
+    }
   }, [])
 
+  async function refreshStorage() {
+    setStorageBusy(true)
+    setError(null)
+    try {
+      const res = await apiFetch('/api/admin/storage')
+      if (!res.ok) throw new Error(`Stockage HTTP ${res.status}`)
+      setStorage((await res.json()) as CodeStorageReport)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Inventaire stockage impossible')
+    } finally {
+      setStorageBusy(false)
+    }
+  }
   useEffect(() => {
     void refresh().catch((err: unknown) => {
       setError(err instanceof Error ? err.message : 'Chargement impossible')
@@ -369,7 +397,7 @@ export function AdminPage() {
     <>
       <header className="page-hero">
         <h1>Admin</h1>
-        <p>Utilisateurs, modèles Ollama, sync de vos données et resets.</p>
+        <p>Utilisateurs, modèles Ollama, sync, stockage code et resets.</p>
       </header>
 
       {error && <p className="banner error">{error}</p>}
@@ -613,6 +641,138 @@ export function AdminPage() {
                 ))}
               </ul>
             </div>
+          )}
+        </section>
+
+        <section className="admin-card admin-span">
+          <div className="section-head">
+            <h2 style={{ margin: 0 }}>Stockage code</h2>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => void refreshStorage()}
+              disabled={storageBusy}
+            >
+              {storageBusy ? 'Mesure…' : 'Rafraîchir'}
+            </button>
+          </div>
+          <p className="muted">
+            Empreinte du code source (hors node_modules / .venv / dist / .git) et volume des
+            dépendances.
+          </p>
+          {!storage && <p className="muted">Chargement de l’inventaire…</p>}
+          {storage && !storage.available && (
+            <p className="banner warn">{storage.reason_fr ?? 'Inventaire indisponible.'}</p>
+          )}
+          {storage?.available && storage.source && (
+            <>
+              <dl className="kv">
+                <div>
+                  <dt>Mode</dt>
+                  <dd>{storage.mode_label_fr ?? storage.mode}</dd>
+                </div>
+                <div>
+                  <dt>Racine</dt>
+                  <dd>
+                    <code className="admin-path">{storage.root}</code>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Sources</dt>
+                  <dd>
+                    {storage.source.bytes_label} · {storage.source.files} fichiers ·{' '}
+                    {storage.source.loc_total.toLocaleString('fr-FR')} lignes
+                  </dd>
+                </div>
+                <div>
+                  <dt>Dépendances</dt>
+                  <dd>
+                    {storage.dependencies?.bytes_label ?? '—'} ·{' '}
+                    {storage.dependencies?.files?.toLocaleString('fr-FR') ?? '—'} fichiers
+                  </dd>
+                </div>
+              </dl>
+              {(storage.buckets?.length ?? 0) > 0 && (
+                <div className="admin-storage-table-wrap">
+                  <h3>Par dossier</h3>
+                  <table className="admin-users-table">
+                    <thead>
+                      <tr>
+                        <th>Chemin</th>
+                        <th>Taille</th>
+                        <th>Fichiers</th>
+                        <th>LOC</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {storage.buckets!.slice(0, 12).map((b) => (
+                        <tr key={b.id}>
+                          <td>
+                            <code>{b.id}</code>
+                          </td>
+                          <td>{b.bytes_label}</td>
+                          <td>{b.files}</td>
+                          <td>{b.loc.toLocaleString('fr-FR')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {(storage.languages?.length ?? 0) > 0 && (
+                <div className="admin-storage-table-wrap">
+                  <h3>Par langage</h3>
+                  <table className="admin-users-table">
+                    <thead>
+                      <tr>
+                        <th>Langage</th>
+                        <th>Fichiers</th>
+                        <th>LOC</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {storage.languages!.map((l) => (
+                        <tr key={l.id}>
+                          <td>{l.id}</td>
+                          <td>{l.files}</td>
+                          <td>{l.loc.toLocaleString('fr-FR')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {(storage.largest_files?.length ?? 0) > 0 && (
+                <div className="admin-storage-table-wrap">
+                  <h3>Plus gros fichiers sources</h3>
+                  <table className="admin-users-table">
+                    <thead>
+                      <tr>
+                        <th>Fichier</th>
+                        <th>Taille</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {storage.largest_files!.slice(0, 8).map((f) => (
+                        <tr key={f.path}>
+                          <td>
+                            <code className="admin-path">{f.path}</code>
+                          </td>
+                          <td>{f.bytes_label}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {storage.notes_fr && storage.notes_fr.length > 0 && (
+                <ul className="muted admin-storage-notes">
+                  {storage.notes_fr.map((n) => (
+                    <li key={n}>{n}</li>
+                  ))}
+                </ul>
+              )}
+            </>
           )}
         </section>
 
