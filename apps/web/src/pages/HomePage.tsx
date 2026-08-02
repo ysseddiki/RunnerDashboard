@@ -16,6 +16,7 @@ import { Panel } from '../components/Panel'
 import { EmptyState, SkeletonList } from '../components/EmptyState'
 import { apiFetch } from '../auth'
 import type { SessionTypeTrendsResponse } from '../types'
+import { clearPredictionsCache } from '../predictionsCache'
 
 function trendClass(value: number | null | undefined): string {
   if (value == null || value === 0) return ''
@@ -93,6 +94,7 @@ export function HomePage() {
         )
       }
       setSyncMessage(typeof body.message === 'string' ? body.message : 'Sync terminée.')
+      clearPredictionsCache()
       await loadHome()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sync impossible')

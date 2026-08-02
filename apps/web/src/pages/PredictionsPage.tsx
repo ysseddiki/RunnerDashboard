@@ -5,7 +5,9 @@ import { formatDate, formatFinishTime, formatPaceSec } from '../format'
 import { sessionToneClass } from '../sessionTone'
 import { PaceTrendChart } from '../components/PaceTrendChart'
 import { ProjectionChart } from '../components/ProjectionChart'
+import { SkeletonPredictions } from '../components/EmptyState'
 import { apiFetch } from '../auth'
+import { readPredictionsCache, writePredictionsCache } from '../predictionsCache'
 
 type ProjectionOverview = {
   available: boolean
@@ -269,29 +271,61 @@ export function PredictionsPage() {
   const [projection, setProjection] = useState<ProjectionOverview | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [fromCache, setFromCache] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    void Promise.all([apiFetch('/api/predictions/overview'), apiFetch('/api/projections/overview')])
-      .then(async ([predRes, projRes]) => {
-        if (!predRes.ok) throw new Error(`Prévisions HTTP ${predRes.status}`)
-        if (!projRes.ok) throw new Error(`Projection HTTP ${projRes.status}`)
-        const [pred, proj] = await Promise.all([
-          predRes.json() as Promise<PredictionsOverview>,
-          projRes.json() as Promise<ProjectionOverview>,
-        ])
+    setFromCache(false)
+
+    async function load() {
+      const revRes = await apiFetch('/api/analytics/data-revision')
+      if (!revRes.ok) throw new Error(`Révision données HTTP ${revRes.status}`)
+      const revBody = (await revRes.json()) as { revision: string }
+      const revision = revBody.revision
+
+      const cached = readPredictionsCache(revision)
+      if (cached) {
         if (!cancelled) {
-          setData(pred)
-          setProjection(proj)
+          setData(cached.predictions)
+          setProjection(cached.projections)
+          setFromCache(true)
+          setLoading(false)
         }
+        return
+      }
+
+      const [predRes, projRes] = await Promise.all([
+        apiFetch('/api/predictions/overview'),
+        apiFetch('/api/projections/overview'),
+      ])
+      if (!predRes.ok) throw new Error(`Prévisions HTTP ${predRes.status}`)
+      if (!projRes.ok) throw new Error(`Projection HTTP ${projRes.status}`)
+      const [pred, proj] = await Promise.all([
+        predRes.json() as Promise<PredictionsOverview>,
+        projRes.json() as Promise<ProjectionOverview>,
+      ])
+      writePredictionsCache({
+        revision,
+        predictions: pred,
+        projections: proj,
+        savedAt: new Date().toISOString(),
       })
+      if (!cancelled) {
+        setData(pred)
+        setProjection(proj)
+        setFromCache(false)
+      }
+    }
+
+    void load()
       .catch((err: unknown) => {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Chargement impossible')
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
+
     return () => {
       cancelled = true
     }
@@ -303,7 +337,7 @@ export function PredictionsPage() {
   return (
     <>
       {error && <p className="banner error">{error}</p>}
-      {loading && <p className="muted">Calcul des prévisions et du bilan…</p>}
+      {loading && <SkeletonPredictions />}
 
       {!loading && data && (
         <>
@@ -312,6 +346,7 @@ export function PredictionsPage() {
             <p>
               Estimations d’allure (Riegel + ancres), bilan des données (s/km, FC, volume) et
               projection d’évolution — tout déterministe, sans IA.
+              {fromCache ? ' Affichage depuis le cache (pas de sync récente).' : ''}
             </p>
           </header>
 

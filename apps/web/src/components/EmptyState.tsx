@@ -25,6 +25,22 @@ export function SkeletonDetail() {
   )
 }
 
+export function SkeletonPredictions() {
+  return (
+    <div className="skeleton-predictions" aria-busy="true" aria-label="Chargement des prévisions">
+      <div className="skeleton skeleton-line medium" />
+      <div className="skeleton skeleton-line short" />
+      <div className="skeleton-metrics" aria-hidden="true">
+        {Array.from({ length: 4 }, (_, i) => (
+          <div key={i} className="skeleton skeleton-block" style={{ minHeight: '5.5rem' }} />
+        ))}
+      </div>
+      <div className="skeleton skeleton-block" style={{ marginTop: '1rem', minHeight: '10rem' }} />
+      <div className="skeleton skeleton-block" style={{ marginTop: '0.75rem', minHeight: '8rem' }} />
+    </div>
+  )
+}
+
 type EmptyStateProps = {
   title: string
   description?: string
