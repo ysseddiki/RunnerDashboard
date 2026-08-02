@@ -2,7 +2,9 @@
 
 ## Purpose
 TBD - created by archiving change document-llm-model-profiles. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Choix du modèle dans l’UI
 Le système SHALL permettre de choisir le modèle IA depuis un écran Paramètres de l’interface (liste des profils 7B et 14B).
 
@@ -29,3 +31,23 @@ Le système SHALL afficher un avertissement clair si l’utilisateur sélectionn
 - THEN un message d’avertissement sur la RAM recommandée est visible
 - AND la sélection reste possible
 
+### Requirement: Keep-alive configurable
+Le système SHALL exposer le réglage d’environnement `OLLAMA_KEEP_ALIVE` (défaut `-1`) transmis au client Ollama.
+
+#### Scenario: Défaut permanent
+- **WHEN** aucune valeur n’est fournie
+- **THEN** le keep_alive effectif est `-1`
+
+### Requirement: Préférence de thème
+Le système SHALL permettre de choisir le thème d’interface (`Clair`, `Sombre`, `Système`) depuis Paramètres (ou un contrôle équivalent dans le shell).
+
+#### Scenario: Changement de thème
+- **GIVEN** un utilisateur sur Paramètres
+- **WHEN** il sélectionne `Sombre`
+- **THEN** l’UI passe immédiatement en palette dark
+- **AND** le choix est mémorisé pour les prochaines visites (au minimum en local)
+
+#### Scenario: Système
+- **GIVEN** le thème `Système`
+- **WHEN** la préférence OS change
+- **THEN** l’UI suit la préférence OS sans action supplémentaire
