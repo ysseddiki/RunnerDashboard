@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router'
 import type { ActivitySummary } from '../types'
 import { ActivityRow } from '../components/ActivityRow'
 import { EmptyState, SkeletonList } from '../components/EmptyState'
@@ -324,6 +325,14 @@ export function ActivitiesPage() {
         {selectedCount > 0 && (
           <div className="classify-bar-bulk">
             <span className="muted">{selectedCount} sélectionnée(s)</span>
+            {selectedCount === 2 && (
+              <Link
+                className="btn"
+                to={`/compare?a=${[...selected][0]}&b=${[...selected][1]}`}
+              >
+                Comparer
+              </Link>
+            )}
             <select
               className="filter-select"
               value={bulkSession}

@@ -465,3 +465,48 @@ export type AppleImportResult = {
   message: string
 }
 
+export type CompareDirection = 'mieux' | 'stable' | 'moins_bon' | 'indetermine'
+
+export type CompareActivityCard = {
+  id: number
+  name: string
+  start_date: string | null
+  distance_m: number | null
+  moving_time_s: number | null
+  average_speed_mps: number | null
+  average_heartrate: number | null
+  cadence_ppm: number | null
+  total_elevation_gain_m: number | null
+  session_type: string | null
+  session_type_label_fr: string | null
+  terrain: string | null
+}
+
+export type CompareMetric = {
+  key: string
+  label_fr: string
+  value_a: number | null
+  value_b: number | null
+  display_a: string
+  display_b: string
+  delta: number | null
+  delta_display_fr: string | null
+  direction: CompareDirection
+  note_fr: string | null
+}
+
+export type CompareActivitiesResponse = {
+  activity_a: CompareActivityCard
+  activity_b: CompareActivityCard
+  days_between: number | null
+  interval_label_fr: string
+  intro_fr: string
+  headline_fr: string
+  overall_direction: CompareDirection
+  overall_summary_fr: string
+  metrics: CompareMetric[]
+  caveats_fr: string[]
+  distances_comparable: boolean
+  same_session_type: boolean
+}
+

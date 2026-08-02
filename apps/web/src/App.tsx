@@ -4,6 +4,7 @@ import { Layout } from './components/Layout'
 import { HomePage } from './pages/HomePage'
 import { ActivitiesPage } from './pages/ActivitiesPage'
 import { ActivityDetailPage } from './pages/ActivityDetailPage'
+import { ComparePage } from './pages/ComparePage'
 import { AdminPage } from './pages/AdminPage'
 import { PredictionsPage } from './pages/PredictionsPage'
 import { CoachPage } from './pages/CoachPage'
@@ -28,6 +29,7 @@ export default function App() {
             <Route index element={<HomePage />} />
             <Route path="activities" element={<ActivitiesPage />} />
             <Route path="activities/:id" element={<ActivityDetailPage />} />
+            <Route path="compare" element={<ComparePage />} />
             <Route path="predictions" element={<PredictionsPage />} />
             <Route path="coach" element={<CoachPage />} />
             <Route path="profile" element={<ProfilePage />} />

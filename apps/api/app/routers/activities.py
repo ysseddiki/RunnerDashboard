@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
@@ -12,6 +14,7 @@ from app.config import Settings, get_settings
 from app.db import get_db
 from app.models import Activity, User
 from app.rate_limit import rate_limited
+from app.services import run_comparison as compare_service
 from app.services import session_type_suggest as suggest_service
 from app.services import sync as sync_service
 from app.services.session_types import SESSION_TYPES
@@ -73,6 +76,60 @@ class BulkUpdateRequest(BaseModel):
     terrain: str | None = None
     clear_session_type: bool = False
     clear_terrain: bool = False
+
+
+class CompareActivitiesRequest(BaseModel):
+    activity_ids: list[int] = Field(..., min_length=2, max_length=2)
+
+    @field_validator("activity_ids")
+    @classmethod
+    def distinct_ids(cls, value: list[int]) -> list[int]:
+        if len(set(value)) != 2:
+            raise ValueError("Les deux activités doivent être distinctes")
+        return value
+
+
+class CompareMetric(BaseModel):
+    key: str
+    label_fr: str
+    value_a: float | None = None
+    value_b: float | None = None
+    display_a: str
+    display_b: str
+    delta: float | None = None
+    delta_display_fr: str | None = None
+    direction: str
+    note_fr: str | None = None
+
+
+class CompareActivityCard(BaseModel):
+    id: int
+    name: str
+    start_date: datetime | None = None
+    distance_m: float | None = None
+    moving_time_s: int | None = None
+    average_speed_mps: float | None = None
+    average_heartrate: float | None = None
+    cadence_ppm: float | None = None
+    total_elevation_gain_m: float | None = None
+    session_type: str | None = None
+    session_type_label_fr: str | None = None
+    terrain: str | None = None
+
+
+class CompareActivitiesResponse(BaseModel):
+    activity_a: CompareActivityCard
+    activity_b: CompareActivityCard
+    days_between: int | None = None
+    interval_label_fr: str
+    intro_fr: str
+    headline_fr: str
+    overall_direction: str
+    overall_summary_fr: str
+    metrics: list[CompareMetric]
+    caveats_fr: list[str] = Field(default_factory=list)
+    distances_comparable: bool = True
+    same_session_type: bool = False
 
 
 class ClearSessionTypesResult(BaseModel):
@@ -158,6 +215,20 @@ def apply_session_type_suggestions(
         min_confidence=conf,  # type: ignore[arg-type]
         activity_ids=req.activity_ids,
     )
+
+
+@router.post("/compare", response_model=CompareActivitiesResponse)
+def compare_activities(
+    body: CompareActivitiesRequest,
+    user: User = Depends(auth_service.require_user),
+    db: Session = Depends(get_db),
+) -> CompareActivitiesResponse:
+    id_a, id_b = body.activity_ids
+    row_a = _owned_activity(db, user.id, id_a)
+    row_b = _owned_activity(db, user.id, id_b)
+    older, newer = compare_service.order_pair(row_a, row_b)
+    payload = compare_service.compare_activities(older, newer)
+    return CompareActivitiesResponse.model_validate(payload)
 
 
 @router.post("/bulk-update")
