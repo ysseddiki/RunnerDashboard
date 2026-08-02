@@ -11,6 +11,7 @@ export function Layout() {
   const [loggingOut, setLoggingOut] = useState(false)
 
   useEffect(() => {
+    if (user?.role !== 'admin') return
     let cancelled = false
     void apiFetch('/api/health')
       .then(async (healthRes) => {
@@ -24,7 +25,7 @@ export function Layout() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [user?.role])
 
   async function onLogout() {
     setLoggingOut(true)
@@ -49,7 +50,7 @@ export function Layout() {
           <span className="brand-mark" aria-hidden="true" />
           <span className="brand-name">RunningDashboard</span>
         </NavLink>
-        <nav className="nav" aria-label="Navigation principale">
+        <nav className="nav nav-desktop" aria-label="Navigation principale">
           <NavLink to="/" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')} end>
             Accueil
           </NavLink>
@@ -63,7 +64,7 @@ export function Layout() {
             to="/predictions"
             className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
           >
-            Prévisions & bilan
+            Prévisions
           </NavLink>
           <NavLink
             to="/coach"
@@ -86,12 +87,12 @@ export function Layout() {
         </nav>
 
         <div className="topbar-aside">
-          <div className="topbar-status" aria-label="État système">
+          <div className="topbar-status" aria-label="Compte">
             <span className="status-pill compact" title={displayName}>
               <span className="status-dot on" />
               <span className="status-pill-text">{displayName}</span>
             </span>
-            {health && (
+            {user?.role === 'admin' && health && (
               <span
                 className="status-pill compact"
                 title={`API ${health.status} · ${health.palier} · ${health.version}`}
@@ -117,13 +118,42 @@ export function Layout() {
             onClick={() => void onLogout()}
             disabled={loggingOut}
           >
-            {loggingOut ? '…' : 'Logout'}
+            {loggingOut ? '…' : 'Déconnexion'}
           </button>
         </div>
       </header>
       <main className="page">
         <Outlet />
       </main>
+      <nav className="bottom-nav" aria-label="Navigation mobile">
+        <NavLink to="/" className={({ isActive }) => (isActive ? 'bottom-nav-link active' : 'bottom-nav-link')} end>
+          Accueil
+        </NavLink>
+        <NavLink
+          to="/activities"
+          className={({ isActive }) => (isActive ? 'bottom-nav-link active' : 'bottom-nav-link')}
+        >
+          Activités
+        </NavLink>
+        <NavLink
+          to="/predictions"
+          className={({ isActive }) => (isActive ? 'bottom-nav-link active' : 'bottom-nav-link')}
+        >
+          Prévisions
+        </NavLink>
+        <NavLink
+          to="/coach"
+          className={({ isActive }) => (isActive ? 'bottom-nav-link active' : 'bottom-nav-link')}
+        >
+          Coach
+        </NavLink>
+        <NavLink
+          to="/profile"
+          className={({ isActive }) => (isActive ? 'bottom-nav-link active' : 'bottom-nav-link')}
+        >
+          Profil
+        </NavLink>
+      </nav>
     </div>
   )
 }

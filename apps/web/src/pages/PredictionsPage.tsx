@@ -7,6 +7,7 @@ import { PaceTrendChart } from '../components/PaceTrendChart'
 import { ProjectionChart } from '../components/ProjectionChart'
 import { SkeletonPredictions } from '../components/EmptyState'
 import { apiFetch } from '../auth'
+import { friendlyError } from '../friendlyError'
 import { readPredictionsCache, writePredictionsCache } from '../predictionsCache'
 
 type ProjectionOverview = {
@@ -271,12 +272,10 @@ export function PredictionsPage() {
   const [projection, setProjection] = useState<ProjectionOverview | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [fromCache, setFromCache] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    setFromCache(false)
 
     async function load() {
       const revRes = await apiFetch('/api/analytics/data-revision')
@@ -289,7 +288,6 @@ export function PredictionsPage() {
         if (!cancelled) {
           setData(cached.predictions)
           setProjection(cached.projections)
-          setFromCache(true)
           setLoading(false)
         }
         return
@@ -314,13 +312,12 @@ export function PredictionsPage() {
       if (!cancelled) {
         setData(pred)
         setProjection(proj)
-        setFromCache(false)
       }
     }
 
     void load()
       .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Chargement impossible')
+        if (!cancelled) setError(friendlyError(err, 'Impossible de charger les prévisions.'))
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -341,13 +338,8 @@ export function PredictionsPage() {
 
       {!loading && data && (
         <>
-          <header className="page-hero">
-            <h1>Prévisions & bilan</h1>
-            <p>
-              Estimations d’allure (Riegel + ancres), bilan des données (s/km, FC, volume) et
-              projection d’évolution — tout déterministe, sans IA.
-              {fromCache ? ' Affichage depuis le cache (pas de sync récente).' : ''}
-            </p>
+          <header className="page-hero page-hero-compact">
+            <h1>Prévisions</h1>
           </header>
 
           {data.warnings.map((w) => (

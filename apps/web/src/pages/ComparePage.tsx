@@ -83,9 +83,8 @@ export function ComparePage() {
         ← Retour aux activités
       </Link>
 
-      <header className="page-hero">
-        <h1>Comparer deux sorties</h1>
-        <p>Lecture contextualisée des progrès entre deux séances, pas un simple tableau.</p>
+      <header className="page-hero page-hero-compact">
+        <h1>Comparer</h1>
       </header>
 
       {error && <p className="banner error">{error}</p>}

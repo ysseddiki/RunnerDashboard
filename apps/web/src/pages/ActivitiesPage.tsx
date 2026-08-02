@@ -3,14 +3,17 @@ import { Link } from 'react-router'
 import type { ActivitySummary } from '../types'
 import { ActivityRow } from '../components/ActivityRow'
 import { EmptyState, SkeletonList } from '../components/EmptyState'
+import { FlashBanner } from '../components/FlashBanner'
 import { useSessionTypes } from '../useSessionTypes'
 import { useTerrains } from '../useTerrains'
 import { apiFetch } from '../auth'
+import { friendlyError } from '../friendlyError'
 import {
   ACTIVITIES_CACHE_KEY,
   HOME_CACHE_KEY,
   clearPageCache,
   fetchDataRevision,
+  peekPageCache,
   readPageCache,
   writePageCache,
 } from '../pageCache'
@@ -35,6 +38,7 @@ export function ActivitiesPage() {
   const { types: sessionTypes } = useSessionTypes()
   const [activities, setActivities] = useState<ActivitySummary[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [query, setQuery] = useState('')
@@ -43,11 +47,14 @@ export function ActivitiesPage() {
   const [sourceFilter, setSourceFilter] = useState('all')
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all')
   const [weatherFilter, setWeatherFilter] = useState('all')
+  const [moreFilters, setMoreFilters] = useState(false)
   const [selected, setSelected] = useState<Set<number>>(new Set())
-  const [busy, setBusy] = useState(false)
+  const [busyAction, setBusyAction] = useState<string | null>(null)
   const [bulkSession, setBulkSession] = useState('')
   const [bulkTerrain, setBulkTerrain] = useState('')
   const [minConfidence, setMinConfidence] = useState<'basse' | 'moyenne' | 'haute'>('basse')
+
+  const busy = busyAction != null
 
   const reload = useCallback(async (options?: { bypassCache?: boolean }) => {
     const revision = await fetchDataRevision()
@@ -63,7 +70,6 @@ export function ActivitiesPage() {
     const list = (await res.json()) as ActivitySummary[]
     setActivities(list)
     writePageCache(ACTIVITIES_CACHE_KEY, revision, { activities: list })
-    // Invalidate home list slice so Accueil refetch if types/terrains changed
     if (options?.bypassCache) {
       clearPageCache(HOME_CACHE_KEY)
     }
@@ -71,18 +77,31 @@ export function ActivitiesPage() {
 
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
+    const peeked = peekPageCache<ActivitiesCacheData>(ACTIVITIES_CACHE_KEY)
+    if (peeked?.data.activities) {
+      setActivities(peeked.data.activities)
+      setLoading(false)
+      setRefreshing(true)
+    } else {
+      setLoading(true)
+    }
     void reload()
       .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Chargement impossible')
+        if (!cancelled) setError(friendlyError(err, 'Impossible de charger les activités.'))
       })
       .finally(() => {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) {
+          setLoading(false)
+          setRefreshing(false)
+        }
       })
     return () => {
       cancelled = true
     }
   }, [reload])
+
+  const dismissError = useCallback(() => setError(null), [])
+  const dismissMessage = useCallback(() => setMessage(null), [])
 
   const sessionOptions = useMemo(() => {
     const map = new Map<string, string>()
@@ -157,6 +176,7 @@ export function ActivitiesPage() {
   const selectedCount = selected.size
   const allFilteredSelected =
     filteredIds.length > 0 && filteredIds.every((id) => selected.has(id))
+  const selectedIds = useMemo(() => [...selected], [selected])
 
   const hasActiveFilters =
     query.trim() !== '' ||
@@ -165,6 +185,9 @@ export function ActivitiesPage() {
     sourceFilter !== 'all' ||
     periodFilter !== 'all' ||
     weatherFilter !== 'all'
+
+  const extraFiltersActive =
+    terrainFilter !== 'all' || sourceFilter !== 'all' || weatherFilter !== 'all'
 
   function resetFilters() {
     setQuery('')
@@ -175,11 +198,11 @@ export function ActivitiesPage() {
     setWeatherFilter('all')
   }
 
-  function toggleSelect(id: number) {
+  function toggleSelect(activityId: number) {
     setSelected((prev) => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      if (next.has(activityId)) next.delete(activityId)
+      else next.add(activityId)
       return next
     })
   }
@@ -197,8 +220,8 @@ export function ActivitiesPage() {
     })
   }
 
-  async function runBulk(payload: Record<string, unknown>) {
-    setBusy(true)
+  async function runBulk(payload: Record<string, unknown>, actionId: string) {
+    setBusyAction(actionId)
     setError(null)
     setMessage(null)
     try {
@@ -213,25 +236,19 @@ export function ActivitiesPage() {
           typeof body.detail === 'string' ? body.detail : `Bulk HTTP ${res.status}`,
         )
       }
-      setMessage(typeof body.message === 'string' ? body.message : 'Mise à jour OK.')
+      setMessage(typeof body.message === 'string' ? body.message : 'Mise à jour effectuée.')
       setSelected(new Set())
       await reload({ bypassCache: true })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Mise à jour impossible')
+      setError(friendlyError(err, 'Mise à jour impossible.'))
     } finally {
-      setBusy(false)
+      setBusyAction(null)
     }
   }
 
   async function clearAllTypes() {
-    if (
-      !window.confirm(
-        'Effacer tous vos types de séance ? Les activités repasseront en « Non classé ».',
-      )
-    ) {
-      return
-    }
-    setBusy(true)
+    if (!window.confirm('Effacer tous les types de séance ?')) return
+    setBusyAction('clear')
     setError(null)
     setMessage(null)
     try {
@@ -246,14 +263,14 @@ export function ActivitiesPage() {
       setSelected(new Set())
       await reload({ bypassCache: true })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Effacement impossible')
+      setError(friendlyError(err, 'Effacement impossible.'))
     } finally {
-      setBusy(false)
+      setBusyAction(null)
     }
   }
 
   async function autoClassify(scope: 'untagged' | 'selected') {
-    setBusy(true)
+    setBusyAction(scope === 'untagged' ? 'auto-untagged' : 'auto-selected')
     setError(null)
     setMessage(null)
     try {
@@ -285,9 +302,9 @@ export function ActivitiesPage() {
       setSelected(new Set())
       await reload({ bypassCache: true })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Classification automatique impossible')
+      setError(friendlyError(err, 'Classification impossible.'))
     } finally {
-      setBusy(false)
+      setBusyAction(null)
     }
   }
 
@@ -311,29 +328,117 @@ export function ActivitiesPage() {
 
   return (
     <>
-      <header className="page-hero">
-        <h1>Activités</h1>
-        <p>
-          Filtrez, sélectionnez, classez en masse (type + terrain) ou laissez l’auto-suggestion
-          (allure, FC/zones, features, profil).
-        </p>
+      <header className="page-hero page-hero-compact">
+        <div className="page-hero-row">
+          <h1>Activités</h1>
+          {refreshing ? (
+            <span className="status-pill compact" aria-live="polite">
+              Mise à jour…
+            </span>
+          ) : null}
+        </div>
       </header>
 
-      {error && <p className="banner error">{error}</p>}
-      {message && <p className="banner ok">{message}</p>}
+      <FlashBanner tone="error" message={error} onDismiss={dismissError} />
+      <FlashBanner tone="ok" message={message} onDismiss={dismissMessage} />
 
-      <section className="classify-bar" aria-label="Classification">
-        <div className="classify-bar-main">
-          <button
-            type="button"
-            className="btn btn-ghost"
-            disabled={busy || activities.length === 0}
-            onClick={() => void clearAllTypes()}
-          >
-            Effacer tous les types
+      <div className="toolbar toolbar-filters toolbar-sticky">
+        <input
+          type="search"
+          className="search-input"
+          placeholder="Rechercher…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          aria-label="Rechercher une activité"
+        />
+        <select
+          className="filter-select"
+          value={sessionFilter}
+          onChange={(e) => setSessionFilter(e.target.value)}
+          aria-label="Type de séance"
+        >
+          <option value="all">Tous les types</option>
+          <option value="untyped">Non classés</option>
+          {sessionOptions.map(([id, label]) => (
+            <option key={id} value={id}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <select
+          className="filter-select"
+          value={periodFilter}
+          onChange={(e) => setPeriodFilter(e.target.value as PeriodFilter)}
+          aria-label="Période"
+        >
+          <option value="all">Toutes périodes</option>
+          <option value="28d">28 jours</option>
+          <option value="90d">90 jours</option>
+          <option value="365d">12 mois</option>
+        </select>
+        <button
+          type="button"
+          className={`btn btn-ghost${extraFiltersActive ? ' is-active-filter' : ''}`}
+          onClick={() => setMoreFilters((v) => !v)}
+          aria-expanded={moreFilters}
+        >
+          Plus de filtres
+        </button>
+        {hasActiveFilters && (
+          <button type="button" className="btn btn-ghost filter-reset" onClick={resetFilters}>
+            Réinitialiser
           </button>
+        )}
+      </div>
+
+      {moreFilters ? (
+        <div className="toolbar toolbar-filters toolbar-more">
+          <select
+            className="filter-select"
+            value={terrainFilter}
+            onChange={(e) => setTerrainFilter(e.target.value)}
+            aria-label="Terrain"
+          >
+            <option value="all">Tous les terrains</option>
+            <option value="untyped">Terrain non renseigné</option>
+            {terrainOptions.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.label_fr}
+              </option>
+            ))}
+          </select>
+          <select
+            className="filter-select"
+            value={sourceFilter}
+            onChange={(e) => setSourceFilter(e.target.value)}
+            aria-label="Source"
+          >
+            <option value="all">Toutes sources</option>
+            <option value="strava">Strava seul</option>
+            <option value="linked">Strava + Apple</option>
+            <option value="apple">Apple seul</option>
+          </select>
+          <select
+            className="filter-select"
+            value={weatherFilter}
+            onChange={(e) => setWeatherFilter(e.target.value)}
+            aria-label="Météo"
+          >
+            <option value="all">Toute météo</option>
+            <option value="with">Avec météo</option>
+            <option value="without">Sans météo</option>
+            <option value="hot">Chaud (≥ 20 °C)</option>
+            <option value="cold">Frais (&lt; 12 °C)</option>
+            <option value="rain">Pluie</option>
+          </select>
+        </div>
+      ) : null}
+
+      <details className="classify-details">
+        <summary>Classification automatique</summary>
+        <div className="classify-bar-main">
           <label className="classify-inline">
-            Confiance min.
+            Confiance
             <select
               className="filter-select"
               value={minConfidence}
@@ -353,28 +458,32 @@ export function ActivitiesPage() {
             disabled={busy || untypedCount === 0}
             onClick={() => void autoClassify('untagged')}
           >
-            Auto-classer non classés ({untypedCount})
+            {busyAction === 'auto-untagged' ? '…' : `Auto-classer (${untypedCount})`}
           </button>
           <button
             type="button"
             className="btn btn-ghost"
-            disabled={busy || selectedCount === 0}
-            onClick={() => void autoClassify('selected')}
+            disabled={busy || activities.length === 0}
+            onClick={() => void clearAllTypes()}
           >
-            Auto-classer la sélection
+            {busyAction === 'clear' ? '…' : 'Effacer tous les types'}
           </button>
         </div>
-        {selectedCount > 0 && (
-          <div className="classify-bar-bulk">
+      </details>
+
+      {selectedCount > 0 ? (
+        <section className="bulk-bar" aria-label="Actions sur la sélection">
+          <div className="bulk-bar-lead">
             <span className="muted">{selectedCount} sélectionnée(s)</span>
-            {selectedCount === 2 && (
-              <Link
-                className="btn"
-                to={`/compare?a=${[...selected][0]}&b=${[...selected][1]}`}
-              >
+            {selectedCount === 2 ? (
+              <Link className="btn primary" to={`/compare?a=${selectedIds[0]}&b=${selectedIds[1]}`}>
                 Comparer
               </Link>
+            ) : (
+              <span className="muted bulk-hint">Sélectionnez 2 sorties pour comparer</span>
             )}
+          </div>
+          <div className="classify-bar-bulk">
             <select
               className="filter-select"
               value={bulkSession}
@@ -382,7 +491,7 @@ export function ActivitiesPage() {
               aria-label="Type pour la sélection"
               disabled={busy}
             >
-              <option value="">Type de séance…</option>
+              <option value="">Type…</option>
               <option value="__clear__">Effacer le type</option>
               {sessionOptions.map(([id, label]) => (
                 <option key={id} value={id}>
@@ -395,15 +504,18 @@ export function ActivitiesPage() {
               className="btn btn-small"
               disabled={busy || !bulkSession}
               onClick={() =>
-                void runBulk({
-                  activity_ids: [...selected],
-                  ...(bulkSession === '__clear__'
-                    ? { clear_session_type: true }
-                    : { session_type: bulkSession }),
-                })
+                void runBulk(
+                  {
+                    activity_ids: selectedIds,
+                    ...(bulkSession === '__clear__'
+                      ? { clear_session_type: true }
+                      : { session_type: bulkSession }),
+                  },
+                  'bulk-session',
+                )
               }
             >
-              Appliquer type
+              {busyAction === 'bulk-session' ? '…' : 'Appliquer'}
             </button>
             <select
               className="filter-select"
@@ -425,15 +537,26 @@ export function ActivitiesPage() {
               className="btn btn-small"
               disabled={busy || !bulkTerrain}
               onClick={() =>
-                void runBulk({
-                  activity_ids: [...selected],
-                  ...(bulkTerrain === '__clear__'
-                    ? { clear_terrain: true }
-                    : { terrain: bulkTerrain }),
-                })
+                void runBulk(
+                  {
+                    activity_ids: selectedIds,
+                    ...(bulkTerrain === '__clear__'
+                      ? { clear_terrain: true }
+                      : { terrain: bulkTerrain }),
+                  },
+                  'bulk-terrain',
+                )
               }
             >
-              Appliquer terrain
+              {busyAction === 'bulk-terrain' ? '…' : 'Appliquer'}
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost btn-small"
+              disabled={busy || selectedCount === 0}
+              onClick={() => void autoClassify('selected')}
+            >
+              {busyAction === 'auto-selected' ? '…' : 'Auto-classer'}
             </button>
             <button
               type="button"
@@ -441,100 +564,18 @@ export function ActivitiesPage() {
               disabled={busy}
               onClick={() => setSelected(new Set())}
             >
-              Vider sélection
+              Vider
             </button>
           </div>
-        )}
-      </section>
+        </section>
+      ) : null}
 
-      <div className="toolbar toolbar-filters">
-        <input
-          type="search"
-          className="search-input"
-          placeholder="Rechercher une sortie…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          aria-label="Rechercher une activité"
-        />
-        <select
-          className="filter-select"
-          value={sessionFilter}
-          onChange={(e) => setSessionFilter(e.target.value)}
-          aria-label="Filtrer par type de séance"
-        >
-          <option value="all">Tous les types</option>
-          <option value="untyped">Non classés</option>
-          {sessionOptions.map(([id, label]) => (
-            <option key={id} value={id}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <select
-          className="filter-select"
-          value={terrainFilter}
-          onChange={(e) => setTerrainFilter(e.target.value)}
-          aria-label="Filtrer par terrain"
-        >
-          <option value="all">Tous les terrains</option>
-          <option value="untyped">Terrain non renseigné</option>
-          {terrainOptions.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.label_fr}
-            </option>
-          ))}
-        </select>
-        <select
-          className="filter-select"
-          value={periodFilter}
-          onChange={(e) => setPeriodFilter(e.target.value as PeriodFilter)}
-          aria-label="Filtrer par période"
-        >
-          <option value="all">Toutes périodes</option>
-          <option value="28d">28 derniers jours</option>
-          <option value="90d">90 derniers jours</option>
-          <option value="365d">12 derniers mois</option>
-        </select>
-        <select
-          className="filter-select"
-          value={sourceFilter}
-          onChange={(e) => setSourceFilter(e.target.value)}
-          aria-label="Filtrer par source"
-        >
-          <option value="all">Toutes sources</option>
-          <option value="strava">Strava seul</option>
-          <option value="linked">Strava + Apple</option>
-          <option value="apple">Apple seul</option>
-        </select>
-        <select
-          className="filter-select"
-          value={weatherFilter}
-          onChange={(e) => setWeatherFilter(e.target.value)}
-          aria-label="Filtrer par météo"
-        >
-          <option value="all">Toute météo</option>
-          <option value="with">Avec météo</option>
-          <option value="without">Sans météo</option>
-          <option value="hot">Chaud (≥ 20 °C)</option>
-          <option value="cold">Frais (&lt; 12 °C)</option>
-          <option value="rain">Pluie / orage</option>
-        </select>
-        {hasActiveFilters && (
-          <button type="button" className="btn btn-ghost filter-reset" onClick={resetFilters}>
-            Réinitialiser
-          </button>
-        )}
-      </div>
-
-      {loading ? (
+      {loading && activities.length === 0 ? (
         <div aria-busy="true" aria-label="Chargement des activités">
           <SkeletonList rows={6} />
         </div>
       ) : activities.length === 0 && !error ? (
-        <EmptyState
-          title="Aucune sortie synchronisée"
-          description="Connectez Strava et lancez une synchronisation depuis l’accueil ou l’admin pour voir vos activités ici."
-        />
+        <EmptyState title="Aucune sortie" description="Synchronisez Strava depuis l’accueil." />
       ) : (
         <>
           <div className="list-meta-row">
@@ -549,28 +590,28 @@ export function ActivitiesPage() {
                   checked={allFilteredSelected}
                   onChange={toggleSelectAllFiltered}
                 />
-                Tout sélectionner (filtre)
+                Tout sélectionner
               </label>
             )}
           </div>
           {filtered.length === 0 ? (
             <EmptyState
               title="Aucun résultat"
-              description="Aucun résultat pour ces filtres. Essayez d’élargir la période ou de réinitialiser."
               action={
                 hasActiveFilters ? (
                   <button type="button" className="btn btn-ghost" onClick={resetFilters}>
-                    Réinitialiser les filtres
+                    Réinitialiser
                   </button>
                 ) : undefined
               }
             />
           ) : (
             <ul className="activity-list">
-              {filtered.map((activity, index) => (
-                <li key={activity.id} style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}>
+              {filtered.map((activity) => (
+                <li key={activity.id}>
                   <ActivityRow
                     activity={activity}
+                    compact
                     selected={selected.has(activity.id)}
                     onToggleSelect={toggleSelect}
                     onSessionTypeSaved={(activityId, sessionType, label) => {

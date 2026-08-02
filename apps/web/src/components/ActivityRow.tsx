@@ -20,6 +20,10 @@ type Props = {
   linkBody?: boolean
   /** Render title as h1 on detail page. */
   titleAs?: 'strong' | 'h1'
+  /** Lecture seule : pas de pickers (accueil). */
+  readOnly?: boolean
+  /** Affichage dense (moins de métriques via CSS). */
+  compact?: boolean
 }
 
 function sourceBadge(activity: ActivitySummary): { label: string; className: string } {
@@ -43,6 +47,8 @@ export function ActivityRow({
   onTerrainSaved,
   linkBody = true,
   titleAs = 'strong',
+  readOnly = false,
+  compact = false,
 }: Props) {
   const detailTo = `/activities/${activity.id}`
   const badge = sourceBadge(activity)
@@ -109,7 +115,7 @@ export function ActivityRow({
     <article
       className={`activity${selected ? ' is-selected' : ''}${hasWeather ? ' has-weather' : ''}${
         !linkBody ? ' is-detail' : ''
-      }`}
+      }${compact ? ' is-compact' : ''}${readOnly ? ' is-readonly' : ''}`}
     >
       {onToggleSelect && (
         <label className="activity-select">
@@ -123,22 +129,34 @@ export function ActivityRow({
       )}
       <div className="activity-main">
         <div className="activity-controls">
-          <SessionTypePicker
-            activityId={activity.id}
-            value={activity.session_type}
-            onSaved={(sessionType, label) => {
-              onSessionTypeSaved?.(activity.id, sessionType, label)
-            }}
-          >
-            <TerrainPicker
+          {readOnly ? (
+            <>
+              {activity.session_type_label_fr ? (
+                <span className="chip session-tone-empty">{activity.session_type_label_fr}</span>
+              ) : null}
+              {activity.terrain_label_fr ? (
+                <span className="chip terrain-tone-empty">{activity.terrain_label_fr}</span>
+              ) : null}
+              <span className={badge.className}>{badge.label}</span>
+            </>
+          ) : (
+            <SessionTypePicker
               activityId={activity.id}
-              value={activity.terrain}
-              onSaved={(terrain, label) => {
-                onTerrainSaved?.(activity.id, terrain, label)
+              value={activity.session_type}
+              onSaved={(sessionType, label) => {
+                onSessionTypeSaved?.(activity.id, sessionType, label)
               }}
-            />
-            <span className={badge.className}>{badge.label}</span>
-          </SessionTypePicker>
+            >
+              <TerrainPicker
+                activityId={activity.id}
+                value={activity.terrain}
+                onSaved={(terrain, label) => {
+                  onTerrainSaved?.(activity.id, terrain, label)
+                }}
+              />
+              <span className={badge.className}>{badge.label}</span>
+            </SessionTypePicker>
+          )}
         </div>
         {body}
       </div>

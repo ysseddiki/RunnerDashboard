@@ -17,16 +17,22 @@ export async function fetchDataRevision(): Promise<string> {
   return body.revision
 }
 
-export function readPageCache<T>(key: string, revision: string): T | null {
+export function peekPageCache<T>(key: string): CacheEnvelope<T> | null {
   try {
     const raw = sessionStorage.getItem(key)
     if (!raw) return null
     const parsed = JSON.parse(raw) as CacheEnvelope<T>
-    if (!parsed?.revision || parsed.revision !== revision || parsed.data == null) return null
-    return parsed.data
+    if (!parsed?.revision || parsed.data == null) return null
+    return parsed
   } catch {
     return null
   }
+}
+
+export function readPageCache<T>(key: string, revision: string): T | null {
+  const peeked = peekPageCache<T>(key)
+  if (!peeked || peeked.revision !== revision) return null
+  return peeked.data
 }
 
 export function writePageCache<T>(key: string, revision: string, data: T) {
