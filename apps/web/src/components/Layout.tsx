@@ -1,14 +1,96 @@
-import { useEffect, useState } from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router'
+import { useEffect, useId, useRef, useState } from 'react'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { apiFetch, logout } from '../auth'
 import { useAuth } from '../authContext'
 import type { HealthResponse } from '../types'
 
+function IconHome({ active }: { active?: boolean }) {
+  return (
+    <svg className="bottom-nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill={active ? 'currentColor' : 'none'}
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+        d="M4.5 10.5 12 4l7.5 6.5V20a1 1 0 0 1-1 1h-4.25v-6h-4.5v6H5.5a1 1 0 0 1-1-1v-9.5Z"
+      />
+    </svg>
+  )
+}
+
+function IconActivities({ active }: { active?: boolean }) {
+  return (
+    <svg className="bottom-nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        d="M5 7.5h14M5 12h14M5 16.5h10"
+      />
+      {active ? <circle cx="18.5" cy="16.5" r="1.6" fill="currentColor" /> : null}
+    </svg>
+  )
+}
+
+function IconPredictions({ active }: { active?: boolean }) {
+  return (
+    <svg className="bottom-nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M4.5 16.5 9 11l3.5 3.5L19.5 7.5"
+      />
+      <path
+        fill={active ? 'currentColor' : 'none'}
+        stroke="currentColor"
+        strokeWidth="1.75"
+        d="M16.5 7.5h3v3"
+      />
+    </svg>
+  )
+}
+
+function IconCoach({ active }: { active?: boolean }) {
+  return (
+    <svg className="bottom-nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill={active ? 'currentColor' : 'none'}
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+        d="M5 6.5h14a1 1 0 0 1 1 1V15a1 1 0 0 1-1 1H10l-3.5 2.5V16H5a1 1 0 0 1-1-1V7.5a1 1 0 0 1 1-1Z"
+      />
+    </svg>
+  )
+}
+
+function IconMore({ open }: { open?: boolean }) {
+  return (
+    <svg className="bottom-nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="6.5" cy="12" r={open ? 1.7 : 1.45} fill="currentColor" />
+      <circle cx="12" cy="12" r={open ? 1.7 : 1.45} fill="currentColor" />
+      <circle cx="17.5" cy="12" r={open ? 1.7 : 1.45} fill="currentColor" />
+    </svg>
+  )
+}
+
 export function Layout() {
   const { user, setUser } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [health, setHealth] = useState<HealthResponse | null>(null)
   const [loggingOut, setLoggingOut] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
+  const morePanelId = useId()
+  const moreButtonRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    setMoreOpen(false)
+  }, [location.pathname])
 
   useEffect(() => {
     if (user?.role !== 'admin') return
@@ -27,11 +109,21 @@ export function Layout() {
     }
   }, [user?.role])
 
+  useEffect(() => {
+    if (!moreOpen) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setMoreOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [moreOpen])
+
   async function onLogout() {
     setLoggingOut(true)
     try {
       await logout()
       setUser(null)
+      setMoreOpen(false)
       navigate('/login', { replace: true })
     } finally {
       setLoggingOut(false)
@@ -42,6 +134,11 @@ export function Layout() {
     user?.display_name ||
     [user?.firstname, user?.lastname].filter(Boolean).join(' ') ||
     'Athlète'
+
+  const moreActive =
+    location.pathname.startsWith('/profile') ||
+    location.pathname.startsWith('/docs') ||
+    location.pathname.startsWith('/admin')
 
   return (
     <div className="shell">
@@ -86,7 +183,7 @@ export function Layout() {
           </NavLink>
         </nav>
 
-        <div className="topbar-aside">
+        <div className="topbar-aside topbar-aside-desktop">
           <div className="topbar-status" aria-label="Compte">
             <span className="status-pill compact" title={displayName}>
               <span className="status-dot on" />
@@ -122,37 +219,122 @@ export function Layout() {
           </button>
         </div>
       </header>
+
       <main className="page">
         <Outlet />
       </main>
+
+      {moreOpen ? (
+        <button
+          type="button"
+          className="bottom-nav-backdrop"
+          aria-label="Fermer le menu"
+          onClick={() => setMoreOpen(false)}
+        />
+      ) : null}
+
+      <div className={`bottom-nav-sheet${moreOpen ? ' is-open' : ''}`} id={morePanelId} hidden={!moreOpen}>
+        <div className="bottom-nav-sheet-handle" aria-hidden="true" />
+        <p className="bottom-nav-sheet-title">{displayName}</p>
+        <nav className="bottom-nav-sheet-links" aria-label="Plus d’options">
+          <NavLink
+            to="/profile"
+            className={({ isActive }) =>
+              isActive ? 'bottom-nav-sheet-link active' : 'bottom-nav-sheet-link'
+            }
+            onClick={() => setMoreOpen(false)}
+          >
+            Profil
+          </NavLink>
+          <NavLink
+            to="/docs"
+            className={({ isActive }) =>
+              isActive ? 'bottom-nav-sheet-link active' : 'bottom-nav-sheet-link'
+            }
+            onClick={() => setMoreOpen(false)}
+          >
+            Docs
+          </NavLink>
+          {user?.role === 'admin' ? (
+            <NavLink
+              to="/admin"
+              className={({ isActive }) =>
+                isActive ? 'bottom-nav-sheet-link active' : 'bottom-nav-sheet-link'
+              }
+              onClick={() => setMoreOpen(false)}
+            >
+              Admin
+              {health ? <span className="bottom-nav-sheet-meta">API · {health.palier}</span> : null}
+            </NavLink>
+          ) : null}
+          <button
+            type="button"
+            className="bottom-nav-sheet-link is-action"
+            onClick={() => void onLogout()}
+            disabled={loggingOut}
+          >
+            {loggingOut ? 'Déconnexion…' : 'Déconnexion'}
+          </button>
+        </nav>
+      </div>
+
       <nav className="bottom-nav" aria-label="Navigation mobile">
-        <NavLink to="/" className={({ isActive }) => (isActive ? 'bottom-nav-link active' : 'bottom-nav-link')} end>
-          Accueil
+        <NavLink
+          to="/"
+          end
+          className={({ isActive }) => (isActive ? 'bottom-nav-link active' : 'bottom-nav-link')}
+        >
+          {({ isActive }) => (
+            <>
+              <IconHome active={isActive} />
+              <span>Accueil</span>
+            </>
+          )}
         </NavLink>
         <NavLink
           to="/activities"
           className={({ isActive }) => (isActive ? 'bottom-nav-link active' : 'bottom-nav-link')}
         >
-          Activités
+          {({ isActive }) => (
+            <>
+              <IconActivities active={isActive} />
+              <span>Sorties</span>
+            </>
+          )}
         </NavLink>
         <NavLink
           to="/predictions"
           className={({ isActive }) => (isActive ? 'bottom-nav-link active' : 'bottom-nav-link')}
         >
-          Prévisions
+          {({ isActive }) => (
+            <>
+              <IconPredictions active={isActive} />
+              <span>Prévisions</span>
+            </>
+          )}
         </NavLink>
         <NavLink
           to="/coach"
           className={({ isActive }) => (isActive ? 'bottom-nav-link active' : 'bottom-nav-link')}
         >
-          Coach
+          {({ isActive }) => (
+            <>
+              <IconCoach active={isActive} />
+              <span>Coach</span>
+            </>
+          )}
         </NavLink>
-        <NavLink
-          to="/profile"
-          className={({ isActive }) => (isActive ? 'bottom-nav-link active' : 'bottom-nav-link')}
+        <button
+          ref={moreButtonRef}
+          type="button"
+          className={`bottom-nav-link bottom-nav-more${moreOpen || moreActive ? ' active' : ''}`}
+          aria-expanded={moreOpen}
+          aria-controls={morePanelId}
+          onClick={() => setMoreOpen((v) => !v)}
         >
-          Profil
-        </NavLink>
+          <IconMore open={moreOpen} />
+          <span>Plus</span>
+        </button>
       </nav>
     </div>
   )
