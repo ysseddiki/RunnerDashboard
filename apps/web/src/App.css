@@ -2580,6 +2580,61 @@ label.btn.is-disabled {
   border-color: var(--danger);
 }
 
+.chart-legend-swatch.is-ref {
+  background: transparent;
+  border: 0;
+  border-top: 2px dashed var(--muted);
+  height: 0;
+  border-radius: 0;
+  width: 1.1rem;
+}
+
+.charts-panel-irun {
+  gap: 0.9rem;
+}
+
+.chart-scrub-hud {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.45rem;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.95rem;
+  color: var(--ink-soft);
+}
+
+.chart-scrub-time,
+.chart-scrub-km,
+.chart-scrub-primary {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.chart-scrub-sep {
+  color: var(--muted);
+}
+
+.chart-scrub-series {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.85rem;
+  width: 100%;
+  margin-top: 0.15rem;
+  font-size: 0.82rem;
+}
+
+.chart-scrub-series strong {
+  font-weight: 700;
+}
+
+.charts-panel-irun .charts-wrap {
+  padding-top: 0.15rem;
+}
+
 .chart-attentions {
   display: flex;
   flex-wrap: wrap;

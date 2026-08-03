@@ -316,7 +316,6 @@ export function ActivityDetailPage() {
           <Panel
             id={`activity-charts-${activityId}`}
             title="Courbes de la séance"
-            subtitle="Allure, FC et co. — les pastilles signalent les zones à regarder de plus près."
             className="detail-charts"
             defaultOpen
           >

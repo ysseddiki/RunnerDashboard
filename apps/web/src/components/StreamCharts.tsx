@@ -4,7 +4,12 @@ import type { EChartsOption } from 'echarts'
 import type { ActivityFeatures, StreamPoint } from '../types'
 import { downsamplePoints } from '../streams'
 import { formatClock, formatPaceSec } from '../format'
-import { buildChartAttentions, attentionRangeLabel, type ChartAttention, type ChartSeriesKey } from '../chartAttention'
+import {
+  buildChartAttentions,
+  attentionRangeLabel,
+  type ChartAttention,
+  type ChartSeriesKey,
+} from '../chartAttention'
 import {
   CHART_BRAND,
   CHART_BRAND_FILL,
@@ -18,15 +23,17 @@ import {
 
 type SeriesKey = ChartSeriesKey
 
+const SERIES_ORDER: SeriesKey[] = ['heartrate', 'pace', 'cadence', 'altitude', 'watts']
+
 const SERIES_META: Record<
   SeriesKey,
-  { label: string; unit: string; color: string; invertY?: boolean }
+  { label: string; short: string; unit: string; color: string; invertY?: boolean }
 > = {
-  pace: { label: 'Allure', unit: '/km', color: CHART_SERIES.pace, invertY: true },
-  heartrate: { label: 'FC', unit: 'bpm', color: CHART_SERIES.heartrate },
-  cadence: { label: 'Cadence', unit: 'PPM', color: CHART_SERIES.cadence },
-  altitude: { label: 'Altitude', unit: 'm', color: CHART_SERIES.altitude },
-  watts: { label: 'Puissance', unit: 'W', color: CHART_SERIES.watts },
+  heartrate: { label: 'Fréquence cardiaque', short: 'FC', unit: 'bpm', color: CHART_SERIES.heartrate },
+  pace: { label: 'Allure', short: 'Allure', unit: '/km', color: CHART_SERIES.pace, invertY: true },
+  cadence: { label: 'Cadence', short: 'Cadence', unit: 'PPM', color: CHART_SERIES.cadence },
+  altitude: { label: 'Altitude', short: 'Alt.', unit: 'm', color: CHART_SERIES.altitude },
+  watts: { label: 'Puissance', short: 'W', unit: 'W', color: CHART_SERIES.watts },
 }
 
 function valueAt(point: StreamPoint, key: SeriesKey): number | null {
@@ -48,10 +55,15 @@ function formatValue(key: SeriesKey, value: number | null): string {
   if (value == null || !Number.isFinite(value)) return '—'
   if (key === 'pace') return formatPaceSec(value)
   if (key === 'altitude') return `${value.toFixed(0)} m`
-  if (key === 'heartrate' || key === 'cadence' || key === 'watts') {
-    return `${Math.round(value)} ${SERIES_META[key].unit}`
-  }
+  if (key === 'heartrate') return `${Math.round(value)} bpm`
+  if (key === 'cadence') return `${Math.round(value)} PPM`
+  if (key === 'watts') return `${Math.round(value)} W`
   return String(value)
+}
+
+function formatYTick(key: SeriesKey, v: number): string {
+  if (key === 'pace') return formatPaceSec(v).replace(' /km', '')
+  return String(Math.round(v))
 }
 
 function nearestIndex(sampled: StreamPoint[], distanceKm: number): number {
@@ -79,6 +91,22 @@ function bandColor(severity: 'info' | 'warn', active: boolean): string {
   return active ? 'rgba(138, 90, 18, 0.26)' : 'rgba(138, 90, 18, 0.12)'
 }
 
+function median(values: number[]): number | null {
+  if (values.length === 0) return null
+  const sorted = [...values].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  return sorted.length % 2 === 0
+    ? (sorted[mid - 1]! + sorted[mid]!) / 2
+    : sorted[mid]!
+}
+
+type ScrubState = {
+  index: number
+  distanceKm: number
+  timeS: number
+  values: Partial<Record<SeriesKey, number | null>>
+}
+
 type Props = {
   points: StreamPoint[]
   features?: ActivityFeatures | null
@@ -93,27 +121,39 @@ export function StreamCharts({ points, features, sessionType }: Props) {
   )
   const [activeId, setActiveId] = useState<string | null>(null)
   const active = attentions.find((a) => a.id === activeId) ?? null
+  const [scrub, setScrub] = useState<ScrubState | null>(null)
 
   const available = useMemo(() => {
-    const keys: SeriesKey[] = []
-    for (const key of Object.keys(SERIES_META) as SeriesKey[]) {
-      if (sampled.some((p) => valueAt(p, key) != null)) keys.push(key)
-    }
-    return keys
+    return SERIES_ORDER.filter((key) => sampled.some((p) => valueAt(p, key) != null))
+  }, [sampled])
+
+  const avgPace = useMemo(() => {
+    const vals = sampled
+      .map((p) => p.pace_sec_per_km)
+      .filter((v): v is number => v != null && Number.isFinite(v) && v > 0 && v < 1200)
+    return median(vals)
+  }, [sampled])
+
+  const avgHr = useMemo(() => {
+    const vals = sampled
+      .map((p) => p.heartrate)
+      .filter((v): v is number => v != null && Number.isFinite(v) && v > 40)
+    return median(vals)
   }, [sampled])
 
   const option = useMemo((): EChartsOption | null => {
     if (sampled.length < 2 || available.length === 0) return null
 
     const xData = sampled.map((p) => Number(p.distance_km.toFixed(3)))
-    const gridHeight = 92
-    const gap = 56
-    const topPad = 36
+    const gridHeight = 148
+    const gap = 64
+    const topPad = 28
     const grids = available.map((_, i) => ({
-      left: 56,
-      right: 24,
+      left: 58,
+      right: 20,
       top: topPad + i * (gridHeight + gap),
       height: gridHeight,
+      containLabel: false,
     }))
 
     const xAxes = available.map((_, i) => ({
@@ -121,12 +161,24 @@ export function StreamCharts({ points, features, sessionType }: Props) {
       gridIndex: i,
       data: xData,
       boundaryGap: false,
+      axisLine: { lineStyle: { color: CHART_LINE } },
       axisLabel: {
         show: i === available.length - 1,
-        formatter: (v: string) => `${v} km`,
+        color: '#5a6b7d',
+        fontSize: 11,
+        formatter: (v: string) => {
+          const n = Number(v)
+          if (!Number.isFinite(n)) return `${v} km`
+          return Number.isInteger(n) || Math.abs(n * 2 - Math.round(n * 2)) < 1e-6
+            ? `${n} km`
+            : `${n.toFixed(1)} km`
+        },
       },
-      axisTick: { show: i === available.length - 1 },
-      splitLine: { show: false },
+      axisTick: { show: false },
+      splitLine: {
+        show: true,
+        lineStyle: { color: CHART_LINE, type: 'solid' as const },
+      },
     }))
 
     const yAxes = available.map((key, i) => ({
@@ -134,18 +186,22 @@ export function StreamCharts({ points, features, sessionType }: Props) {
       gridIndex: i,
       name: SERIES_META[key].label,
       nameLocation: 'end' as const,
-      nameGap: 12,
+      nameGap: 10,
       nameTextStyle: {
         color: SERIES_META[key].color,
-        fontSize: 12,
-        fontWeight: 600,
-        padding: [0, 0, 4, 0],
+        fontSize: 13,
+        fontWeight: 650,
+        align: 'left' as const,
+        padding: [0, 0, 6, 0],
       },
       inverse: Boolean(SERIES_META[key].invertY),
       scale: true,
+      axisLine: { show: false },
+      axisTick: { show: false },
       axisLabel: {
-        formatter: (v: number) =>
-          key === 'pace' ? formatPaceSec(v).replace(' /km', '') : String(Math.round(v)),
+        color: '#5a6b7d',
+        fontSize: 11,
+        formatter: (v: number) => formatYTick(key, v),
       },
       splitLine: { lineStyle: { color: CHART_LINE } },
     }))
@@ -200,9 +256,9 @@ export function StreamCharts({ points, features, sessionType }: Props) {
       })
 
       const markPointData = marks.flatMap((a) => {
-        const mid = a.distance_km ?? (a.from_km != null && a.to_km != null
-          ? (a.from_km + a.to_km) / 2
-          : null)
+        const mid =
+          a.distance_km ??
+          (a.from_km != null && a.to_km != null ? (a.from_km + a.to_km) / 2 : null)
         if (mid == null) return []
         const idx = nearestIndex(sampled, mid)
         const y = valueAt(sampled[idx]!, key)
@@ -232,15 +288,22 @@ export function StreamCharts({ points, features, sessionType }: Props) {
         ]
       })
 
-      const allAreas = [
-        ...(key === 'pace' ? intervalAreas : []),
-        ...attentionAreas,
-      ]
+      const allAreas = [...(key === 'pace' ? intervalAreas : []), ...attentionAreas]
+
+      const refY =
+        key === 'pace' ? avgPace : key === 'heartrate' ? avgHr : null
+      const refLabel =
+        key === 'pace' && avgPace != null
+          ? `Moy. ${formatPaceSec(avgPace).replace(' /km', '')}`
+          : key === 'heartrate' && avgHr != null
+            ? `Moy. ${Math.round(avgHr)}`
+            : null
 
       return {
         name: SERIES_META[key].label,
         type: 'line' as const,
         showSymbol: false,
+        smooth: 0.25,
         sampling: 'lttb' as const,
         xAxisIndex: i,
         yAxisIndex: i,
@@ -248,17 +311,41 @@ export function StreamCharts({ points, features, sessionType }: Props) {
           const v = valueAt(p, key)
           return v != null && Number.isFinite(v) ? Number(v.toFixed(2)) : null
         }),
-        lineStyle: { width: 2, color: SERIES_META[key].color },
+        lineStyle: { width: 2.4, color: SERIES_META[key].color },
         itemStyle: { color: SERIES_META[key].color },
         connectNulls: true,
-        ...(allAreas.length > 0
-          ? { markArea: { silent: true, data: allAreas } }
-          : {}),
+        ...(allAreas.length > 0 ? { markArea: { silent: true, data: allAreas } } : {}),
         ...(markPointData.length > 0
           ? {
               markPoint: {
                 symbol: 'circle' as const,
                 data: markPointData,
+              },
+            }
+          : {}),
+        ...(refY != null && refLabel
+          ? {
+              markLine: {
+                silent: true,
+                symbol: 'none' as const,
+                animation: false,
+                label: {
+                  show: true,
+                  formatter: refLabel,
+                  position: 'insideEndTop' as const,
+                  color: '#5a6b7d',
+                  fontSize: 11,
+                  fontWeight: 600 as const,
+                  backgroundColor: 'rgba(255,255,255,0.85)',
+                  padding: [2, 6],
+                  borderRadius: 4,
+                },
+                lineStyle: {
+                  type: 'dashed' as const,
+                  width: 1.25,
+                  color: 'rgba(90, 107, 125, 0.65)',
+                },
+                data: [{ yAxis: Number(refY.toFixed(2)) }],
               },
             }
           : {}),
@@ -269,35 +356,29 @@ export function StreamCharts({ points, features, sessionType }: Props) {
       animation: false,
       color: available.map((k) => SERIES_META[k].color),
       tooltip: {
-        trigger: 'axis',
-        axisPointer: { type: 'cross', link: [{ xAxisIndex: 'all' }] },
-        formatter: (params) => {
-          const list = Array.isArray(params) ? params : [params]
-          const idx = list[0]?.dataIndex
-          if (typeof idx !== 'number') return ''
-          const point = sampled[idx]
-          if (!point) return ''
-          const near = attentions.filter((a) => {
-            if (a.from_km != null && a.to_km != null) {
-              return point.distance_km >= a.from_km && point.distance_km <= a.to_km
-            }
-            return a.distance_km != null && Math.abs(a.distance_km - point.distance_km) < 0.35
-          })
-          const rows = [
-            `<div><strong>${point.distance_km.toFixed(2)} km</strong> · ${formatClock(point.time_s)}</div>`,
-            ...available.map(
-              (key) =>
-                `<div style="color:${SERIES_META[key].color}">${SERIES_META[key].label}: <strong>${formatValue(key, valueAt(point, key))}</strong></div>`,
-            ),
-            ...near.map((a) => {
-              const color = a.severity === 'warn' ? CHART_DANGER : CHART_WARN
-              return `<div style="margin-top:4px;color:${color}"><strong>${a.title}</strong> — ${a.detail}</div>`
-            }),
-          ]
-          return rows.join('')
+        show: false,
+      },
+      axisPointer: {
+        link: [{ xAxisIndex: 'all' }],
+        show: true,
+        type: 'line',
+        snap: true,
+        triggerTooltip: false,
+        triggerOn: 'mousemove|click',
+        lineStyle: {
+          color: 'rgba(15, 28, 46, 0.45)',
+          width: 1.75,
+          type: 'solid',
+        },
+        label: { show: false },
+        handle: {
+          show: true,
+          size: 18,
+          margin: 35,
+          color: CHART_BRAND,
+          shadowBlur: 0,
         },
       },
-      axisPointer: { link: [{ xAxisIndex: 'all' }] },
       dataZoom: [
         {
           type: 'inside',
@@ -309,12 +390,13 @@ export function StreamCharts({ points, features, sessionType }: Props) {
         {
           type: 'slider',
           xAxisIndex: available.map((_, i) => i),
-          height: 22,
-          bottom: 8,
+          height: 18,
+          bottom: 6,
           borderColor: CHART_LINE,
           fillerColor: CHART_BRAND_FILL,
           handleStyle: { color: CHART_BRAND },
-          brushSelect: true,
+          brushSelect: false,
+          showDetail: false,
         },
       ],
       grid: grids,
@@ -322,7 +404,7 @@ export function StreamCharts({ points, features, sessionType }: Props) {
       yAxis: yAxes,
       series,
     }
-  }, [sampled, available, features, attentions, activeId])
+  }, [sampled, available, features, attentions, activeId, avgPace, avgHr])
 
   const chartRef = useRef<ReactECharts | null>(null)
 
@@ -342,20 +424,100 @@ export function StreamCharts({ points, features, sessionType }: Props) {
     })
   }, [active, sampled])
 
+  useEffect(() => {
+    if (sampled.length === 0 || available.length === 0) {
+      setScrub(null)
+      return
+    }
+    const mid = Math.floor(sampled.length / 2)
+    const point = sampled[mid]!
+    setScrub({
+      index: mid,
+      distanceKm: point.distance_km,
+      timeS: point.time_s,
+      values: Object.fromEntries(available.map((k) => [k, valueAt(point, k)])) as ScrubState['values'],
+    })
+  }, [sampled, available])
+
+  function onAxisPointer(event: unknown) {
+    const ev = event as {
+      axesInfo?: Array<{ value?: string | number }>
+      dataIndexInside?: number
+      dataIndex?: number
+    }
+    let idx: number | null = null
+    if (typeof ev.dataIndexInside === 'number') idx = ev.dataIndexInside
+    else if (typeof ev.dataIndex === 'number') idx = ev.dataIndex
+    else if (ev.axesInfo?.[0]?.value != null) {
+      const raw = Number(ev.axesInfo[0].value)
+      if (Number.isFinite(raw)) idx = nearestIndex(sampled, raw)
+    }
+    if (idx == null || idx < 0 || idx >= sampled.length) return
+    const point = sampled[idx]!
+    setScrub({
+      index: idx,
+      distanceKm: point.distance_km,
+      timeS: point.time_s,
+      values: Object.fromEntries(available.map((k) => [k, valueAt(point, k)])) as ScrubState['values'],
+    })
+  }
+
   if (!option) {
     return <p className="muted">Aucune série numérique exploitable pour les courbes.</p>
   }
 
-  const height = 36 + available.length * 148 + 44
+  const height = 28 + available.length * (148 + 64) + 36
   const hasIntervals = (features?.chart_overlays?.interval_segments?.length ?? 0) > 0
+  const primaryKey = available[0]
 
   return (
-    <div className="charts-panel">
+    <div className="charts-panel charts-panel-irun">
+      <div className="chart-scrub-hud" aria-live="polite">
+        {scrub ? (
+          <>
+            <span className="chart-scrub-time">{formatClock(scrub.timeS)}</span>
+            <span className="chart-scrub-sep" aria-hidden="true">
+              ·
+            </span>
+            <span className="chart-scrub-km">{scrub.distanceKm.toFixed(2)} km</span>
+            {primaryKey ? (
+              <>
+                <span className="chart-scrub-sep" aria-hidden="true">
+                  ·
+                </span>
+                <span
+                  className="chart-scrub-primary"
+                  style={{ color: SERIES_META[primaryKey].color }}
+                >
+                  {formatValue(primaryKey, scrub.values[primaryKey] ?? null)}
+                </span>
+              </>
+            ) : null}
+            <div className="chart-scrub-series">
+              {available.map((key) => (
+                <span key={key} style={{ color: SERIES_META[key].color }}>
+                  {SERIES_META[key].short}{' '}
+                  <strong>{formatValue(key, scrub.values[key] ?? null)}</strong>
+                </span>
+              ))}
+            </div>
+          </>
+        ) : (
+          <span className="muted">Survolez ou glissez pour lire un point</span>
+        )}
+      </div>
+
       <div className="chart-legend" aria-label="Légende des plages">
         {hasIntervals && (
           <span className="chart-legend-item">
             <span className="chart-legend-swatch is-ok" aria-hidden="true" />
             Intervalles
+          </span>
+        )}
+        {(avgPace != null || avgHr != null) && (
+          <span className="chart-legend-item">
+            <span className="chart-legend-swatch is-ref" aria-hidden="true" />
+            Moyenne
           </span>
         )}
         <span className="chart-legend-item">
@@ -367,6 +529,7 @@ export function StreamCharts({ points, features, sessionType }: Props) {
           Critique
         </span>
       </div>
+
       {attentions.length > 0 && (
         <div className="chart-attentions" aria-label="Points d’attention">
           {attentions.map((a) => {
@@ -397,20 +560,17 @@ export function StreamCharts({ points, features, sessionType }: Props) {
           <p>{active.detail}</p>
         </div>
       )}
+
       <div className="charts-wrap">
-        <p className="muted charts-hint">
-          Survolez un point pour le détail · molette ou curseur pour zoomer.
-          {hasIntervals ? ' · Bandes teal = intervalles.' : ''}
-          {attentions.length > 0
-            ? ' · Bandes ambre/rouge = plages d’attention (cliquez une puce pour zoomer).'
-            : ''}
-        </p>
         <ReactECharts
           ref={chartRef}
           option={option}
           style={{ height, width: '100%' }}
           notMerge
           lazyUpdate
+          onEvents={{
+            updateAxisPointer: onAxisPointer,
+          }}
         />
       </div>
     </div>
