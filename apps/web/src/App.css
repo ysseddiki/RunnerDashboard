@@ -3981,6 +3981,11 @@ label.btn.is-disabled {
   color: var(--brand);
 }
 
+.adherence-badge.status-matched.is-rest {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
 .adherence-badge.status-missed {
   background: rgba(163, 45, 45, 0.12);
   color: #a32d2d;
@@ -3989,6 +3994,11 @@ label.btn.is-disabled {
 .adherence-badge.status-upcoming {
   background: rgba(45, 106, 143, 0.12);
   color: #2d6a8f;
+}
+
+.adherence-badge.status-today {
+  background: var(--accent-soft);
+  color: var(--accent-deep);
 }
 
 .coach-plan-card.adherence-matched {
@@ -4002,6 +4012,10 @@ label.btn.is-disabled {
 
 .coach-plan-card.adherence-upcoming {
   border-style: dashed;
+}
+
+.coach-plan-card.adherence-today {
+  border-color: var(--accent-glow);
 }
 
 

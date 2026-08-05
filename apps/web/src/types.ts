@@ -182,11 +182,13 @@ export type AdherenceItem = {
   details?: string | null
   target_pace?: string | null
   duration_or_distance?: string | null
-  status: 'matched' | 'missed' | 'upcoming' | string
+  status: 'matched' | 'missed' | 'upcoming' | 'today' | string
   activity_id?: number | null
   activity_name?: string | null
   confidence?: string | null
   type_match?: boolean | null
+  is_rest?: boolean | null
+  rest_ok?: boolean | null
 }
 
 export type PlanAdherence = {
@@ -195,6 +197,8 @@ export type PlanAdherence = {
   matched: number
   missed: number
   upcoming: number
+  today?: number
+  rest_ok?: number
   planned_past: number
   type_mismatch?: number
   items: AdherenceItem[]

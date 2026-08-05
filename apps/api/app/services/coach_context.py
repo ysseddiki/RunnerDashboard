@@ -160,6 +160,9 @@ def build_coach_context(
             "matched": adherence_raw.get("matched"),
             "missed": adherence_raw.get("missed"),
             "upcoming": adherence_raw.get("upcoming"),
+            "today": adherence_raw.get("today"),
+            "rest_ok": adherence_raw.get("rest_ok"),
+            "planned_past": adherence_raw.get("planned_past"),
             "missed_titles": adherence_raw.get("missed_titles") or [],
             "reason_fr": adherence_raw.get("reason_fr"),
         }

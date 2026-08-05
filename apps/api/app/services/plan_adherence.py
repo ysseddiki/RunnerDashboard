@@ -12,6 +12,29 @@ from sqlalchemy.orm import Session
 from app.services.activity_features import is_running_eligible
 from app.services.session_types import label_for
 
+REST_SESSION_TYPES = frozenset({"recuperation", "repos", "rest", "off"})
+HARD_SESSION_TYPES = frozenset(
+    {"vma", "seuil", "fractionne", "cotes", "competition", "tempo", "specific"}
+)
+
+
+def _is_rest_item(item: dict[str, Any]) -> bool:
+    """Jour de repos / vide prévu au plan (pas une vraie séance à matcher)."""
+    st = str(item.get("session_type") or "").strip().lower()
+    if st in REST_SESSION_TYPES:
+        return True
+    blob = f"{item.get('title') or ''} {item.get('details') or ''}".lower()
+    if any(
+        key in blob
+        for key in ("repos", "jour off", "rest day", "jour de repos", "récupération totale")
+    ):
+        return True
+    if not st:
+        dod = item.get("duration_or_distance")
+        if dod is None or str(dod).strip() == "":
+            return True
+    return False
+
 
 def _raw_plan(db: Session, user_id: int) -> dict[str, Any]:
     """Lit le plan sans adhérence (évite récursion)."""
@@ -116,6 +139,8 @@ def build_adherence(
             "matched": 0,
             "missed": 0,
             "upcoming": 0,
+            "today": 0,
+            "rest_ok": 0,
             "planned_past": 0,
             "items": [],
             "missed_titles": [],
@@ -142,6 +167,8 @@ def build_adherence(
             "matched": 0,
             "missed": 0,
             "upcoming": 0,
+            "today": 0,
+            "rest_ok": 0,
             "planned_past": 0,
             "items": [],
             "missed_titles": [],
@@ -209,12 +236,14 @@ def build_adherence(
         matches[idx] = (activity, score, type_match)
 
     annotated: list[dict[str, Any]] = []
-    matched = missed = upcoming = planned_past = 0
+    matched = missed = upcoming = planned_past = today_count = 0
+    rest_ok = 0
     missed_titles: list[str] = []
     type_mismatch = 0
 
     for idx, item, plan_day in dated_items:
         st = item.get("session_type")
+        is_rest = _is_rest_item(item)
         base = {
             "date": plan_day.isoformat(),
             "session_type": st,
@@ -223,7 +252,9 @@ def build_adherence(
             "details": item.get("details"),
             "target_pace": item.get("target_pace"),
             "duration_or_distance": item.get("duration_or_distance"),
+            "is_rest": is_rest,
         }
+        # Futur strict : après aujourd'hui
         if plan_day > today:
             upcoming += 1
             annotated.append(
@@ -233,17 +264,68 @@ def build_adherence(
                     "activity_id": None,
                     "confidence": None,
                     "type_match": None,
+                    "rest_ok": None,
                 }
             )
             continue
 
+        # Jour en cours : pas encore « manqué » (la journée n’est pas close)
+        if plan_day == today:
+            today_count += 1
+            if idx in matches:
+                activity, score, type_match = matches[idx]
+                if not type_match and st:
+                    type_mismatch += 1
+                conf = (
+                    "haute"
+                    if score >= 3 and type_match
+                    else "moyenne"
+                    if score >= 2
+                    else "basse"
+                )
+                annotated.append(
+                    {
+                        **base,
+                        "status": "today",
+                        "activity_id": activity.id,
+                        "activity_name": activity.name,
+                        "confidence": conf,
+                        "type_match": type_match,
+                        "score": score,
+                        "rest_ok": False,
+                    }
+                )
+            else:
+                annotated.append(
+                    {
+                        **base,
+                        "status": "today",
+                        "activity_id": None,
+                        "confidence": None,
+                        "type_match": None,
+                        "rest_ok": is_rest or None,
+                    }
+                )
+            continue
+
+        # Jours complétés uniquement (≤ hier)
         planned_past += 1
         if idx in matches:
             activity, score, type_match = matches[idx]
             matched += 1
-            if not type_match and st:
+            hard = (activity.session_type or "") in HARD_SESSION_TYPES
+            if is_rest and hard:
                 type_mismatch += 1
-            conf = "haute" if score >= 3 and type_match else "moyenne" if score >= 2 else "basse"
+                type_match = False
+            elif not type_match and st and not is_rest:
+                type_mismatch += 1
+            conf = (
+                "haute"
+                if score >= 3 and type_match
+                else "moyenne"
+                if score >= 2
+                else "basse"
+            )
             annotated.append(
                 {
                     **base,
@@ -253,6 +335,21 @@ def build_adherence(
                     "confidence": conf,
                     "type_match": type_match,
                     "score": score,
+                    "rest_ok": False,
+                }
+            )
+        elif is_rest:
+            # Jour vide / repos respecté (aucune sortie requise)
+            matched += 1
+            rest_ok += 1
+            annotated.append(
+                {
+                    **base,
+                    "status": "matched",
+                    "activity_id": None,
+                    "confidence": "haute",
+                    "type_match": True,
+                    "rest_ok": True,
                 }
             )
         else:
@@ -266,6 +363,7 @@ def build_adherence(
                     "activity_id": None,
                     "confidence": None,
                     "type_match": None,
+                    "rest_ok": False,
                 }
             )
 
@@ -276,6 +374,10 @@ def build_adherence(
     warnings: list[str] = []
     if skipped:
         warnings.append(f"{skipped} item(s) sans date exclus du score.")
+    if today_count:
+        warnings.append(
+            f"{today_count} séance(s) du jour en cours hors score (jours complétés = jusqu’à hier)."
+        )
 
     return {
         "available": True,
@@ -283,6 +385,8 @@ def build_adherence(
         "matched": matched,
         "missed": missed,
         "upcoming": upcoming,
+        "today": today_count,
+        "rest_ok": rest_ok,
         "planned_past": planned_past,
         "type_mismatch": type_mismatch,
         "items": annotated,

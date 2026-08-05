@@ -102,6 +102,64 @@ class TestBuildAdherence(unittest.TestCase):
         self.assertEqual(statuses["EF manquée"], "missed")
         self.assertEqual(statuses["Futur"], "upcoming")
 
+    @patch("app.services.plan_adherence._raw_plan")
+    def test_today_not_scored_as_missed(self, mock_plan):
+        mock_plan.return_value = {
+            "plan": [
+                {
+                    "date": "2026-07-25",
+                    "session_type": "ef",
+                    "title": "EF du jour",
+                    "duration_or_distance": "8 km",
+                },
+            ],
+            "updated_at": None,
+            "summary": "ok",
+        }
+        out = build_adherence(
+            SimpleNamespace(),
+            1,
+            now=datetime(2026, 7, 25, 15, 0, tzinfo=timezone.utc),
+            activities=[],
+        )
+        self.assertEqual(out["today"], 1)
+        self.assertEqual(out["planned_past"], 0)
+        self.assertEqual(out["missed"], 0)
+        self.assertIsNone(out["adherence_pct"])
+        self.assertEqual(out["items"][0]["status"], "today")
+
+    @patch("app.services.plan_adherence._raw_plan")
+    def test_rest_empty_day_counts_as_matched(self, mock_plan):
+        mock_plan.return_value = {
+            "plan": [
+                {
+                    "date": "2026-07-21",
+                    "session_type": "recuperation",
+                    "title": "Repos",
+                    "duration_or_distance": None,
+                },
+                {
+                    "date": "2026-07-22",
+                    "session_type": None,
+                    "title": "Jour off",
+                    "duration_or_distance": "",
+                },
+            ],
+            "updated_at": None,
+            "summary": "ok",
+        }
+        out = build_adherence(
+            SimpleNamespace(),
+            1,
+            now=datetime(2026, 7, 25, tzinfo=timezone.utc),
+            activities=[],
+        )
+        self.assertEqual(out["matched"], 2)
+        self.assertEqual(out["rest_ok"], 2)
+        self.assertEqual(out["missed"], 0)
+        self.assertEqual(out["adherence_pct"], 100.0)
+        self.assertTrue(all(i["rest_ok"] for i in out["items"]))
+
 
 if __name__ == "__main__":
     unittest.main()

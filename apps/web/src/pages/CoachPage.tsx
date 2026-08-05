@@ -382,7 +382,11 @@ export function CoachPage() {
           <p className="adherence-summary">
             Adhérence : <strong>{adherence.adherence_pct} %</strong>
             {' · '}
-            {adherence.matched} faite(s) · {adherence.missed} manquée(s)
+            {adherence.matched} faite(s)
+            {(adherence.rest_ok ?? 0) > 0 ? ` dont ${adherence.rest_ok} repos` : ''}
+            {' · '}
+            {adherence.missed} manquée(s)
+            {(adherence.today ?? 0) > 0 ? ` · ${adherence.today} aujourd’hui` : ''}
             {adherence.upcoming > 0 ? ` · ${adherence.upcoming} à venir` : ''}
           </p>
         )}
@@ -410,12 +414,16 @@ export function CoachPage() {
               >
                 <header>
                   <time>{formatPlanDate(item.date)}</time>
-                  <span className={`adherence-badge status-${item.status}`}>
-                    {item.status === 'matched'
-                      ? 'Fait'
-                      : item.status === 'missed'
-                        ? 'Manqué'
-                        : 'À venir'}
+                  <span className={`adherence-badge status-${item.status}${'rest_ok' in item && item.rest_ok ? ' is-rest' : ''}`}>
+                    {'rest_ok' in item && item.rest_ok
+                      ? 'Repos'
+                      : item.status === 'matched'
+                        ? 'Fait'
+                        : item.status === 'missed'
+                          ? 'Manqué'
+                          : item.status === 'today'
+                            ? 'Aujourd’hui'
+                            : 'À venir'}
                   </span>
                   {item.session_type && (
                     <span className={`chip ${sessionToneClass(item.session_type)}`}>
